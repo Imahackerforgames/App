@@ -526,53 +526,6 @@ const Tag = ({ children }) => (
  <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", padding: "3px 7px", borderRadius: 999, color: C.dead, border: `1px solid ${C.line}` }}>{children}</span>
 );
 
-function Landing({ onStart, onLogin }) {
- const t = THEMES.heat;
- return (
- <div className="reseller-root" style={{ minHeight: "100vh", background: t.void, color: t.bone, fontFamily: SANS }}>
- <Styles theme="heat" />
- <div style={{ maxWidth: 560, margin: "0 auto", padding: "60px 22px 40px" }}>
- <div className="rise" style={{ ...rise(0) }}>
- <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "-0.02em" }}>
- RESELLING<span style={{ color: C.accent }}>.</span>
- </span>
- </div>
- <h1 className="rise" style={{ ...rise(1), fontSize: 44, fontWeight: 800, letterSpacing: "-0.045em", lineHeight: 1.02, margin: "26px 0 0" }}>
- Run your reselling business from one place.
- </h1>
- <p className="rise" style={{ ...rise(2), fontSize: 15.5, color: C.dim, margin: "16px 0 0", lineHeight: 1.55 }}>
- Find products, understand the market, and track every dollar — without turning it into
- spreadsheets and accounting software.
- </p>
-
- <div style={{ display: "grid", gap: 10, marginTop: 34 }}>
- {[
- ["Find better products", "AI helps discover products and opportunities worth a look."],
- ["Understand your market", "See online and local demand, competition and recent sold activity."],
- ["Run the business part", "Inventory, sales, real profit and a personal AI, in one app."],
- ].map(([h, b], i) => (
- <div key={h} className="rise" style={{ ...rise(i + 3), ...card, borderRadius: 20 }}>
- <div style={{ fontSize: 15.5, fontWeight: 700 }}>{h}</div>
- <div style={{ fontSize: 13, color: C.dim, marginTop: 6, lineHeight: 1.5 }}>{b}</div>
- </div>
- ))}
- </div>
-
- <div className="rise" style={{ ...rise(6), marginTop: 32, display: "grid", gap: 10 }}>
- <button onClick={onStart} className="fx fx-accent"
- style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 999, padding: "16px", cursor: "pointer", fontSize: 15, fontWeight: 800 }}>
- Sign Up Free
- </button>
- <button onClick={onLogin} className="fx fx-chip"
- style={{ ...pillBtn(false), padding: "15px", fontSize: 14 }}>
- Log In
- </button>
- </div>
- </div>
- </div>
- );
-}
-
 // ═══════════ real Supabase auth, over the REST endpoints ═══════════
 // No SDK needed — these are the same endpoints @supabase/supabase-js calls.
 // If the sandbox blocks the request we fall back to demo mode rather than
@@ -893,7 +846,7 @@ function Onboard({ onDone }) {
 
 export default function ResellOS() {
  const { db, ready, put, reset } = useStore();
- const [stage, setStage] = useState("landing"); // landing | auth | app
+ const [stage, setStage] = useState("auth"); // auth | app
  const [tab, setTab] = useState("home");
  const [jump, setJump] = useState(null);
  const [user, setUser] = useState(null);
@@ -930,21 +883,26 @@ export default function ResellOS() {
 
  const go = (t, payload = null) => { setJump(payload); setTab(t); };
 
- // Clears the session and returns to the landing page, so the whole login
- // flow can be walked again from the top.
+ // Clears the session and returns to the login screen, so the whole flow
+ // can be walked again from the top.
+ //
+ // All three updates run before the await, so React batches them into one
+ // render that shows the login screen. Awaiting first would flush
+ // setUser(null) on its own and re-render the app header — which reads
+ // user.email — against a null user, blanking the screen.
  const signOut = async () => {
+   setStage("auth");
    setUser(null);
    setTab("home");
    try { await window.storage.delete("ros:session"); } catch {}
-   setStage("landing");
  };
  const theme = db.profile.theme || "heat";
 
  if (!ready) return <div style={{ minHeight: "100vh", background: THEMES.heat.void }} />;
 
- if (stage === "landing") return <Landing onStart={() => setStage("auth")} onLogin={() => setStage("auth")} />;
-
- if (stage === "auth") return (
+ // `|| !user` is a backstop: everything below this line reads user.email, so
+ // a null user must never reach it, however the state got that way.
+ if (stage === "auth" || !user) return (
  <AuthScreen theme={theme} onDone={async (p) => {
  setUser(p); try { await window.storage.set("ros:session", JSON.stringify(p)); } catch {}
  setStage("app");
