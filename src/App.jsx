@@ -1381,8 +1381,8 @@ function TrendChart({ sales, range }) {
   const wrapRef = useRef(null);
   const { points, tickEvery } = useMemo(() => chartSeries(sales, range), [sales, range]);
 
-  const W = 320, H = 116;
-  const PAD = { t: 12, r: 10, b: 18, l: 10 };
+  const W = 320, H = 196;
+  const PAD = { t: 16, r: 12, b: 22, l: 12 };
   const iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b;
   const peak = Math.max(1, ...points.map((p) => Math.max(p.revenue, p.profit)));
   const last = points.length - 1;
@@ -1436,10 +1436,30 @@ function TrendChart({ sales, range }) {
       <div ref={wrapRef} style={{ position: "relative", touchAction: "pan-y" }}
         onPointerMove={(e) => track(e.clientX)}
         onPointerLeave={() => setHover(null)}>
-        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} role="img"
-          aria-label={`Revenue and profit, ${points.length} points`} style={{ display: "block", overflow: "visible" }}>
-          {/* recessive baseline */}
-          <line x1={PAD.l} y1={PAD.t + ih} x2={W - PAD.r} y2={PAD.t + ih} stroke={C.line} strokeWidth="1" />
+        {/* height:auto lets the viewBox set the aspect. With a fixed pixel
+            height the SVG scaled to fit the shorter axis and sat letterboxed
+            in the middle of the card instead of filling it. */}
+        <svg viewBox={`0 0 ${W} ${H}`} role="img"
+          aria-label={`Revenue and profit, ${points.length} points`}
+          style={{ display: "block", width: "100%", height: "auto", overflow: "visible" }}>
+          {/* Recessive grid — enough to read a value off, quiet enough to
+              stay behind the lines. */}
+          {[0, 0.5, 1].map((f) => {
+            const gy = PAD.t + ih - f * ih;
+            return (
+              <g key={f}>
+                <line x1={PAD.l} y1={gy} x2={W - PAD.r} y2={gy}
+                  stroke={C.line} strokeWidth="1"
+                  strokeOpacity={f === 0 ? 1 : 0.45}
+                  strokeDasharray={f === 0 ? undefined : "2 4"} />
+                {f > 0 && hasData && (
+                  <text x={PAD.l} y={gy - 4} fill={C.dead} fontSize="8" fontFamily={MONO}>
+                    {money0(peak * f)}
+                  </text>
+                )}
+              </g>
+            );
+          })}
 
           {hasData && (
             <>
