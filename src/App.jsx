@@ -593,6 +593,26 @@ async function supabaseAuth(path, body) {
 
 const AUTH_ICONS = [Footprints, Watch, Gem, Shirt, ShoppingBag, Droplets, Package, TrendingUp, Bookmark, Sparkles];
 
+/* Brand mark. A price tag with a rising arrow inside — the item, and what
+   it gains. The tag's hole is the same accent dot as the period in
+   "RESELLING.", so the mark and the wordmark share one idea.
+
+   The outline takes `currentColor`, so it inherits whatever it sits on,
+   and the dot and arrow take the accent. That keeps it correct in all
+   five themes without the component knowing any colour. */
+function Logo({ size = 46, accent = C.accent, title = "Reselling" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none"
+      role="img" aria-label={title} style={{ display: "block" }}>
+      <path d="M22 8 H34 A6 6 0 0 1 40 14 V34 A6 6 0 0 1 34 40 H16 A6 6 0 0 1 10 34 V20 Z"
+        stroke="currentColor" strokeWidth="3.1" strokeLinejoin="round" />
+      <circle cx="20.5" cy="18.5" r="2.6" fill={accent} />
+      <path d="M19 33 L32 20 M27 20 H32 V25"
+        stroke={accent} strokeWidth="3.1" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function AuthScreen({ onDone, theme }) {
   const [mode, setMode]   = useState("login");   // login | signup
   const [email, setEmail] = useState("");
@@ -694,7 +714,9 @@ function AuthScreen({ onDone, theme }) {
         }
         @keyframes glow { 0%,100% { opacity:.5; transform:scale(1);} 50% { opacity:.85; transform:scale(1.08);} }
         @keyframes slideIn { from { opacity:0; transform:translateY(18px) scale(.98);} to { opacity:1; transform:none;} }
+        @keyframes markIn { from { opacity:0; transform:translateY(7px) scale(.84);} to { opacity:1; transform:none;} }
         .auth-card { animation: slideIn .6s cubic-bezier(.2,.7,.3,1) both; }
+        .auth-logo { animation: markIn .55s cubic-bezier(.2,.7,.3,1) .14s both; }
         .auth-in { transition: border-color .2s, box-shadow .2s, background .2s; }
         .auth-in:focus-within { border-color: var(--c-accent) !important; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-accent) 16%, transparent); }
         .auth-tab { transition: color .2s; }
@@ -703,7 +725,14 @@ function AuthScreen({ onDone, theme }) {
         .auth-cta:active:not(:disabled) { transform: translateY(0) scale(.98); }
         .auth-alt { transition: border-color .2s, background .2s, transform .16s; }
         .auth-alt:hover { border-color: var(--c-accent) !important; transform: translateY(-1px); }
-        @media (prefers-reduced-motion: reduce) { .auth-card,[data-drift]{animation:none !important;opacity:.1 !important} }
+        /* The card and the mark stop moving but stay fully visible. The .1
+           opacity below is only meant for the ambient drifting icons —
+           applying it to .auth-card too left the whole login form at 10%
+           opacity for anyone browsing with reduced motion. */
+        @media (prefers-reduced-motion: reduce) {
+          .auth-card,.auth-logo { animation: none !important; }
+          [data-drift] { animation: none !important; opacity: .1 !important; }
+        }
       `}</style>
 
       {/* ambient reselling icons, drifting slowly — motion is unhurried on purpose */}
@@ -733,6 +762,9 @@ function AuthScreen({ onDone, theme }) {
         <div className="auth-card" style={{ width: "100%", maxWidth: 400 }}>
 
           <div style={{ textAlign: "center", marginBottom: 30 }}>
+            <div className="auth-logo" style={{ display: "flex", justifyContent: "center", marginBottom: 15, color: t.bone }}>
+              <Logo size={46} accent={t.accent} />
+            </div>
             <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.045em" }}>
               RESELLING<span style={{ color: t.accent }}>.</span>
             </div>
