@@ -679,10 +679,13 @@ function AuthScreen({ onDone, theme }) {
     <div className="reseller-root" style={{ minHeight: "100vh", background: t.void, color: t.bone, fontFamily: SANS, position: "relative", overflow: "hidden" }}>
       <Styles theme={theme} />
       <style>{`
+        /* The 4% ramp is deliberate: on the 16-32s cycles below it lands
+           between half a second and a second, so an icon is simply there
+           rather than visibly arriving. */
         @keyframes drift {
           0%   { transform: translateY(0) rotate(0deg);      opacity: 0; }
-          10%  { opacity: .13; }
-          90%  { opacity: .13; }
+          4%   { opacity: .13; }
+          88%  { opacity: .13; }
           100% { transform: translateY(-120px) rotate(14deg); opacity: 0; }
         }
         @keyframes glow { 0%,100% { opacity:.5; transform:scale(1);} 50% { opacity:.85; transform:scale(1.08);} }
@@ -715,7 +718,11 @@ function AuthScreen({ onDone, theme }) {
             position: "absolute",
             left: `${[8,26,44,62,80,14,36,58,74,90][i]}%`,
             top: `${[72,88,64,92,70,30,14,26,44,8][i]}%`,
-            animation: `drift ${16 + (i % 5) * 4}s linear ${i * 1.9}s infinite`,
+            /* Short stagger, not a queue. At the old 1.9s spacing the last
+               icon didn't start until 17s in, so the screen looked empty on
+               arrival and filled up one icon at a time. The varying cycle
+               lengths above pull them out of step soon enough on their own. */
+            animation: `drift ${16 + (i % 5) * 4}s linear ${i * 0.22}s infinite`,
             color: i % 3 === 0 ? t.accent : t.dim, opacity: 0,
           }}>
             <Icon size={[40,31,50,28,37,34,46,30,42,33][i]} strokeWidth={1.25} />
