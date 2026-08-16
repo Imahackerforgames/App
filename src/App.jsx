@@ -586,28 +586,79 @@ function Logo({ size = 46, accent = C.accent, title = "Reselling" }) {
   );
 }
 
+/* Password rules. Every one must pass before an account can be created —
+   the strength bar is the visible half of exactly this list, so the meter
+   and the gate can never disagree with each other. */
+const PW_RULES = [
+  ["8+ characters",     (p) => p.length >= 8],
+  ["Lowercase letter",  (p) => /[a-z]/.test(p)],
+  ["Uppercase letter",  (p) => /[A-Z]/.test(p)],
+  ["Number",            (p) => /\d/.test(p)],
+  ["Special character", (p) => /[^A-Za-z0-9]/.test(p)],
+];
+
+/* Semantic colours, deliberately not the theme accent — red/amber/green
+   have to mean weak/fair/strong in every palette, including the ones whose
+   accent is already red. */
+const PW_TONE = {
+  weak:   { color: "#E1424A", label: "Weak",   pct: 33 },
+  fair:   { color: "#D9932B", label: "Fair",   pct: 66 },
+  strong: { color: "#1FA25C", label: "Strong", pct: 100 },
+};
+
+function passwordStrength(pw) {
+  const met = PW_RULES.map(([label, test]) => ({ label, ok: test(pw) }));
+  const n = met.filter((r) => r.ok).length;
+  const level = n <= 2 ? "weak" : n <= 4 ? "fair" : "strong";
+  return { met, n, level, ok: n === PW_RULES.length };
+}
+
 function AuthScreen({ onDone, theme }) {
   const [mode, setMode]   = useState("login");   // login | signup
+  const [phase, setPhase] = useState("form");    // form | verify
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [pw, setPw]       = useState("");
+  const [code, setCode]   = useState("");
   const [busy, setBusy]   = useState(false);
   const [err, setErr]     = useState(null);
   const [note, setNote]   = useState(null);
 
   const t = THEMES[theme] || THEMES.heat;
-  const ok = /\S+@\S+\.\S+/.test(email) && pw.length >= 6;
+  const strength = passwordStrength(pw);
+  const emailOk = /\S+@\S+\.\S+/.test(email);
+  // Logging in only needs credentials that already exist; the rules gate
+  // account creation, so an older weaker password can still sign in.
+  const ok = mode === "login"
+    ? emailOk && pw.length >= 6
+    : emailOk && username.trim().length >= 2 && strength.ok;
 
   const submit = async () => {
+    // Spell out why rather than leaving a dead button. The strength gate is
+    // the most likely reason someone is stuck here.
+    if (!busy && mode === "signup" && emailOk && username.trim().length >= 2 && !strength.ok) {
+      const missing = strength.met.filter((r) => !r.ok).map((r) => r.label.toLowerCase());
+      setErr(`Password is too weak${strength.level === "fair" ? " — only fair" : ""}. Still needs ${missing.join(", ")}. Try again.`);
+      return;
+    }
     if (!ok || busy) return;
     setBusy(true); setErr(null); setNote(null);
     try {
       if (mode === "signup") {
-        const d = await supabaseAuth("signup", { email, password: pw });
+        const d = await supabaseAuth("signup", {
+          email,
+          password: pw,
+          // The signup trigger reads full_name/name out of this metadata to
+          // fill in profiles.name, so the username lands in the profile row.
+          data: { username: username.trim(), name: username.trim() },
+        });
         if (d.user && !d.access_token) {
-          setNote("Account created. Check your email to confirm, then log in.");
-          setMode("login"); setBusy(false); return;
+          // No note here — the verify screen's own heading already says this,
+          // and setting both printed the same sentence twice.
+          setPhase("verify"); setCode("");
+          setBusy(false); return;
         }
-        onDone({ email, provider: "email", token: d.access_token, id: d.user?.id });
+        onDone({ email, provider: "email", token: d.access_token, id: d.user?.id, username: username.trim() });
       } else {
         const d = await supabaseAuth("token?grant_type=password", { email, password: pw });
         onDone({ email, provider: "email", token: d.access_token, id: d.user?.id });
@@ -618,6 +669,38 @@ function AuthScreen({ onDone, theme }) {
         setNote("Can't reach Supabase from this preview. Continuing in demo mode.");
         setTimeout(() => onDone({ email, provider: "demo" }), 900);
       } else setErr(e.message);
+    } finally { setBusy(false); }
+  };
+
+  /* Exchanges the emailed 6-digit code for a session. Supabase calls this
+     token verification: type "signup" confirms the address and signs the
+     new account in, in one step. */
+  const verifyCode = async () => {
+    const token = code.replace(/\D/g, "");
+    if (token.length !== 6 || busy) return;
+    setBusy(true); setErr(null); setNote(null);
+    try {
+      const d = await supabaseAuth("verify", { type: "signup", email, token });
+      if (!d.access_token) { setErr("That code didn't work. Check it and try again."); return; }
+      onDone({ email, provider: "email", token: d.access_token, id: d.user?.id, username: username.trim() });
+    } catch (e) {
+      if (/failed to fetch|networkerror|load failed/i.test(e.message)) {
+        setNote("Can't reach Supabase from this preview. Continuing in demo mode.");
+        setTimeout(() => onDone({ email, provider: "demo", username: username.trim() }), 900);
+      } else setErr(/expired|invalid/i.test(e.message)
+        ? "That code is wrong or has expired. Send a new one."
+        : e.message);
+    } finally { setBusy(false); }
+  };
+
+  const resendCode = async () => {
+    if (busy) return;
+    setBusy(true); setErr(null); setNote(null);
+    try {
+      await supabaseAuth("resend", { type: "signup", email });
+      setNote(`New code sent to ${email}.`);
+    } catch (e) {
+      setErr(e.message);
     } finally { setBusy(false); }
   };
 
@@ -693,9 +776,25 @@ function AuthScreen({ onDone, theme }) {
         @keyframes markIn { from { opacity:0; transform:translateY(7px) scale(.84);} to { opacity:1; transform:none;} }
         .auth-card { animation: slideIn .6s cubic-bezier(.2,.7,.3,1) both; }
         .auth-logo { animation: markIn .55s cubic-bezier(.2,.7,.3,1) .14s both; }
-        .auth-in { transition: border-color .2s, box-shadow .2s, background .2s; }
-        .auth-in:focus-within { border-color: var(--c-accent) !important; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-accent) 16%, transparent); }
-        .auth-tab { transition: color .2s; }
+        /* Hover motion. Everything you can act on lifts slightly toward the
+           cursor; the lift is small and fast enough to read as responsiveness
+           rather than decoration. */
+        .auth-in { transition: border-color .2s, box-shadow .2s, background .2s, transform .18s cubic-bezier(.2,.7,.3,1); }
+        .auth-in:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--c-accent) 45%, var(--c-line)); }
+        .auth-in:focus-within { border-color: var(--c-accent) !important; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-accent) 16%, transparent); transform: translateY(-2px); }
+        .auth-tab { transition: color .2s, transform .16s cubic-bezier(.2,.7,.3,1); }
+        .auth-tab:hover { transform: translateY(-1px); }
+        /* Hold the placeholder well back — at this size and tracking, mid-grey
+           zeros read as a code that's already been typed. */
+        .otp-in::placeholder { color: var(--c-dead); opacity: .38; }
+        .pw-req { transition: transform .16s cubic-bezier(.2,.7,.3,1); }
+        .pw-req:hover { transform: translateY(-2px) scale(1.04); }
+        .auth-link { transition: color .2s, transform .16s cubic-bezier(.2,.7,.3,1); }
+        .auth-link:hover { color: var(--c-accent) !important; transform: translateY(-1px); }
+        /* On the svg, not .auth-logo — that element's markIn animation uses
+           fill "both", which pins its transform and would beat a hover rule. */
+        .auth-logo svg { transition: transform .22s cubic-bezier(.2,.7,.3,1); }
+        .auth-logo:hover svg { transform: translateY(-3px) rotate(-4deg); }
         .auth-cta { transition: transform .16s cubic-bezier(.2,.7,.3,1), box-shadow .22s, filter .2s; }
         .auth-cta:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 14px 34px -10px var(--c-accent); filter: brightness(1.06); }
         .auth-cta:active:not(:disabled) { transform: translateY(0) scale(.98); }
@@ -708,6 +807,10 @@ function AuthScreen({ onDone, theme }) {
         @media (prefers-reduced-motion: reduce) {
           .auth-card,.auth-logo { animation: none !important; }
           [data-drift] { animation: none !important; opacity: .1 !important; }
+          /* Hover still gives feedback, just without the movement. */
+          .auth-in,.auth-tab,.pw-req,.auth-link,.auth-cta,.auth-alt,.auth-logo svg { transition: none !important; }
+          .auth-in:hover,.auth-tab:hover,.pw-req:hover,.auth-link:hover,
+          .auth-cta:hover:not(:disabled),.auth-alt:hover,.auth-logo:hover svg { transform: none !important; }
         }
       `}</style>
 
@@ -767,6 +870,56 @@ function AuthScreen({ onDone, theme }) {
 
           <div style={{ background: t.panel, border: `1px solid ${t.line}`, borderRadius: 26, padding: 24, boxShadow: "0 24px 60px -24px rgba(0,0,0,.7)" }}>
 
+            {phase === "verify" ? (
+              /* Code screen. Replaces the whole card rather than sitting under
+                 it, so there is exactly one thing to do at this point. */
+              <div>
+                <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 8 }}>
+                  Check your email
+                </div>
+                <p style={{ fontSize: 13, color: t.dim, lineHeight: 1.55, margin: "0 0 20px" }}>
+                  We sent a 6-digit code to <span style={{ color: t.bone, fontWeight: 700 }}>{email}</span>.
+                  Enter it below to finish creating your account.
+                </p>
+
+                <div className="auth-in" style={{ background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px", marginBottom: 14 }}>
+                  <input value={code} inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    onKeyDown={(e) => e.key === "Enter" && verifyCode()}
+                    placeholder="000000" aria-label="6-digit verification code" className="otp-in"
+                    style={{ width: "100%", background: "none", border: "none", outline: "none",
+                      color: t.bone, fontFamily: MONO, fontSize: 26, fontWeight: 700,
+                      letterSpacing: "0.34em", textAlign: "center", padding: "16px 0" }} />
+                </div>
+
+                {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accent, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
+                {note && <div style={{ fontSize: 12.5, color: t.dim, marginBottom: 12, lineHeight: 1.5 }}>{note}</div>}
+
+                <button onClick={verifyCode} disabled={code.length !== 6 || busy} className="auth-cta"
+                  style={{ width: "100%", padding: "15px", borderRadius: 14, border: "none",
+                    cursor: code.length === 6 && !busy ? "pointer" : "not-allowed",
+                    fontFamily: SANS, fontSize: 15, fontWeight: 800,
+                    background: code.length === 6 ? t.accent : t.raised,
+                    color: code.length === 6 ? "#fff" : t.dead }}>
+                  {busy ? "Checking…" : "Verify and continue"}
+                </button>
+
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 14 }}>
+                  <button onClick={resendCode} disabled={busy} className="auth-link"
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer",
+                      fontFamily: SANS, fontSize: 12, fontWeight: 600, color: t.dim }}>
+                    Send a new code
+                  </button>
+                  <button onClick={() => { setPhase("form"); setErr(null); setNote(null); }} className="auth-link"
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer",
+                      fontFamily: SANS, fontSize: 12, fontWeight: 600, color: t.dim }}>
+                    Use a different email
+                  </button>
+                </div>
+              </div>
+            ) : (
+            <>
+
             {/* tabs */}
             <div style={{ display: "flex", background: t.raised, borderRadius: 999, padding: 4, marginBottom: 22, position: "relative" }}>
               <div style={{ position: "absolute", top: 4, bottom: 4, width: "calc(50% - 4px)",
@@ -782,30 +935,87 @@ function AuthScreen({ onDone, theme }) {
               ))}
             </div>
 
-            <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim, marginBottom: 8 }}>Email</div>
-            <div className="auth-in" style={{ display: "flex", alignItems: "center", background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px", marginBottom: 16 }}>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" autoComplete="email"
-                onKeyDown={(e) => e.key === "Enter" && submit()}
-                style={{ flex: 1, background: "none", border: "none", outline: "none", color: t.bone, fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
+            {mode === "signup" && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim, marginBottom: 8 }}>Username</div>
+                <div className="auth-in" style={{ display: "flex", alignItems: "center", background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px" }}>
+                  <input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
+                    placeholder="What should we call you?" autoComplete="username" maxLength={40}
+                    onKeyDown={(e) => e.key === "Enter" && submit()}
+                    style={{ flex: 1, background: "none", border: "none", outline: "none", color: t.bone, fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim, marginBottom: 8 }}>Email</div>
+              <div className="auth-in" style={{ display: "flex", alignItems: "center", background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px" }}>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" autoComplete="email"
+                  onKeyDown={(e) => e.key === "Enter" && submit()}
+                  style={{ flex: 1, background: "none", border: "none", outline: "none", color: t.bone, fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
+              </div>
             </div>
 
-            <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim, marginBottom: 8 }}>Password</div>
-            <div className="auth-in" style={{ display: "flex", alignItems: "center", background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px", marginBottom: 6 }}>
-              <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="At least 6 characters"
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-                onKeyDown={(e) => e.key === "Enter" && submit()}
-                style={{ flex: 1, background: "none", border: "none", outline: "none", color: t.bone, fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
-            </div>
-            <div style={{ height: 16, fontSize: 11, color: pw && pw.length < 6 ? t.accent : "transparent", marginBottom: 6 }}>
-              Password needs at least 6 characters
+            <div style={{ marginBottom: mode === "signup" ? 14 : 6 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim, marginBottom: 8 }}>Password</div>
+              <div className="auth-in" style={{ display: "flex", alignItems: "center", background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px" }}>
+                <input type="password" value={pw} onChange={(e) => setPw(e.target.value)}
+                  placeholder={mode === "signup" ? "Make it a strong one" : "Your password"}
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  onKeyDown={(e) => e.key === "Enter" && submit()}
+                  style={{ flex: 1, background: "none", border: "none", outline: "none", color: t.bone, fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
+              </div>
             </div>
 
-            {err  && <div style={{ fontSize: 12.5, color: t.accent, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
+            {/* Strength meter. Only on sign-up — on the login tab the rules
+                don't apply and a red bar over an old password is just noise. */}
+            {mode === "signup" && pw.length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: t.dim }}>
+                    Strength
+                  </span>
+                  <span style={{ fontSize: 11.5, fontWeight: 800, color: PW_TONE[strength.level].color }}>
+                    {PW_TONE[strength.level].label}
+                  </span>
+                </div>
+                <div role="progressbar" aria-valuenow={strength.n} aria-valuemin={0} aria-valuemax={PW_RULES.length}
+                  aria-label="Password strength"
+                  style={{ height: 6, borderRadius: 999, background: t.raised, overflow: "hidden" }}>
+                  <div style={{
+                    height: "100%", width: `${PW_TONE[strength.level].pct}%`,
+                    background: PW_TONE[strength.level].color, borderRadius: 999,
+                    transition: "width .3s cubic-bezier(.2,.7,.3,1), background .3s",
+                  }} />
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                  {strength.met.map((r) => (
+                    <span key={r.label} className="pw-req" style={{
+                      fontSize: 10.5, fontWeight: 600, padding: "4px 9px", borderRadius: 999,
+                      border: `1px solid ${r.ok ? PW_TONE.strong.color : t.line}`,
+                      color: r.ok ? PW_TONE.strong.color : t.dead,
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                    }}>
+                      {r.ok ? <Check size={11} strokeWidth={3} /> : <Minus size={11} strokeWidth={3} />}
+                      {r.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {mode === "login" && (
+              <div style={{ height: 16, fontSize: 11, color: pw && pw.length < 6 ? t.accent : "transparent", marginBottom: 6 }}>
+                Password needs at least 6 characters
+              </div>
+            )}
+
+            {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accent, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
             {note && <div style={{ fontSize: 12.5, color: t.dim, marginBottom: 12, lineHeight: 1.5 }}>{note}</div>}
 
-            <button onClick={submit} disabled={!ok || busy} className="auth-cta"
+            <button onClick={submit} disabled={busy} className="auth-cta"
               style={{ width: "100%", padding: "15px", borderRadius: 14, border: "none",
-                cursor: ok && !busy ? "pointer" : "not-allowed", fontFamily: SANS, fontSize: 15, fontWeight: 800,
+                cursor: busy ? "not-allowed" : "pointer", fontFamily: SANS, fontSize: 15, fontWeight: 800,
                 background: ok ? t.accent : t.raised, color: ok ? "#fff" : t.dead }}>
               {busy ? "One moment…" : mode === "login" ? "Log in" : "Create account"}
             </button>
@@ -828,6 +1038,8 @@ function AuthScreen({ onDone, theme }) {
             <p style={{ fontSize: 10.5, color: t.dead, textAlign: "center", marginTop: 9, lineHeight: 1.5 }}>
               Opens a popup — allow popups if your browser blocks it
             </p>
+            </>
+            )}
           </div>
 
           <p style={{ fontSize: 11, color: t.dead, textAlign: "center", marginTop: 18, lineHeight: 1.6 }}>
