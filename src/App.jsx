@@ -510,6 +510,15 @@ function Styles({ theme }) {
  .reseller-root {
  --c-void:${t.void}; --c-panel:${t.panel}; --c-raised:${t.raised}; --c-line:${t.line};
  --c-accent:${t.accent}; --c-accentDim:${t.accentDim}; --c-bone:${t.bone}; --c-dim:${t.dim}; --c-dead:${t.dead};
+
+ /* One hover glow, defined once and used everywhere, so every element
+    lights up identically. Both layers are centred — no y-offset — because
+    an offset pools the light at the bottom instead of ringing the shape
+    evenly. --glow-focus is the same recipe turned up for focus. */
+ --glow: 0 0 0 3px color-mix(in srgb, var(--c-accent) 16%, transparent),
+         0 0 18px 0 color-mix(in srgb, var(--c-accent) 45%, transparent);
+ --glow-focus: 0 0 0 4px color-mix(in srgb, var(--c-accent) 24%, transparent),
+               0 0 24px 0 color-mix(in srgb, var(--c-accent) 55%, transparent);
  }
  * { box-sizing: border-box; }
  input::placeholder, textarea::placeholder { color: ${C.dead}; }
@@ -526,11 +535,11 @@ function Styles({ theme }) {
  /* Hover glow. A tight accent ring reads as an outline at any size, and the
     wide soft shadow underneath is what makes it glow rather than just
     outline. Both are colour, not motion, so they survive reduced motion. */
- .fx-accent:hover { box-shadow: 0 0 0 1px ${C.accent}, 0 8px 30px -6px ${C.accent}; }
+ .fx-accent:hover { box-shadow: var(--glow); }
  .fx-card:hover { border-color: ${C.accent} !important; background: ${C.raised} !important;
-   box-shadow: 0 0 0 3px color-mix(in srgb, ${C.accent} 14%, transparent), 0 10px 30px -14px ${C.accent}; }
+   box-shadow: var(--glow); }
  .fx-chip:hover { border-color: ${C.accent} !important; color: ${C.bone} !important;
-   box-shadow: 0 0 0 3px color-mix(in srgb, ${C.accent} 14%, transparent), 0 8px 22px -12px ${C.accent}; }
+   box-shadow: var(--glow); }
  .lnk { transition: background .15s, color .15s, border-color .15s; }
  .lnk:hover { background:${C.accent} !important; color:#fff !important; border-color:${C.accent} !important; }
  button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible, textarea:focus-visible {
@@ -810,15 +819,13 @@ function AuthScreen({ onDone, theme }) {
         .auth-in:hover {
           transform: translateY(-2px);
           border-color: var(--c-accent);
-          box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-accent) 14%, transparent),
-                      0 10px 28px -14px var(--c-accent);
+          box-shadow: var(--glow);
         }
         /* Declared after :hover so a focused field keeps the stronger ring
            even while the pointer is over it. */
         .auth-in:focus-within {
           border-color: var(--c-accent) !important;
-          box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-accent) 22%, transparent),
-                      0 12px 32px -14px var(--c-accent);
+          box-shadow: var(--glow-focus);
           transform: translateY(-2px);
         }
         .auth-tab { transition: color .2s, transform .16s cubic-bezier(.2,.7,.3,1), text-shadow .2s; }
@@ -829,8 +836,7 @@ function AuthScreen({ onDone, theme }) {
         .pw-req { transition: transform .16s cubic-bezier(.2,.7,.3,1), box-shadow .2s; }
         .pw-req:hover {
           transform: translateY(-2px) scale(1.04);
-          box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-accent) 13%, transparent),
-                      0 6px 18px -10px var(--c-accent);
+          box-shadow: var(--glow);
         }
         .auth-link { transition: color .2s, transform .16s cubic-bezier(.2,.7,.3,1), text-shadow .2s; }
         .auth-link:hover {
@@ -845,13 +851,12 @@ function AuthScreen({ onDone, theme }) {
           filter: drop-shadow(0 0 10px color-mix(in srgb, var(--c-accent) 70%, transparent));
         }
         .auth-cta { transition: transform .16s cubic-bezier(.2,.7,.3,1), box-shadow .22s, filter .2s; }
-        .auth-cta:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 14px 34px -10px var(--c-accent); filter: brightness(1.06); }
+        .auth-cta:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--glow); filter: brightness(1.06); }
         .auth-cta:active:not(:disabled) { transform: translateY(0) scale(.98); }
         .auth-alt { transition: border-color .2s, background .2s, transform .16s; }
         .auth-alt:hover {
           border-color: var(--c-accent) !important; transform: translateY(-1px);
-          box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-accent) 13%, transparent),
-                      0 10px 26px -14px var(--c-accent);
+          box-shadow: var(--glow);
         }
         /* The card and the mark stop moving but stay fully visible. The .1
            opacity below is only meant for the ambient drifting icons —
