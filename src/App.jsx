@@ -99,16 +99,35 @@ function safeUrl(u) {
 }
 const stripPrices = (t) => (t || "").replace(/\$\s?[\d,]+(\.\d{1,2})?/g, "").replace(/\s{2,}/g, " ").trim();
 
-async function askClaude(messages, { tools, maxTokens = 1000, model = ANTHROPIC_MODEL_DEFAULT } = {}) {
- const res = await fetch("https://api.anthropic.com/v1/messages", {
- method: "POST",
- headers: { "Content-Type": "application/json" },
- body: JSON.stringify({ model, max_tokens: maxTokens, messages, ...(tools ? { tools } : {}) }),
- });
- if (!res.ok) throw new Error(`Request failed (${res.status}). Try again.`);
- const data = await res.json();
- if (data.error) throw new Error(data.error.message || "Empty response.");
- return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+const AI_FN = `${SUPABASE_URL}/functions/v1/ai-assistant`;
+
+/** The signed-in user's access token, for the JWT-gated Edge Functions. */
+async function sessionToken() {
+ try {
+   const a = await window.storage.get("ros:session");
+   return a ? JSON.parse(a.value).token || null : null;
+ } catch { return null; }
+}
+
+/* Routed through the ai-assistant Edge Function, not api.anthropic.com.
+   Calling Anthropic straight from the browser cannot work: the API sends no
+   CORS headers to web origins, so the request is blocked before it leaves the
+   page ("Failed to fetch" / "Load failed"), and the key would be exposed even
+   if it did. The key lives server-side in the function. */
+async function askClaude(messages, { context = "" } = {}) {
+ const token = await sessionToken();
+ const headers = { "Content-Type": "application/json", apikey: SUPABASE_PUBLISHABLE_KEY };
+ if (token) headers.Authorization = `Bearer ${token}`;
+
+ let res;
+ try {
+   res = await fetch(AI_FN, { method: "POST", headers, body: JSON.stringify({ messages, context }) });
+ } catch {
+   throw new Error("Can't reach the assistant service. The ai-assistant function may not be deployed yet, or you're offline.");
+ }
+ const data = await res.json().catch(() => ({}));
+ if (!res.ok) throw new Error(data.error || `Request failed (${res.status}). Try again.`);
+ return data.answer || "";
 }
 
 function salvageTuples(text) {
