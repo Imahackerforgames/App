@@ -1309,6 +1309,187 @@ export default function ResellOS() {
  );
 }
 
+/* ── Revenue vs profit chart ─────────────────────────────────────
+   Buckets the user's sales into the same window the range filter
+   selects, so the chart, the totals under it and the stat tiles are
+   always describing one slice of time. */
+function chartSeries(sales, range) {
+  const dayMs = 864e5;
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  const buckets = [];
+
+  if (range === "today") {
+    for (let i = 0; i < 8; i++) {
+      const from = new Date(midnight.getTime() + i * 3 * 36e5);
+      const h = from.getHours();
+      buckets.push({ from: from.getTime(), to: from.getTime() + 3 * 36e5,
+        tick: `${(h % 12) || 12}${h < 12 ? "a" : "p"}`,
+        full: `${(h % 12) || 12}${h < 12 ? "am" : "pm"}–${((h + 3) % 12) || 12}${(h + 3) < 12 ? "am" : "pm"}` });
+    }
+  } else if (range === "7" || range === "30") {
+    const n = range === "7" ? 7 : 30;
+    for (let i = 0; i < n; i++) {
+      const from = new Date(midnight.getTime() - (n - 1 - i) * dayMs);
+      buckets.push({ from: from.getTime(), to: from.getTime() + dayMs,
+        tick: n === 7 ? "SMTWTFS"[from.getDay()] : String(from.getDate()),
+        full: from.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) });
+    }
+  } else {
+    // All time: month buckets from the first sale to now, at least six so a
+    // new account still gets a chart rather than a single dot.
+    const first = sales.length
+      ? new Date(Math.min(...sales.map((x) => new Date(x.soldAt).getTime())))
+      : new Date();
+    const start = new Date(first.getFullYear(), first.getMonth(), 1);
+    const cur = new Date(); cur.setDate(1); cur.setHours(0, 0, 0, 0);
+    let months = (cur.getFullYear() - start.getFullYear()) * 12 + (cur.getMonth() - start.getMonth()) + 1;
+    months = Math.max(6, Math.min(months, 24));
+    for (let i = months - 1; i >= 0; i--) {
+      const from = new Date(cur.getFullYear(), cur.getMonth() - i, 1);
+      const to = new Date(cur.getFullYear(), cur.getMonth() - i + 1, 1);
+      buckets.push({ from: from.getTime(), to: to.getTime(),
+        tick: from.toLocaleDateString(undefined, { month: "narrow" }),
+        full: from.toLocaleDateString(undefined, { month: "long", year: "numeric" }) });
+    }
+  }
+
+  const points = buckets.map((b) => {
+    const inRange = sales.filter((x) => {
+      const ts = new Date(x.soldAt).getTime();
+      return ts >= b.from && ts < b.to;
+    });
+    return {
+      tick: b.tick, full: b.full,
+      revenue: inRange.reduce((a, x) => a + x.amount, 0),
+      profit: inRange.reduce((a, x) => a + x.profit, 0),
+      sold: inRange.length,
+    };
+  });
+
+  // Every fifth day is labelled on the 30-day view; all of them would collide.
+  const tickEvery = points.length > 12 ? 5 : 1;
+  return { points, tickEvery };
+}
+
+/* Two series on one axis — both are dollars, so a second scale would be a
+   lie. Profit carries the accent and an area fill because it's the number
+   that matters; revenue is the recessive reference line above it. The two
+   are told apart by dash pattern and end labels as well as colour, so
+   identity never rests on hue alone. */
+function TrendChart({ sales, range }) {
+  const [hover, setHover] = useState(null);
+  const wrapRef = useRef(null);
+  const { points, tickEvery } = useMemo(() => chartSeries(sales, range), [sales, range]);
+
+  const W = 320, H = 116;
+  const PAD = { t: 12, r: 10, b: 18, l: 10 };
+  const iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b;
+  const peak = Math.max(1, ...points.map((p) => Math.max(p.revenue, p.profit)));
+  const last = points.length - 1;
+
+  const x = (i) => PAD.l + (last === 0 ? iw / 2 : (i / last) * iw);
+  const y = (v) => PAD.t + ih - (Math.max(0, v) / peak) * ih;
+  const line = (k) => points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(p[k]).toFixed(1)}`).join(" ");
+  const areaPath = `${line("profit")} L${x(last).toFixed(1)} ${(PAD.t + ih).toFixed(1)} L${x(0).toFixed(1)} ${(PAD.t + ih).toFixed(1)} Z`;
+
+  const hasData = points.some((p) => p.revenue > 0 || p.profit > 0);
+  const active = hover == null ? null : points[hover];
+
+  const track = (clientX) => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const px = ((clientX - r.left) / r.width) * W;
+    const i = last === 0 ? 0 : Math.round(((px - PAD.l) / iw) * last);
+    setHover(clamp(i, 0, last));
+  };
+
+  return (
+    <div>
+      {/* Readout sits above the plot rather than floating over it. On a chart
+          this short a floating tooltip covers the lines it is describing.
+          Fixed height, so nothing below it moves when the pointer arrives. */}
+      <div role="status" style={{ height: 34, marginBottom: 6 }}>
+        <div style={{ fontSize: 9.5, color: C.dead, fontFamily: MONO, height: 13 }}>
+          {active ? `${active.full} · ${active.sold} ${active.sold === 1 ? "sale" : "sales"}` : ""}
+        </div>
+        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+          {[["Profit", C.accent, false, active?.profit], ["Revenue", C.dim, true, active?.revenue]].map(
+            ([name, colour, dashed, value]) => (
+              <span key={name} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <svg width="14" height="4" aria-hidden="true" style={{ flexShrink: 0 }}>
+                  <line x1="0" y1="2" x2="14" y2="2" stroke={colour} strokeWidth="2"
+                    strokeDasharray={dashed ? "3 2" : undefined} strokeLinecap="round" />
+                </svg>
+                {active && (
+                  <span style={{ fontSize: 13, fontWeight: 800, color: C.bone, fontVariantNumeric: "tabular-nums" }}>
+                    {money0(value)}
+                  </span>
+                )}
+                <span style={{ fontSize: 10.5, color: C.dim }}>{name}</span>
+              </span>
+            ),
+          )}
+        </div>
+      </div>
+
+      <div ref={wrapRef} style={{ position: "relative", touchAction: "pan-y" }}
+        onPointerMove={(e) => track(e.clientX)}
+        onPointerLeave={() => setHover(null)}>
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} role="img"
+          aria-label={`Revenue and profit, ${points.length} points`} style={{ display: "block", overflow: "visible" }}>
+          {/* recessive baseline */}
+          <line x1={PAD.l} y1={PAD.t + ih} x2={W - PAD.r} y2={PAD.t + ih} stroke={C.line} strokeWidth="1" />
+
+          {hasData && (
+            <>
+              <defs>
+                <linearGradient id="profitFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={C.accent} stopOpacity="0.28" />
+                  <stop offset="100%" stopColor={C.accent} stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d={areaPath} fill="url(#profitFill)" />
+              <path d={line("revenue")} fill="none" stroke={C.dim} strokeWidth="1.5"
+                strokeDasharray="3 2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d={line("profit")} fill="none" stroke={C.accent} strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round" />
+            </>
+          )}
+
+          {/* crosshair: the reader aims at a date, not at a 2px line */}
+          {active && (
+            <>
+              <line x1={x(hover)} y1={PAD.t} x2={x(hover)} y2={PAD.t + ih} stroke={C.accent} strokeWidth="1" strokeOpacity="0.45" />
+              <circle cx={x(hover)} cy={y(active.revenue)} r="3.5" fill={C.panel} stroke={C.dim} strokeWidth="2" />
+              <circle cx={x(hover)} cy={y(active.profit)} r="4.5" fill={C.panel} stroke={C.accent} strokeWidth="2.5" />
+            </>
+          )}
+
+          {points.map((p, i) => (
+            (i % tickEvery === 0 || i === last) && (
+              <text key={i} x={x(i)} y={H - 4} textAnchor="middle"
+                fill={hover === i ? C.bone : C.dead} fontSize="8.5" fontFamily={MONO}>
+                {p.tick}
+              </text>
+            )
+          ))}
+        </svg>
+
+      </div>
+
+      {!hasData && (
+        <div style={{
+          position: "absolute", inset: 0, display: "grid", placeItems: "center",
+          pointerEvents: "none", fontSize: 11.5, color: C.dead,
+        }}>
+          No sales in this range yet.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HomeScreen({ db, put, biz, range, setRange, go }) {
  const [notifOpen, setNotifOpen] = useState(false);
  const [goalText, setGoalText] = useState("");
@@ -1374,16 +1555,7 @@ function HomeScreen({ db, put, biz, range, setRange, go }) {
 
  <div className="rise" style={{ ...rise(4), ...card, marginTop: 12 }}>
  <div style={{ ...label, marginBottom: 13 }}>Revenue vs profit</div>
- <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 78 }}>
- {biz.weekBuckets.map((v, i) => (
- <div key={i} style={{ flex: 1, display: "grid", gap: 6, justifyItems: "center" }}>
- <div style={{ width: "100%", height: Math.max(3, (v / Math.max(...biz.weekBuckets, 1)) * 60), borderRadius: 6, background: v > 0 ? C.accent : C.raised, transition: "height .5s cubic-bezier(.2,.7,.3,1)" }} />
- <span style={{ fontSize: 9.5, color: C.dead, fontFamily: MONO }}>
- {["S","M","T","W","T","F","S"][new Date(Date.now() - (6 - i) * 864e5).getDay()]}
- </span>
- </div>
- ))}
- </div>
+ <TrendChart sales={db.sales} range={range} />
  <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
  <MiniLine l="Revenue" v={biz.revenue} />
  <MiniLine l="Product cost" v={-biz.cost} />
