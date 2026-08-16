@@ -618,6 +618,8 @@ function AuthScreen({ onDone, theme }) {
   const [phase, setPhase] = useState("form");    // form | verify
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
+  const [loginWith, setLoginWith] = useState("email"); // email | username
+  const [loginId, setLoginId] = useState("");          // whichever of the two they typed
   const [pw, setPw]       = useState("");
   const [code, setCode]   = useState("");
   const [busy, setBusy]   = useState(false);
@@ -629,8 +631,11 @@ function AuthScreen({ onDone, theme }) {
   const emailOk = /\S+@\S+\.\S+/.test(email);
   // Logging in only needs credentials that already exist; the rules gate
   // account creation, so an older weaker password can still sign in.
+  const loginIdOk = loginWith === "email"
+    ? /\S+@\S+\.\S+/.test(loginId)
+    : loginId.trim().length >= 2;
   const ok = mode === "login"
-    ? emailOk && pw.length >= 6
+    ? loginIdOk && pw.length >= 6
     : emailOk && username.trim().length >= 2 && strength.ok;
 
   const submit = async () => {
@@ -659,9 +664,20 @@ function AuthScreen({ onDone, theme }) {
           setBusy(false); return;
         }
         onDone({ email, provider: "email", token: d.access_token, id: d.user?.id, username: username.trim() });
+      } else if (loginWith === "username") {
+        // Supabase authenticates by email, so the username is resolved to an
+        // account server-side by the username-login function.
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/username-login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", apikey: SUPABASE_PUBLISHABLE_KEY },
+          body: JSON.stringify({ username: loginId.trim(), password: pw }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || !d.access_token) throw new Error(d.error || "Username or password is incorrect.");
+        onDone({ email: d.user?.email || loginId.trim(), provider: "email", token: d.access_token, id: d.user?.id });
       } else {
-        const d = await supabaseAuth("token?grant_type=password", { email, password: pw });
-        onDone({ email, provider: "email", token: d.access_token, id: d.user?.id });
+        const d = await supabaseAuth("token?grant_type=password", { email: loginId.trim(), password: pw });
+        onDone({ email: loginId.trim(), provider: "email", token: d.access_token, id: d.user?.id });
       }
     } catch (e) {
       // Sandbox blocked the call, or the project isn't reachable from here.
@@ -948,11 +964,44 @@ function AuthScreen({ onDone, theme }) {
             )}
 
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim, marginBottom: 8 }}>Email</div>
+              {mode === "login" ? (
+                /* Pick which credential you're typing. The label is the
+                   control — two words, the active one lit. */
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                  <button type="button" onClick={() => { setLoginWith("email"); setErr(null); }} className="auth-link"
+                    aria-pressed={loginWith === "email"}
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SANS,
+                      fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase",
+                      color: loginWith === "email" ? t.accent : t.dead }}>
+                    Email
+                  </button>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: t.line }}>/</span>
+                  <button type="button" onClick={() => { setLoginWith("username"); setErr(null); }} className="auth-link"
+                    aria-pressed={loginWith === "username"}
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SANS,
+                      fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase",
+                      color: loginWith === "username" ? t.accent : t.dead }}>
+                    Username
+                  </button>
+                </div>
+              ) : (
+                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim, marginBottom: 8 }}>Email</div>
+              )}
+
               <div className="auth-in" style={{ display: "flex", alignItems: "center", background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px" }}>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" autoComplete="email"
-                  onKeyDown={(e) => e.key === "Enter" && submit()}
-                  style={{ flex: 1, background: "none", border: "none", outline: "none", color: t.bone, fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
+                {mode === "login" ? (
+                  <input key={loginWith}
+                    type={loginWith === "email" ? "email" : "text"}
+                    value={loginId} onChange={(e) => setLoginId(e.target.value)}
+                    placeholder={loginWith === "email" ? "you@email.com" : "Your username"}
+                    autoComplete={loginWith === "email" ? "email" : "username"}
+                    onKeyDown={(e) => e.key === "Enter" && submit()}
+                    style={{ flex: 1, background: "none", border: "none", outline: "none", color: t.bone, fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
+                ) : (
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" autoComplete="email"
+                    onKeyDown={(e) => e.key === "Enter" && submit()}
+                    style={{ flex: 1, background: "none", border: "none", outline: "none", color: t.bone, fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
+                )}
               </div>
             </div>
 
