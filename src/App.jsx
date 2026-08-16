@@ -718,16 +718,28 @@ function AuthScreen({ onDone, theme }) {
             animation: `drift ${16 + (i % 5) * 4}s linear ${i * 1.9}s infinite`,
             color: i % 3 === 0 ? t.accent : t.dim, opacity: 0,
           }}>
-            <Icon size={[26,20,32,18,24,22,30,19,27,21][i]} strokeWidth={1.3} />
+            <Icon size={[40,31,50,28,37,34,46,30,42,33][i]} strokeWidth={1.25} />
           </span>
         ))}
       </div>
 
+      {/* Accent wash over the whole screen — three soft pools rather than one
+          flat tint, so the colour has somewhere to fall off to and the ground
+          keeps its depth. Static, so it survives reduced-motion untouched. */}
+      <div aria-hidden="true" style={{
+        position: "absolute", inset: 0, pointerEvents: "none",
+        background: [
+          `radial-gradient(95% 62% at 50% -6%, ${t.accent}3A 0%, transparent 68%)`,
+          `radial-gradient(70% 48% at 8% 104%, ${t.accent}24 0%, transparent 70%)`,
+          `radial-gradient(76% 52% at 96% 88%, ${t.accent}1F 0%, transparent 72%)`,
+        ].join(", "),
+      }} />
+
       {/* soft glow behind the card */}
       <div aria-hidden="true" style={{
-        position: "absolute", left: "50%", top: "38%", width: 420, height: 420,
+        position: "absolute", left: "50%", top: "38%", width: 620, height: 620,
         transform: "translate(-50%,-50%)", borderRadius: "50%", pointerEvents: "none",
-        background: `radial-gradient(circle, ${t.accent}22 0%, transparent 68%)`,
+        background: `radial-gradient(circle, ${t.accent}3D 0%, transparent 68%)`,
         animation: "glow 7s ease-in-out infinite",
       }} />
 
