@@ -6,6 +6,7 @@ import {
  Check, Send, ChevronRight, X, Target, ShoppingBag, Wrench,
  Droplets, Footprints, Shirt, Watch, Gem, Minus, FileText, Bookmark,
 } from "lucide-react";
+import AIAssistant from "./components/AIAssistant.jsx";
 
 const ANTHROPIC_MODEL_DEFAULT = "claude-sonnet-4-6";
 const ANTHROPIC_MODEL_DEEP = "claude-sonnet-4-6"; // reserved seam for a stronger model later
@@ -962,7 +963,7 @@ export default function ResellOS() {
  </div>
  </nav>
 
- <FloatingAI db={db} biz={biz} page={tab} focus={jump} />
+ <FloatingAI db={db} biz={biz} page={tab} focus={jump} user={user} />
  </div>
  );
 }
@@ -2346,64 +2347,43 @@ const PAGE_STARTERS = {
  settings: [["❓", "How do themes work?"], ["🔐", "Is my data private?"]],
 };
 
-function FloatingAI({ db, biz, page, focus }) {
+function FloatingAI({ db, biz, page, focus, user }) {
  const [open, setOpen] = useState(false);
- const [msgs, setMsgs] = useState([]);
- const [q, setQ] = useState("");
- const [busy, setBusy] = useState(false);
- const [researching, setResearching] = useState(false);
- const endRef = useRef(null);
- useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, busy, open]);
 
+ // Everything the assistant knows about this user's business. Sent to the
+ // Edge Function as `context`, where it is appended below the general-purpose
+ // system prompt rather than replacing it — the assistant stays able to answer
+ // anything, and additionally knows their numbers and the app's rules.
  const context = () => {
  const p = db.profile;
- if (!db.settings.aiUseData) return `PAGE: ${page}${focus?.title ? ` — viewing "${focus.title}"` : ""}\n(Personalization is turned off in Settings.)`;
- return `PAGE: ${page}${focus?.title ? ` — currently viewing "${focus.title}"` : ""}
+ const business = !db.settings.aiUseData
+ ? `PAGE: ${page}${focus?.title ? ` \u2014 viewing "${focus.title}"` : ""}\n(Personalization is turned off in Settings.)`
+ : `PAGE: ${page}${focus?.title ? ` \u2014 currently viewing "${focus.title}"` : ""}
 USER: location ${p.zip || p.state || "not set"} (${p.radius}mi) | fee ${db.settings.feePct}% + ${db.settings.payPct}% pay + $${db.settings.ship} ship
 INVENTORY (${db.inventory.length}): ${db.inventory.map((i) => `${i.title} x${i.unitsLeft} @ $${i.cost} (${Math.floor((Date.now()-new Date(i.addedAt))/864e5)}d old)`).join("; ") || "empty"}
 SALES (${db.sales.length}): revenue $${biz.revenue.toFixed(0)}, profit $${biz.profit.toFixed(0)}, this range ${biz.itemsSold} sold
 BEST MARKET: ${biz.bestMarket ? marketLabel(biz.bestMarket[0]) : "n/a"} | BEST PRODUCT: ${biz.bestProduct?.[0] || "n/a"}
 WATCHLIST: ${db.watchlist.map((w) => w.title).join("; ") || "empty"}
 GOALS: ${db.goals.map((g) => `${g.done ? "[done] " : ""}${g.text}`).join("; ") || "none set"}`;
- };
 
- const send = async (text) => {
- const t = (text ?? q).trim();
- if (!t || busy) return;
- const next = [...msgs, { role: "user", content: t }];
- setMsgs(next); setQ(""); setBusy(true);
- try {
- // Only research the web when the question is actually about the outside
- // world. Personal questions are answered from their own data.
- let research = null;
- if (needsWebSearch(t)) {
-   setResearching(true);
-   try { research = await SearchProvider.researchMarket(t); } catch {}
-   setResearching(false);
- }
- const researchBlock = research
-   ? `\n\nLIVE MARKET RESEARCH (observed, retrieved just now${research.stale ? " — NOTE: newest source is over 45 days old, say so" : ""}):\n${research.answer}\nSources: ${research.sources.map((s) => s.url).join(", ")}`
-   : "";
- const reply = await askClaude([
- { role: "user", content:
-`You are the reseller's assistant, embedded in their app. Short, direct, warm — like a sharp friend who resells, not a consultant. No headers, no bullet spam, under 130 words unless asked for more.
+ return `APPLICATION CONTEXT
 
-${context()}${researchBlock}
+You are embedded in this user's reselling app. Short, direct, warm \u2014 like a
+sharp friend who resells, not a consultant. No headers, no bullet spam, under
+130 words unless asked for more.
 
-RULES:
-- Use their real numbers above when personalization is on. Never generic advice when their data answers it.
-- If LIVE MARKET RESEARCH is present, use it and mention it's from the web just now. Cite a source if you make a specific market claim.
-- Never display or assume a purchase/buy price for anything they haven't entered themselves.
-- Distinguish verified (things they logged) from estimated (market signals) from predicted (trend calls). Never guarantee income.
-- You can also just have a normal helpful conversation beyond reselling. If you don't reliably know something, say so instead of guessing.
+${business}
 
-Their question: ${t}` },
- ...next.slice(-6, -1),
- ]);
- setMsgs([...next, { role: "assistant", content: reply, sources: research?.sources || [], via: research?.via }]);
- } catch (e) {
- setMsgs([...next, { role: "assistant", content: `Couldn't reach the model — ${e.message}` }]);
- } finally { setBusy(false); }
+RULES FOR THIS APPLICATION:
+- Use their real numbers above when personalization is on. Never give generic
+  advice when their own data answers the question.
+- Never display or assume a purchase/buy price for anything they have not
+  entered themselves.
+- Distinguish verified (things they logged) from estimated (market signals)
+  from predicted (trend calls). Never guarantee income.
+- Product search in this app covers eBay, Mercari, Vinted, Poshmark, Facebook
+  Marketplace, Depop and OfferUp only.
+- You can also just have a normal helpful conversation beyond reselling.`;
  };
 
  const starters = PAGE_STARTERS[page] || PAGE_STARTERS.home;
@@ -2419,72 +2399,12 @@ Their question: ${t}` },
  <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.6)", zIndex: 55, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
  <div onClick={(e) => e.stopPropagation()} role="dialog" aria-label="AI assistant" className="rise"
  style={{ background: C.panel, width: "100%", maxWidth: 560, height: "78vh", display: "flex", flexDirection: "column", borderTopLeftRadius: 26, borderTopRightRadius: 26, border: `1px solid ${C.line}`, borderBottom: "none" }}>
- <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 18px 12px" }}>
- <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 800 }}>
- <Sparkles size={16} color={C.accent} /> Assistant
- </span>
- <button onClick={() => setOpen(false)} aria-label="Close" className="fx"
- style={{ background: C.raised, border: "none", borderRadius: 999, width: 30, height: 30, cursor: "pointer", color: C.dim }}>
- <X size={15} />
- </button>
- </div>
-
- <div style={{ flex: 1, overflowY: "auto", padding: "0 18px" }}>
- {msgs.length === 0 && (
- <div className="rise" style={{ display: "grid", gap: 8, marginTop: 6 }}>
- {starters.map(([e, t]) => (
- <button key={t} onClick={() => send(t)} className="fx fx-chip"
- style={{ ...card, borderRadius: 14, width: "100%", textAlign: "left", cursor: "pointer", color: C.bone, display: "flex", alignItems: "center", gap: 10, padding: "12px 14px" }}>
- <span>{e}</span><span style={{ fontSize: 13, fontWeight: 600 }}>{t}</span>
- </button>
- ))}
- </div>
- )}
- {msgs.map((m, i) => (
- <div key={i} className="rise" style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start", marginBottom: 10 }}>
- <div style={{ maxWidth: "86%" }}>
- <div style={{ padding: "11px 15px", borderRadius: 18, fontSize: 13.5, lineHeight: 1.55, whiteSpace: "pre-wrap", background: m.role === "user" ? C.accent : C.raised, color: m.role === "user" ? "#fff" : C.bone }}>{m.content}</div>
- {m.sources?.length > 0 && (
- <div style={{ marginTop: 7, paddingLeft: 4 }}>
- <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.dead, marginBottom: 5 }}>
- Sources · searched the web{m.via === "tavily" ? " via Tavily" : ""}
- </div>
- <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
- {m.sources.slice(0, 4).map((s, si) => (
- <a key={si} href={s.url} target="_blank" rel="noopener noreferrer" className="lnk"
- style={{ fontSize: 10.5, padding: "4px 9px", borderRadius: 999, color: C.dim, border: `1px solid ${C.line}`, textDecoration: "none", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
- {s.title || s.url}
- </a>
- ))}
- </div>
- </div>
- )}
- </div>
- </div>
- ))}
- {researching && (
- <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 2px", fontSize: 12, color: C.dim }}>
- <SearchIcon size={13} color={C.accent} />
- <span style={{ animation: "pulse 1.6s infinite" }}>Searching the web for current info…</span>
- </div>
- )}
- {busy && !researching && (
- <div style={{ display: "flex", gap: 6, padding: "8px 2px" }}>
- {[0,1,2].map((i) => <span key={i} style={{ width: 6, height: 6, borderRadius: 999, background: C.accent, animation: "pulse 1.1s infinite", animationDelay: `${i*.18}s` }} />)}
- </div>
- )}
- <div ref={endRef} />
- </div>
-
- <div style={{ display: "flex", gap: 8, padding: 16 }}>
- <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}
- placeholder="Ask anything…" style={{ ...inputSt, flex: 1 }} />
- <button onClick={() => send()} disabled={busy || !q.trim()} aria-label="Send"
- className={q.trim() ? "fx fx-accent" : ""}
- style={{ background: q.trim() ? C.accent : C.raised, border: "none", borderRadius: 999, width: 46, cursor: q.trim() ? "pointer" : "not-allowed", display: "grid", placeItems: "center", flexShrink: 0 }}>
- <Send size={16} color={q.trim() ? "#fff" : C.dead} />
- </button>
- </div>
+ <AIAssistant
+ context={context()}
+ starters={starters}
+ token={user?.token || null}
+ onClose={() => setOpen(false)}
+ />
  </div>
  </div>
  )}
