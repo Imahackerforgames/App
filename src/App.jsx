@@ -523,15 +523,26 @@ function Styles({ theme }) {
  .fx { transition: transform .16s cubic-bezier(.2,.7,.3,1), box-shadow .16s, background .16s, border-color .16s, color .16s; }
  .fx:hover { transform: translateY(-2px); }
  .fx:active { transform: translateY(0) scale(.97); }
- .fx-accent:hover { box-shadow: 0 6px 26px -6px ${C.accent}, 0 0 0 1px ${C.accent}; }
- .fx-card:hover { border-color: ${C.accentDim} !important; background: ${C.raised} !important; }
- .fx-chip:hover { border-color: ${C.accent} !important; color: ${C.bone} !important; }
+ /* Hover glow. A tight accent ring reads as an outline at any size, and the
+    wide soft shadow underneath is what makes it glow rather than just
+    outline. Both are colour, not motion, so they survive reduced motion. */
+ .fx-accent:hover { box-shadow: 0 0 0 1px ${C.accent}, 0 8px 30px -6px ${C.accent}; }
+ .fx-card:hover { border-color: ${C.accent} !important; background: ${C.raised} !important;
+   box-shadow: 0 0 0 3px color-mix(in srgb, ${C.accent} 14%, transparent), 0 10px 30px -14px ${C.accent}; }
+ .fx-chip:hover { border-color: ${C.accent} !important; color: ${C.bone} !important;
+   box-shadow: 0 0 0 3px color-mix(in srgb, ${C.accent} 14%, transparent), 0 8px 22px -12px ${C.accent}; }
  .lnk { transition: background .15s, color .15s, border-color .15s; }
  .lnk:hover { background:${C.accent} !important; color:#fff !important; border-color:${C.accent} !important; }
  button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible, textarea:focus-visible {
  outline: 2px solid ${C.accent}; outline-offset: 3px; }
  ::-webkit-scrollbar { width:0; height:0; }
- @media (prefers-reduced-motion: reduce) { *{animation:none !important; transition:none !important} .rise{opacity:1 !important} }
+ /* Keep the hover glow, drop the hover movement — without this the lift
+    still happens, just instantly, which is worse for motion sensitivity
+    than a smooth one. */
+ @media (prefers-reduced-motion: reduce) {
+   *{animation:none !important; transition:none !important} .rise{opacity:1 !important}
+   .fx:hover, .fx:active { transform: none !important; }
+ }
  `}</style>
  );
 }
@@ -796,26 +807,52 @@ function AuthScreen({ onDone, theme }) {
            cursor; the lift is small and fast enough to read as responsiveness
            rather than decoration. */
         .auth-in { transition: border-color .2s, box-shadow .2s, background .2s, transform .18s cubic-bezier(.2,.7,.3,1); }
-        .auth-in:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--c-accent) 45%, var(--c-line)); }
-        .auth-in:focus-within { border-color: var(--c-accent) !important; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-accent) 16%, transparent); transform: translateY(-2px); }
-        .auth-tab { transition: color .2s, transform .16s cubic-bezier(.2,.7,.3,1); }
-        .auth-tab:hover { transform: translateY(-1px); }
+        .auth-in:hover {
+          transform: translateY(-2px);
+          border-color: var(--c-accent);
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-accent) 14%, transparent),
+                      0 10px 28px -14px var(--c-accent);
+        }
+        /* Declared after :hover so a focused field keeps the stronger ring
+           even while the pointer is over it. */
+        .auth-in:focus-within {
+          border-color: var(--c-accent) !important;
+          box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-accent) 22%, transparent),
+                      0 12px 32px -14px var(--c-accent);
+          transform: translateY(-2px);
+        }
+        .auth-tab { transition: color .2s, transform .16s cubic-bezier(.2,.7,.3,1), text-shadow .2s; }
+        .auth-tab:hover { transform: translateY(-1px); text-shadow: 0 0 14px color-mix(in srgb, var(--c-accent) 70%, transparent); }
         /* Hold the placeholder well back — at this size and tracking, mid-grey
            zeros read as a code that's already been typed. */
         .otp-in::placeholder { color: var(--c-dead); opacity: .38; }
-        .pw-req { transition: transform .16s cubic-bezier(.2,.7,.3,1); }
-        .pw-req:hover { transform: translateY(-2px) scale(1.04); }
-        .auth-link { transition: color .2s, transform .16s cubic-bezier(.2,.7,.3,1); }
-        .auth-link:hover { color: var(--c-accent) !important; transform: translateY(-1px); }
+        .pw-req { transition: transform .16s cubic-bezier(.2,.7,.3,1), box-shadow .2s; }
+        .pw-req:hover {
+          transform: translateY(-2px) scale(1.04);
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-accent) 13%, transparent),
+                      0 6px 18px -10px var(--c-accent);
+        }
+        .auth-link { transition: color .2s, transform .16s cubic-bezier(.2,.7,.3,1), text-shadow .2s; }
+        .auth-link:hover {
+          color: var(--c-accent) !important; transform: translateY(-1px);
+          text-shadow: 0 0 14px color-mix(in srgb, var(--c-accent) 65%, transparent);
+        }
         /* On the svg, not .auth-logo — that element's markIn animation uses
            fill "both", which pins its transform and would beat a hover rule. */
-        .auth-logo svg { transition: transform .22s cubic-bezier(.2,.7,.3,1); }
-        .auth-logo:hover svg { transform: translateY(-3px) rotate(-4deg); }
+        .auth-logo svg { transition: transform .22s cubic-bezier(.2,.7,.3,1), filter .22s; }
+        .auth-logo:hover svg {
+          transform: translateY(-3px) rotate(-4deg);
+          filter: drop-shadow(0 0 10px color-mix(in srgb, var(--c-accent) 70%, transparent));
+        }
         .auth-cta { transition: transform .16s cubic-bezier(.2,.7,.3,1), box-shadow .22s, filter .2s; }
         .auth-cta:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 14px 34px -10px var(--c-accent); filter: brightness(1.06); }
         .auth-cta:active:not(:disabled) { transform: translateY(0) scale(.98); }
         .auth-alt { transition: border-color .2s, background .2s, transform .16s; }
-        .auth-alt:hover { border-color: var(--c-accent) !important; transform: translateY(-1px); }
+        .auth-alt:hover {
+          border-color: var(--c-accent) !important; transform: translateY(-1px);
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-accent) 13%, transparent),
+                      0 10px 26px -14px var(--c-accent);
+        }
         /* The card and the mark stop moving but stay fully visible. The .1
            opacity below is only meant for the ambient drifting icons —
            applying it to .auth-card too left the whole login form at 10%
