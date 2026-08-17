@@ -2189,16 +2189,14 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  const calc = (c > 0 && item.comp > 0) ? profitFrom({ sell: item.comp, cost: c, feePct: s.feePct, pay: s.payPct, ship: s.ship }) : null;
  const kind = MARKETS[item.source]?.kind === "local" ? "Local" : "Online";
 
- const v = verdict(item);
+ /* No verdict banner here. It used to open with a full-width VERY GOOD /
+    VERY BAD in 26px, which announced a conclusion before showing any of
+    the numbers it came from — and it is a two-way call derived from four
+    signals, so stating it that loudly overstated how certain it is. The
+    same four signals are right below, and the What We Analyzed card
+    explains them in words. */
  return (
  <Sheet title={item.title} sub="Market data — estimates, not guarantees" onClose={onClose}>
- <div style={{ ...card, borderRadius: 20, textAlign: "center", padding: "22px 16px", borderColor: VERDICT_COLOR[v.tone], marginBottom: 12 }}>
- <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 700, letterSpacing: "0.02em", color: VERDICT_COLOR[v.tone] }}>{v.label}</div>
- <p style={{ fontSize: 11.5, color: C.dead, margin: "8px 0 0" }}>
- {v.tone === "neutral" ? "Not enough demand and competition signal to call this one." : "Based on demand, competition, trend and recent sold activity below."}
- </p>
- </div>
-
  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginBottom: 6 }}>
  <Mini l="Demand" v={demandLabel(item.vel)} />
  <Mini l="Competition" v={compLabel(item.sellers)} />
