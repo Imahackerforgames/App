@@ -635,11 +635,22 @@ function Styles({ theme }) {
      max-width: 1440px !important;
      padding-left: 40px !important;
      padding-right: 40px !important;
+     /* Nothing is pinned to the bottom any more, so the strip that was
+        reserved for the tab bar goes with it. */
+     padding-bottom: 56px !important;
    }
    /* Four stat tiles across instead of two-by-two. At 1440px wide a 2×2
       grid gives each tile ~660px to hold one short number, which reads as
       a mistake rather than a layout. */
    .stat-grid { grid-template-columns: repeat(4, 1fr) !important; }
+   /* The bottom tab bar is a phone pattern, and on desktop the tab row at
+      the top already does its job. Two navigations for one set of tabs is
+      clutter at best; in a framed window the fixed bar lands across the
+      middle of the page, which is what made this worth removing. */
+   .botnav { display: none !important; }
+   /* Which frees the assistant button to sit in the corner it was holding
+      clear of. */
+   .fab { bottom: 26px !important; right: 26px !important; }
  }
 
  /* For a host showing the app at phone size inside a wider window — a
@@ -649,8 +660,16 @@ function Styles({ theme }) {
  [data-layout="mobile"] .topnav { display: none !important; }
  [data-layout="mobile"] .shell {
    max-width: 560px !important; padding-left: 16px !important; padding-right: 16px !important;
+   padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)) !important;
  }
  [data-layout="mobile"] .stat-grid { grid-template-columns: 1fr 1fr !important; }
+ /* And put back everything the desktop media query would otherwise take
+    away, since that query is looking at the window while this element is
+    only phone-wide. */
+ [data-layout="mobile"] .botnav { display: block !important; }
+ [data-layout="mobile"] .fab {
+   bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; right: 18px !important;
+ }
 
  /* The mirror image: a host rendering the app at desktop width inside a
     window that may be any size. Same reason as above — the media query
@@ -660,8 +679,11 @@ function Styles({ theme }) {
  [data-layout="desktop"] .topnav { display: flex !important; }
  [data-layout="desktop"] .shell {
    max-width: 1440px !important; padding-left: 40px !important; padding-right: 40px !important;
+   padding-bottom: 56px !important;
  }
  [data-layout="desktop"] .stat-grid { grid-template-columns: repeat(4, 1fr) !important; }
+ [data-layout="desktop"] .botnav { display: none !important; }
+ [data-layout="desktop"] .fab { bottom: 26px !important; right: 26px !important; }
 
  /* Collapsible stock heading. The row is full width, so fx-chip's glow
     would ring the whole line — a plain colour shift is the right weight
@@ -1445,7 +1467,7 @@ export default function ResellOS() {
      underneath it. Now it spans the full width, sits on the edge, and is
      opaque enough that content passes behind rather than through it.
      The safe-area inset keeps it clear of the iPhone home indicator. */}
- <nav style={{
+ <nav className="botnav" style={{
    position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 40,
    background: "color-mix(in srgb, var(--c-void) 94%, transparent)",
    backdropFilter: "blur(16px)",
@@ -3368,7 +3390,7 @@ RULES FOR THIS APPLICATION:
 
  return (
  <>
- <button onClick={() => setOpen(true)} aria-label="Open AI assistant" className="fx fx-accent"
+ <button onClick={() => setOpen(true)} aria-label="Open AI assistant" className="fx fx-accent fab"
  style={{ position: "fixed", bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", right: 18, width: 52, height: 52, borderRadius: 999, background: C.accent, border: "none", cursor: "pointer", zIndex: 45, boxShadow: "0 10px 28px -8px rgba(0,0,0,.5)", display: open ? "none" : "grid", placeItems: "center" }}>
  <Sparkles size={21} color="#fff" />
  </button>
