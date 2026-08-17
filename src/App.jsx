@@ -3,7 +3,7 @@ import {
  Home as HomeIcon, Compass, Layers, Briefcase, Settings as SettingsIcon,
  Sparkles, Search as SearchIcon, MapPin, Globe, ExternalLink, SlidersHorizontal,
  Plus, TrendingUp, TrendingDown, Package, Bell, Calculator as CalcIcon,
- Check, Send, ChevronRight, X, Target, ShoppingBag, Wrench,
+ Check, Send, ChevronRight, ChevronDown, X, Target, ShoppingBag, Wrench,
  Droplets, Footprints, Shirt, Watch, Gem, Minus, FileText, Bookmark,
 } from "lucide-react";
 import AIAssistant from "./components/AIAssistant.jsx";
@@ -169,6 +169,42 @@ function needsWebSearch(q) {
   return WEB_HINTS.some((h) => s.includes(h));
 }
 
+/* Last-resort product source: the app's own reference catalog.
+
+   Both remote paths need a reachable backend and a key — Tavily through the
+   product-search function, then Claude through ai-assistant. When neither
+   is configured every search died on the second failure and the screen
+   showed an error instead of products. Matching the built-in catalog means
+   the search always returns something real, and these rows actually carry
+   fuller data than the web paths do: demand, competition, trend and a
+   90-day sold count, so Analyze opens a complete detail sheet.
+
+   `matched` records whether the query hit anything, so the UI can say
+   "no match, here's what is in the catalog" rather than implying these
+   were search results. */
+function catalogMatches(query) {
+  const words = String(query).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1);
+  const scored = CATALOG
+    .map((c) => {
+      const hay = `${c.title} ${c.cat}`.toLowerCase();
+      return { c, hits: words.filter((w) => hay.includes(w)).length };
+    })
+    .filter((x) => x.hits > 0)
+    .sort((a, b) => b.hits - a.hits);
+
+  const hit = scored.length > 0;
+  return (hit ? scored.map((x) => x.c) : CATALOG).map((c) => ({
+    title: c.title,
+    market: marketLabel(c.source),
+    cond: "reference data",
+    // A real sold-listings search on that marketplace. Honest about what it
+    // is: a search page for the product, not one specific listing.
+    url: MARKETS[c.source]?.url?.(c.title) || "",
+    source: "catalog",
+    matched: hit,
+  }));
+}
+
 const SearchProvider = {
  async searchProducts(query, marketplaces = ONLINE, mode = "online") {
    // Preferred path: Tavily via the Edge Function. Real listing pages,
@@ -198,24 +234,34 @@ const SearchProvider = {
      } catch { /* network/CORS — fall through */ }
    }
 
-   // Fallback: Claude with web search. Slower and less precise, but works
-   // without the Edge Function being reachable.
-   const text = await askClaude(
-     [{ role: "user", content:
+   // Second try: Claude with web search. Slower and less precise, but works
+   // without the product-search function being reachable.
+   //
+   // This used to be the end of the line, and it threw — which is why the
+   // search stopped working entirely once askClaude started going through
+   // the ai-assistant function. A failure here is no longer fatal; it falls
+   // through to the catalog below.
+   try {
+     const text = await askClaude(
+       [{ role: "user", content:
 `Search the web for real, currently purchasable listings matching: "${query}".
 Only from these marketplaces: ${marketplaces.map((m) => MARKETS[m]?.label).join(", ")}.
 
 Output ONLY a JSON array, 10 items max. No preamble, no fences.
 Each: ["listing title","marketplace","condition or empty string","direct https url to the listing"]
 Rules: real listing pages only, never news/blogs/forums/videos/articles. Never include a price anywhere. Be terse.` }],
-     { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }] }
-   );
-   return salvageTuples(text.replace(/```json|```/g, ""))
-     .filter((t) => Array.isArray(t) && t[0] && t[3])
-     .map((t) => ({ title: stripPrices(String(t[0])), market: String(t[1] || ""),
-       cond: stripPrices(String(t[2] || "")), url: safeUrl(String(t[3])), source: "claude" }))
-     .filter((r) => r.url)
-     .slice(0, 10);
+     );
+     const rows = salvageTuples(text.replace(/```json|```/g, ""))
+       .filter((t) => Array.isArray(t) && t[0] && t[3])
+       .map((t) => ({ title: stripPrices(String(t[0])), market: String(t[1] || ""),
+         cond: stripPrices(String(t[2] || "")), url: safeUrl(String(t[3])), source: "claude" }))
+       .filter((r) => r.url)
+       .slice(0, 10);
+     if (rows.length) return rows;
+   } catch { /* unreachable or unconfigured — fall through */ }
+
+   // Always something to show.
+   return catalogMatches(query);
  },
 
  async searchLocalProducts(query, loc = {}) {
@@ -282,6 +328,7 @@ End with a line starting "SOURCES:" listing the URLs you used, comma separated.`
  ? `sourced LOCALLY and resold — bulky/heavy items that cost too much to ship: furniture, tools, exercise equipment, appliances, bikes.${f.state ? ` Bias toward ${f.state}.` : ""}`
  : `sourced and resold ONLINE — small, light, identifiable items: cologne, sneakers, streetwear, watches, bags, electronics.`;
  const catHint = f.cat && f.cat !== "All" ? ` Focus only on the "${f.cat}" category.` : "";
+ try {
  const text = await askClaude(
  [{ role: "user", content:
 `Search the web for what is selling fastest in resale right now, ${where}${catHint}
@@ -289,7 +336,6 @@ End with a line starting "SOURCES:" listing the URLs you used, comma separated.`
 Output ONLY a JSON array of 20 arrays. No preamble, no fences.
 Each: ["product name","category",recent_sold_price_usd,sales_per_week,sellers_competing,"up"|"flat"|"down","why it moves"]
 Rules: specific products with model/size detail; integers for price; "why" max 5 words; fastest first; terse. NEVER include a purchase or buy price — recent_sold_price_usd is what it resells for, nothing else.` }],
- { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }] }
  );
  const rows = salvageTuples(text.replace(/```json|```/g, ""))
  .filter((t) => Array.isArray(t) && t[0] && Number(t[2]) > 0)
@@ -299,7 +345,19 @@ Rules: specific products with model/size detail; integers for price; "why" max 5
  trend: ["up", "flat", "down"].includes(t[5]) ? t[5] : "flat",
  why: t[6] ? stripPrices(String(t[6])) : "", source: local ? "offerup" : "ebay", comps90: null,
  })).slice(0, 20);
- if (!rows.length) throw new Error("Nothing usable came back. Try again.");
+ if (rows.length) return rows;
+ } catch { /* unreachable or unconfigured — fall through */ }
+
+ /* Same reasoning as searchProducts: this threw when the assistant function
+    wasn't reachable, so Find products showed an error and no products. The
+    reference catalog keeps the screen working, ranked by sell speed the way
+    the live path is, and marked so nobody mistakes it for live web data. */
+ const rows = CATALOG
+ .filter((c) => !f.cat || f.cat === "All" || c.cat === f.cat)
+ .slice()
+ .sort((a, b) => b.vel - a.vel)
+ .map((c, i) => ({ ...c, rank: i + 1, why: c.why || "", origin: "catalog" }));
+ if (!rows.length) throw new Error(`No ${f.cat} products in the built-in catalog. Try All, or a different category.`);
  return rows;
  },
 };
@@ -570,6 +628,12 @@ function Styles({ theme }) {
     so without this the row would appear inside a 412px-wide phone.
     Nothing sets this in normal use. */
  [data-layout="mobile"] .topnav { display: none !important; }
+
+ /* Collapsible stock heading. The row is full width, so fx-chip's glow
+    would ring the whole line — a plain colour shift is the right weight
+    here. !important because the label style is inline and would win. */
+ .stock-head:hover { color: var(--c-bone) !important; }
+ .stock-head:hover svg { color: var(--c-accent); }
  button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible, textarea:focus-visible {
  outline: 2px solid ${C.accent}; outline-offset: 3px; }
  ::-webkit-scrollbar { width:0; height:0; }
@@ -1877,6 +1941,16 @@ function AIDiscover({ db, put, onDetail }) {
  <div style={{ display: "flex", justifyContent: "space-between", fontFamily: MONO, fontSize: 11.5, color: C.dead, padding: "20px 4px 8px" }}>
  <span>{rows.length} products</span><span>{stamp}</span>
  </div>
+ {/* Same rule as Product Search: never let reference data read as a
+     live web result. */}
+ {rows[0]?.origin === "catalog" && (
+ <div style={{ ...card, marginBottom: 8, borderColor: C.accentDim }}>
+ <p style={{ fontSize: 12.5, color: C.dim, margin: 0, lineHeight: 1.6 }}>
+ Live web search is unavailable, so this is the app's built-in reference
+ catalog ranked by sell speed — not what's moving on the web right now.
+ </p>
+ </div>
+ )}
  {rows.map((r, i) => <ProductCard key={i} item={r} idx={i} onDetail={onDetail} />)}
  <p style={{ fontSize: 11.5, color: C.dead, margin: "14px 4px 0", lineHeight: 1.6 }}>
  Market signals from recent web coverage — demand, competition and trend, not a recommendation to pay any specific price.
@@ -1992,6 +2066,19 @@ function ProductSearch({ db, onAnalyze }) {
  <p style={{ fontSize: 13, color: C.dim, margin: "26px 4px", lineHeight: 1.6 }}>
  Search a specific product and get back real, purchasable listing pages only — no news, no blogs, no forum posts.
  </p>
+ )}
+
+ {/* Say plainly when these came from the built-in catalog instead of a
+     live search, and why. Passing reference data off as web results
+     would be the worst outcome here. */}
+ {rows?.[0]?.source === "catalog" && (
+ <div style={{ ...card, marginTop: 16, borderColor: C.accentDim }}>
+ <p style={{ fontSize: 12.5, color: C.dim, margin: 0, lineHeight: 1.6 }}>
+ {rows[0].matched
+ ? "Live web search is unavailable, so these are matches from the app's built-in reference catalog. Analyze works fully on them. View Product opens a sold-listings search on that marketplace."
+ : `Live web search is unavailable and the built-in catalog has no match for that. Showing all ${rows.length} reference products instead.`}
+ </p>
+ </div>
  )}
 
  <div style={{ marginTop: 16 }}>
@@ -2439,10 +2526,38 @@ function restockHint(title, soldCount) {
  return v.tone === "good" ? { label: "Consider restocking", tone: "good" } : { label: "Do not restock yet", tone: "bad" };
 }
 
+/* Section heading that doubles as the control for its own list. The plain
+   text gave no sign the group could be put away, so the chevron is the
+   whole point: it says "this opens and closes" before anyone clicks it.
+   Count sits next to the name so a closed section still tells you how
+   much is inside. */
+function StockHeading({ children, count, open, onToggle }) {
+ return (
+ <button onClick={onToggle} aria-expanded={open} className="stock-head"
+   style={{ ...label, display: "flex", alignItems: "center", gap: 8, width: "100%",
+     background: "none", border: "none", cursor: "pointer", padding: 0,
+     fontFamily: SANS, textAlign: "left", transition: "color .16s" }}>
+ {children}
+ <span style={{ fontFamily: MONO, color: C.dead, fontWeight: 600 }}>{count}</span>
+ {/* Points down when the list is showing, right when it's closed — the
+     same direction the content sits in. */}
+ <ChevronDown size={14} aria-hidden="true" style={{
+   marginLeft: "auto", flexShrink: 0,
+   transform: open ? "none" : "rotate(-90deg)",
+   transition: "transform .18s cubic-bezier(.2,.7,.3,1)",
+ }} />
+ </button>
+ );
+}
+
 function Inventory({ db, put }) {
  const [add, setAdd] = useState(false);
  const [sell, setSell] = useState(null);
  const [openSoldOut, setOpenSoldOut] = useState(null);
+ /* Both open on arrival, so the screen looks the same as it always did
+    until someone chooses to collapse a group. */
+ const [showAvail, setShowAvail] = useState(true);
+ const [showSold, setShowSold] = useState(true);
 
  const addItem = async (it) => {
  const item = { ...it, id: `inv_${Date.now()}`, unitsLeft: it.units,
@@ -2474,8 +2589,14 @@ function Inventory({ db, put }) {
  <Plus size={17} /> Add product
  </button>
 
- {available.length > 0 && <div style={{ ...label, margin: "0 4px 10px" }}>Available stock</div>}
- {available.map((i, idx) => {
+ {available.length > 0 && (
+ <div style={{ margin: "0 4px 10px" }}>
+ <StockHeading count={available.length} open={showAvail} onToggle={() => setShowAvail(!showAvail)}>
+ Available stock
+ </StockHeading>
+ </div>
+ )}
+ {showAvail && available.map((i, idx) => {
  const sold = db.sales.filter((x) => x.itemId === i.id);
  const age = Math.floor((Date.now() - new Date(i.addedAt)) / 864e5);
  return (
@@ -2500,8 +2621,14 @@ function Inventory({ db, put }) {
  );
  })}
 
- {soldOut.length > 0 && <div style={{ ...label, margin: "20px 4px 10px" }}>Sold out stock</div>}
- {soldOut.map((i, idx) => {
+ {soldOut.length > 0 && (
+ <div style={{ margin: "20px 4px 10px" }}>
+ <StockHeading count={soldOut.length} open={showSold} onToggle={() => setShowSold(!showSold)}>
+ Sold out stock
+ </StockHeading>
+ </div>
+ )}
+ {showSold && soldOut.map((i, idx) => {
  const sold = db.sales.filter((x) => x.itemId === i.id);
  const revenue = sold.reduce((a, x) => a + x.amount, 0);
  const profit = sold.reduce((a, x) => a + x.profit, 0);
