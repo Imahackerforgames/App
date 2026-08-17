@@ -478,7 +478,7 @@ const DEFAULTS = {
  profile: { name: "", state: "", zip: "", radius: 25, onboarded: false, theme: "heat" },
  settings: { feePct: 13.25, payPct: 2.9, ship: 8, startingBalance: 0,
  notif: { opps: true, satur: true, demand: true, local: true }, aiUseData: true },
- inventory: [], sales: [], watchlist: [], goals: [], notifications: [], readNotifs: [],
+ inventory: [], sales: [], watchlist: [], notifications: [], readNotifs: [],
 };
 
 function useStore() {
@@ -1425,9 +1425,11 @@ export default function ResellOS() {
  <div className="reseller-root" style={{ minHeight: "100vh", background: C.void, color: C.bone, fontFamily: SANS }}>
  <Styles theme={theme} />
  {/* The bottom padding was a 104px strip reserved for the fixed tab bar.
-     With the bar gone it only needs enough room to clear the assistant
-     button, plus the iPhone home indicator. */}
- <div className="shell" style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px calc(92px + env(safe-area-inset-bottom, 0px))" }}>
+     With the bar gone it exists only to keep the last row of content clear
+     of the assistant button — which the old 104px did not manage, so the
+     Net profit figure was sitting underneath it. The button occupies 78px
+     up from the bottom edge; this leaves a margin on top of that. */}
+ <div className="shell" style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px calc(132px + env(safe-area-inset-bottom, 0px))" }}>
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 18, paddingBottom: 14 }}>
  <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.03em" }}>
  RESELLING<span style={{ color: C.accent }}>.</span>
@@ -1711,20 +1713,10 @@ function TrendChart({ sales, range }) {
 
 function HomeScreen({ db, put, biz, range, setRange, go }) {
  const [notifOpen, setNotifOpen] = useState(false);
- const [goalText, setGoalText] = useState("");
  const hour = new Date().getHours();
  const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
  const msg = MOTIVATION[new Date().getDate() % MOTIVATION.length];
  const unread = db.notifications.filter((n) => !db.readNotifs.includes(n.id)).length;
-
- const addGoal = async () => {
- if (!goalText.trim()) return;
- await put("goals", [{ id: `g${Date.now()}`, text: goalText.trim(), done: false }, ...db.goals]);
- setGoalText("");
- };
- const toggleGoal = async (id) =>
- put("goals", db.goals.map((g) => g.id === id ? { ...g, done: !g.done } : g));
- const removeGoal = async (id) => put("goals", db.goals.filter((g) => g.id !== id));
 
  const empty = db.inventory.length === 0 && db.sales.length === 0;
 
@@ -1783,33 +1775,6 @@ function HomeScreen({ db, put, biz, range, setRange, go }) {
  <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 8, paddingTop: 8 }}>
  <MiniLine l="Net profit" v={biz.profit} bold />
  </div>
- </div>
- </div>
-
- <div className="rise" style={{ ...rise(5), ...card, marginTop: 10 }}>
- <div style={{ ...label, marginBottom: 12 }}>My goals</div>
- {db.goals.length === 0 && <p style={{ fontSize: 13, color: C.dead, margin: 0 }}>No goals yet.</p>}
- {db.goals.map((g) => (
- <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
- <button onClick={() => toggleGoal(g.id)} aria-label={g.done ? "Mark incomplete" : "Mark complete"}
- style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, cursor: "pointer", background: g.done ? C.accent : "transparent", border: `1.5px solid ${g.done ? C.accent : C.line}`, display: "grid", placeItems: "center" }}>
- {g.done && <Check size={13} color="#fff" />}
- </button>
- <span style={{ flex: 1, fontSize: 13.5, textDecoration: g.done ? "line-through" : "none", color: g.done ? C.dead : C.bone }}>{g.text}</span>
- <button onClick={() => removeGoal(g.id)} aria-label="Remove goal"
- style={{ background: "none", border: "none", cursor: "pointer", color: C.dead, padding: 4 }}>
- <X size={14} />
- </button>
- </div>
- ))}
- <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
- <input value={goalText} onChange={(e) => setGoalText(e.target.value)}
- onKeyDown={(e) => e.key === "Enter" && addGoal()} placeholder="List 5 products…"
- style={{ ...inputSt, flex: 1, padding: "10px 15px", fontSize: 13.5 }} />
- <button onClick={addGoal} aria-label="Add goal" className="fx fx-chip"
- style={{ width: 40, borderRadius: 999, border: `1px solid ${C.line}`, background: "transparent", cursor: "pointer", display: "grid", placeItems: "center" }}>
- <Plus size={16} color={C.accent} />
- </button>
  </div>
  </div>
 
@@ -3349,8 +3314,7 @@ USER: location ${p.zip || p.state || "not set"} (${p.radius}mi) | fee ${db.setti
 INVENTORY (${db.inventory.length}): ${db.inventory.map((i) => `${i.title} x${i.unitsLeft} @ $${i.cost} (${Math.floor((Date.now()-new Date(i.addedAt))/864e5)}d old)`).join("; ") || "empty"}
 SALES (${db.sales.length}): revenue $${biz.revenue.toFixed(0)}, profit $${biz.profit.toFixed(0)}, this range ${biz.itemsSold} sold
 BEST MARKET: ${biz.bestMarket ? marketLabel(biz.bestMarket[0]) : "n/a"} | BEST PRODUCT: ${biz.bestProduct?.[0] || "n/a"}
-WATCHLIST: ${db.watchlist.map((w) => w.title).join("; ") || "empty"}
-GOALS: ${db.goals.map((g) => `${g.done ? "[done] " : ""}${g.text}`).join("; ") || "none set"}`;
+WATCHLIST: ${db.watchlist.map((w) => w.title).join("; ") || "empty"}`;
 
  return `APPLICATION CONTEXT
 
