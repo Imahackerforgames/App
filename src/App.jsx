@@ -2615,6 +2615,13 @@ function Sales({ db, biz, range, setRange }) {
  <Stat label="Items sold" value={biz.itemsSold} />
  <Stat label="Avg profit / sale" value={money0(biz.itemsSold ? biz.profit / biz.itemsSold : 0)} />
  </div>
+
+ {/* Same component as the home screen, reading the same range state, so the
+     chart, the stats above it and the filter always agree. */}
+ <div className="rise" style={{ ...card, marginTop: 12 }}>
+ <div style={{ ...label, marginBottom: 13 }}>Revenue vs profit</div>
+ <TrendChart sales={db.sales} range={range} />
+ </div>
  {(biz.bestMarket || biz.bestProduct) && (
  <div style={{ ...card, marginTop: 12 }}>
  {biz.bestMarket && <Row l="Best marketplace" r={marketLabel(biz.bestMarket[0])} />}
