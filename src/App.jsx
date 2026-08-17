@@ -703,7 +703,10 @@ function AuthScreen({ onDone, theme }) {
       // Sandbox blocked the call, or the project isn't reachable from here.
       if (/failed to fetch|networkerror|load failed/i.test(e.message)) {
         setNote("Can't reach Supabase from this preview. Continuing in demo mode.");
-        setTimeout(() => onDone({ email, provider: "demo" }), 900);
+        // The login tab writes to loginId and the sign-up tab to email. Sending
+        // the wrong one here handed the app an identity with no address at all.
+        const who = mode === "login" ? loginId.trim() : email.trim();
+        setTimeout(() => onDone({ email: who, provider: "demo", username: username.trim() }), 900);
       } else setErr(e.message);
     } finally { setBusy(false); }
   };
@@ -1239,6 +1242,10 @@ export default function ResellOS() {
    try { await window.storage.delete("ros:session"); } catch {}
  };
  const theme = db.profile.theme || "heat";
+ /* Whatever we can call this person. Indexing straight into user.email
+    crashed the whole app to a blank screen when a sign-in produced a session
+    with no address on it — a label is never worth taking the UI down for. */
+ const who = (user?.username || user?.email || "").trim() || "Signed in";
 
  if (!ready) return <div style={{ minHeight: "100vh", background: THEMES.heat.void }} />;
 
@@ -1269,10 +1276,10 @@ export default function ResellOS() {
  <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.03em" }}>
  RESELLING<span style={{ color: C.accent }}>.</span>
  </span>
- <button onClick={signOut} className="fx fx-chip" title={`Signed in as ${user.email} — tap to sign out`}
+ <button onClick={signOut} className="fx fx-chip" title={`Signed in as ${who} — tap to sign out`}
  style={{ display: "flex", alignItems: "center", gap: 8, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 999, padding: "5px 13px 5px 5px", cursor: "pointer", fontFamily: SANS, fontSize: 12, color: C.dim }}>
  <span style={{ width: 22, height: 22, borderRadius: 999, background: C.accent, color: "#fff", fontSize: 11, fontWeight: 700, display: "grid", placeItems: "center" }}>
- {user.email[0].toUpperCase()}
+ {who.charAt(0).toUpperCase()}
  </span>
  Sign out
  </button>
@@ -2753,7 +2760,7 @@ function SettingsPage({ db, put, reset, user, signOut }) {
  return (
  <div style={{ paddingTop: 4 }}>
  <Group title="Account">
- <Row l="Signed in" r={user.email} />
+ <Row l="Signed in" r={user.email || user.username || "Demo mode"} />
  <Row l="Method" r={user.provider === "email" ? "Email + password" : user.provider === "demo" ? "Demo mode" : user.provider || "—"} />
  <Field label="Display name" value={db.profile.name} onChange={(v) => put("profile", { ...db.profile, name: v })} placeholder="Alex" />
  <button onClick={signOut} className="fx fx-chip"
