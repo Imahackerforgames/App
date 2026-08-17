@@ -623,11 +623,34 @@ function Styles({ theme }) {
  .topnav-link[aria-current="page"] { color: var(--c-accent); border-bottom-color: var(--c-accent); }
  @media (min-width: 900px) { .topnav { display: flex; } }
 
+ /* ── Desktop layout ────────────────────────────────────────────────
+    One URL, two layouts. Everything below 1200px renders the phone
+    layout it always has; at 1200px and up the content column opens out
+    and tops out at 1440px. So a phone gets the phone layout and a
+    desktop gets the desktop one off the same link, with no device
+    sniffing — just the window width, which is the thing that actually
+    matters. */
+ @media (min-width: 1200px) {
+   .shell {
+     max-width: 1440px !important;
+     padding-left: 40px !important;
+     padding-right: 40px !important;
+   }
+   /* Four stat tiles across instead of two-by-two. At 1440px wide a 2×2
+      grid gives each tile ~660px to hold one short number, which reads as
+      a mistake rather than a layout. */
+   .stat-grid { grid-template-columns: repeat(4, 1fr) !important; }
+ }
+
  /* For a host showing the app at phone size inside a wider window — a
     preview frame, an embed. Media queries read the window, not the box,
     so without this the row would appear inside a 412px-wide phone.
     Nothing sets this in normal use. */
  [data-layout="mobile"] .topnav { display: none !important; }
+ [data-layout="mobile"] .shell {
+   max-width: 560px !important; padding-left: 16px !important; padding-right: 16px !important;
+ }
+ [data-layout="mobile"] .stat-grid { grid-template-columns: 1fr 1fr !important; }
 
  /* Collapsible stock heading. The row is full width, so fx-chip's glow
     would ring the whole line — a plain colour shift is the right weight
@@ -1363,7 +1386,7 @@ export default function ResellOS() {
  return (
  <div className="reseller-root" style={{ minHeight: "100vh", background: C.void, color: C.bone, fontFamily: SANS }}>
  <Styles theme={theme} />
- <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px calc(104px + env(safe-area-inset-bottom, 0px))" }}>
+ <div className="shell" style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px calc(104px + env(safe-area-inset-bottom, 0px))" }}>
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 18, paddingBottom: 14 }}>
  <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.03em" }}>
  RESELLING<span style={{ color: C.accent }}>.</span>
@@ -1507,12 +1530,28 @@ function chartSeries(sales, range) {
    identity never rests on hue alone. */
 function TrendChart({ sales, range }) {
   const [hover, setHover] = useState(null);
+  const [boxW, setBoxW] = useState(0);
   const wrapRef = useRef(null);
   const { points, tickEvery } = useMemo(() => chartSeries(sales, range), [sales, range]);
 
-  // 320x140 renders about 364x159 in the card — roughly a 2.3:1 plot, wide
-  // enough to read a trend without the card swallowing the screen.
-  const W = 320, H = 140;
+  /* 320x140 renders about 364x159 in a phone-width card — roughly a 2.3:1
+     plot, wide enough to read a trend without the card swallowing the
+     screen. A fixed viewBox scales the whole drawing with its container
+     though, and the desktop column is up to 1440px wide, where that same
+     ratio would make the plot ~570px tall with tick labels blown up to
+     match.
+
+     So the viewBox stays 320 wide until the card passes CAP_AT and widens
+     past that, buying horizontal room instead of height.
+
+     CAP_AT is the widest card the phone layout ever produces — 494px, the
+     inner width of a card in the 560px column. At or below that the maths
+     is exactly what it always was, so no width that rendered before the
+     desktop layout existed renders differently now. Above it the plot
+     holds at MAX_H, which is simply the height it had reached at CAP_AT,
+     so the cap is invisible: the chart grows to that height and stops. */
+  const H = 140, CAP_AT = 494, MAX_H = Math.round(CAP_AT * H / 320);
+  const W = boxW > CAP_AT ? Math.round(boxW * H / MAX_H) : 320;
   const PAD = { t: 14, r: 12, b: 20, l: 12 };
   const iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b;
   const peak = Math.max(1, ...points.map((p) => Math.max(p.revenue, p.profit)));
@@ -1525,6 +1564,16 @@ function TrendChart({ sales, range }) {
 
   const hasData = points.some((p) => p.revenue > 0 || p.profit > 0);
   const active = hover == null ? null : points[hover];
+
+  /* Only the width is read, and what changes when the width does is the
+     SVG's height, so this can't drive itself in a loop. */
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => setBoxW(Math.round(entry.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const track = (clientX) => {
     const el = wrapRef.current;
@@ -1683,7 +1732,7 @@ function HomeScreen({ db, put, biz, range, setRange, go }) {
  ))}
  </div>
 
- <div className="rise" style={{ ...rise(2), display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginTop: 12 }}>
+ <div className="rise stat-grid" style={{ ...rise(2), display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginTop: 12 }}>
  <Stat label="Current balance" value={money0(biz.balance)} accent />
  <Stat label="Items sold" value={biz.itemsSold} />
  <Stat label="Total spent" value={money0(biz.totalSpent)} />
@@ -2273,46 +2322,6 @@ function soldSeries(item, windowDays, total) {
   return { points, tickEvery: points.length > 10 ? 2 : 1 };
 }
 
-/* The marketplaces to offer in the sold-activity filter: the ones on this
-   product's side of the market. Online products get the online boards,
-   local products get the local ones — a sold count for a couch on Poshmark
-   would be meaningless. */
-function filterMarkets(item) {
-  const local = MARKETS[item.source]?.kind === "local";
-  return local ? LOCAL : ONLINE;
-}
-
-/* Split a sold total across the marketplaces that publish sold listings.
-
-   There is no per-marketplace breakdown in the reference data — one total
-   per product, full stop. So this apportions that one total, giving the
-   board the product was actually observed on the larger share. It is a
-   model, and the card says so whenever a single marketplace is selected.
-
-   The rounding remainder is carried the same way the chart's buckets carry
-   theirs, so the parts sum to `total` exactly: pick each marketplace in
-   turn and you have accounted for the whole number the All markets view
-   shows, with nothing invented and nothing lost. Rounding to whole sales
-   means two equally-weighted boards can land a sale apart; that beats a
-   split that doesn't add up.
-
-   Marketplaces with no sold feed are absent from the result — the card
-   reports that rather than guessing a number for them. */
-function marketSplit(item, total) {
-  const pool = filterMarkets(item).filter((k) => MARKETS[k]?.sold);
-  const weight = (k) => (k === item.source ? 2.2 : 1);
-  const sum = pool.reduce((a, k) => a + weight(k), 0) || 1;
-  const out = {};
-  let exact = 0, used = 0;
-  pool.forEach((k, i) => {
-    exact += (weight(k) / sum) * total;
-    const v = i === pool.length - 1 ? total - used : Math.round(exact - used);
-    used += v;
-    out[k] = Math.max(0, v);
-  });
-  return out;
-}
-
 /* One-series sibling of TrendChart, deliberately not a rewrite of it — the
    home chart plots two money series against each other and works; this
    plots counts. Same visual language: readout above the plot so nothing
@@ -2320,11 +2329,14 @@ function marketSplit(item, total) {
    marker on hover, fixed-height status row so nothing shifts. */
 function SoldChart({ item, windowDays, total }) {
   const [hover, setHover] = useState(null);
+  const [boxW, setBoxW] = useState(0);
   const wrapRef = useRef(null);
   const { points, tickEvery } = useMemo(
     () => soldSeries(item, windowDays, total), [item.title, windowDays, total]); // eslint-disable-line
 
-  const W = 320, H = 130;
+  // Same height cap as TrendChart — see the note there.
+  const H = 130, CAP_AT = 494, MAX_H = Math.round(CAP_AT * H / 320);
+  const W = boxW > CAP_AT ? Math.round(boxW * H / MAX_H) : 320;
   const PAD = { t: 14, r: 12, b: 20, l: 12 };
   const iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b;
   const peak = Math.max(1, ...points.map((p) => p.sold));
@@ -2335,6 +2347,14 @@ function SoldChart({ item, windowDays, total }) {
   const line = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(p.sold).toFixed(1)}`).join(" ");
   const area = `${line} L${x(last).toFixed(1)} ${(PAD.t + ih).toFixed(1)} L${x(0).toFixed(1)} ${(PAD.t + ih).toFixed(1)} Z`;
   const active = hover == null ? null : points[hover];
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => setBoxW(Math.round(entry.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const track = (clientX) => {
     const el = wrapRef.current;
@@ -2421,7 +2441,6 @@ function SoldChart({ item, windowDays, total }) {
 
 function ProductDetailSheet({ item, db, put, onClose }) {
  const [window_, setWindowD] = useState(90);
- const [soldMarket, setSoldMarket] = useState("all");
  const [sold, setSold] = useState(null);
  const [related, setRelated] = useState([]);
  const [saved, setSaved] = useState(false);
@@ -2435,26 +2454,11 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  SearchProvider.findSimilarProducts(item).then(setRelated);
  }, [item.title, window_]); // eslint-disable-line
 
- // A different product may not even sell on the marketplace that was picked
- // for the last one, so the filter starts over with it.
- useEffect(() => { setSoldMarket("all"); }, [item.title]);
-
  const save = async () => {
  const list = db.watchlist || [];
  await put("watchlist", saved ? list.filter((w) => w.title !== item.title) : [...list, { title: item.title, cat: item.cat }]);
  setSaved(!saved);
  };
-
- /* Sold activity for the marketplace currently picked. "All markets" is the
-    whole total, which is what the card has always shown, so the default view
-    is unchanged. A single marketplace takes its modelled share of that same
-    total — never more than the total, and the shares across the boards that
-    publish sold data add back up to it. */
- const split = sold && !sold.unavailable ? marketSplit(item, sold.count) : {};
- const noSoldFeed = soldMarket !== "all" && !MARKETS[soldMarket]?.sold;
- const shownCount = !sold || sold.unavailable || noSoldFeed ? 0
-   : soldMarket === "all" ? sold.count
-   : (split[soldMarket] ?? 0);
 
  const c = +cost || 0;
  const calc = (c > 0 && item.comp > 0) ? profitFrom({ sell: item.comp, cost: c, feePct: s.feePct, pay: s.payPct, ship: s.ship }) : null;
@@ -2485,61 +2489,28 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  ))}
  </div>
  </div>
- {/* Marketplace filter. Every board on this product's side of the market
-     is offered, including the ones that publish no sold listings — being
-     told Depop has no sold data is more useful than that option quietly
-     not existing. */}
- {!sold?.unavailable && (
- <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 13 }}>
- {["all", ...filterMarkets(item)].map((k) => (
- <button key={k} onClick={() => setSoldMarket(k)} className="fx fx-chip"
-   style={{ ...pillBtn(soldMarket === k), padding: "4px 10px", fontSize: 10.5 }}>
- {k === "all" ? "All markets" : marketLabel(k)}
- </button>
- ))}
- </div>
- )}
-
  {!sold ? (
  <div style={{ fontFamily: MONO, fontSize: 13, color: C.dead }}>Checking…</div>
  ) : sold.unavailable ? (
  <div style={{ fontFamily: MONO, fontSize: 14, color: C.dim }}>No reliable sold data</div>
- ) : noSoldFeed ? (
- /* Picked a board that doesn't publish completed listings. Say that
-    rather than modelling a number for it. */
- <div style={{ fontFamily: MONO, fontSize: 13.5, color: C.dim, lineHeight: 1.5 }}>
- {marketLabel(soldMarket)} doesn't publish sold listings, so there's no
- sold count to show. Its link under Sources opens a live search.
- </div>
  ) : (
  <>
  <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 600 }}>
- {shownCount} <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>
- sold, last {window_} days{soldMarket === "all" ? "" : ` on ${marketLabel(soldMarket)}`}
- </span>
+ {sold.count} <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>sold, last {window_} days</span>
  </div>
- {shownCount > 0 ? (
- /* Same chart language as the home screen, driven by the window chips
-    and the marketplace filter above, so the line and the number
-    always describe one slice. The buckets sum to exactly the count
-    printed above it. */
+ {/* Same chart language as the home screen, driven by the 7d/30d/90d
+     chips above, so the line and the number always describe one window.
+     The buckets sum to exactly the count printed above it. */}
  <div style={{ marginTop: 12 }}>
- <SoldChart item={item} windowDays={window_} total={shownCount} />
+ <SoldChart item={item} windowDays={window_} total={sold.count} />
  </div>
- ) : (
- <div style={{ fontSize: 12, color: C.dead, marginTop: 8 }}>
- Too few sales in this window to chart. Try a longer window.
- </div>
- )}
  </>
  )}
  <p style={{ fontSize: 11, color: C.dead, margin: "8px 0 0" }}>
  {sold?.unavailable
  ? "This product isn't in our reference data. Use the marketplace links below to check sold listings directly."
- : noSoldFeed
- ? ""
  : sold?.estimated
- ? `Estimated from available signals — connect a marketplace for verified counts. The total is an estimate and the curve models the trend direction, not counted daily sales.${soldMarket === "all" ? "" : ` The reference data holds one total per product, so the ${marketLabel(soldMarket)} split is an estimate too.`}`
+ ? "Estimated from available signals — connect a marketplace for verified counts. The total is an estimate and the curve models the trend direction, not counted daily sales."
  : ""}
  </p>
  <div style={{ marginTop: 12, fontSize: 13, color: C.dim }}>
@@ -3046,7 +3017,7 @@ function Sales({ db, biz, range, setRange }) {
  <button key={k} onClick={() => setRange(k)} className="fx fx-chip" style={{ ...pillBtn(range === k), padding: "7px 13px", fontSize: 12 }}>{n}</button>
  ))}
  </div>
- <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+ <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
  <Stat label="Revenue" value={money0(biz.revenue)} />
  <Stat label="Net profit" value={money0(biz.profit)} accent />
  <Stat label="Items sold" value={biz.itemsSold} />
