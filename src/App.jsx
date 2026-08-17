@@ -1381,8 +1381,10 @@ function TrendChart({ sales, range }) {
   const wrapRef = useRef(null);
   const { points, tickEvery } = useMemo(() => chartSeries(sales, range), [sales, range]);
 
-  const W = 320, H = 196;
-  const PAD = { t: 16, r: 12, b: 22, l: 12 };
+  // 320x140 renders about 364x159 in the card — roughly a 2.3:1 plot, wide
+  // enough to read a trend without the card swallowing the screen.
+  const W = 320, H = 140;
+  const PAD = { t: 14, r: 12, b: 20, l: 12 };
   const iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b;
   const peak = Math.max(1, ...points.map((p) => Math.max(p.revenue, p.profit)));
   const last = points.length - 1;
