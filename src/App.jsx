@@ -606,7 +606,16 @@ function Styles({ theme }) {
     This adds the row and nothing else: the page keeps its width, the
     bottom bar stays where it is, and every screen lays out exactly as
     it does on a phone. */
- .topnav { display: none; }
+ /* The app's only navigation, at every screen size. It scrolls sideways
+    rather than wrapping or clipping, so no tab is ever unreachable however
+    narrow the screen gets. */
+ .topnav {
+   display: flex;
+   overflow-x: auto;
+   scrollbar-width: none;
+   -ms-overflow-style: none;
+ }
+ .topnav::-webkit-scrollbar { height: 0; }
  .topnav-link {
    background: none; border: none; padding: 0 1px 8px; cursor: pointer;
    font-family: inherit; font-size: 13.5px; font-weight: 600;
@@ -621,7 +630,15 @@ function Styles({ theme }) {
     from "am here". */
  .topnav-link:hover { color: var(--c-accent); }
  .topnav-link[aria-current="page"] { color: var(--c-accent); border-bottom-color: var(--c-accent); }
- @media (min-width: 900px) { .topnav { display: flex; } }
+
+ /* Phones: drop the icons and tighten the type and spacing so all five
+    names fit across without scrolling. On anything narrower than about
+    340px they scroll, which is the fallback, not the plan. */
+ @media (max-width: 699px) {
+   .topnav { gap: 11px !important; }
+   .topnav-link { font-size: 12px; letter-spacing: -0.02em; }
+   .topnav-link svg { display: none; }
+ }
 
  /* ── Desktop layout ────────────────────────────────────────────────
     One URL, two layouts. Everything below 1200px renders the phone
@@ -635,41 +652,28 @@ function Styles({ theme }) {
      max-width: 1440px !important;
      padding-left: 40px !important;
      padding-right: 40px !important;
-     /* Nothing is pinned to the bottom any more, so the strip that was
-        reserved for the tab bar goes with it. */
-     padding-bottom: 56px !important;
    }
    /* Four stat tiles across instead of two-by-two. At 1440px wide a 2×2
       grid gives each tile ~660px to hold one short number, which reads as
       a mistake rather than a layout. */
    .stat-grid { grid-template-columns: repeat(4, 1fr) !important; }
-   /* The bottom tab bar is a phone pattern, and on desktop the tab row at
-      the top already does its job. Two navigations for one set of tabs is
-      clutter at best; in a framed window the fixed bar lands across the
-      middle of the page, which is what made this worth removing. */
-   .botnav { display: none !important; }
-   /* Which frees the assistant button to sit in the corner it was holding
-      clear of. */
-   .fab { bottom: 26px !important; right: 26px !important; }
+   .fab { right: 26px !important; }
  }
 
  /* For a host showing the app at phone size inside a wider window — a
-    preview frame, an embed. Media queries read the window, not the box,
-    so without this the row would appear inside a 412px-wide phone.
-    Nothing sets this in normal use. */
- [data-layout="mobile"] .topnav { display: none !important; }
+    preview frame, an embed. Media queries read the window, not the box, so
+    without this a 412px-wide frame would get the desktop column and the
+    four-across tiles. Nothing sets this in normal use. */
  [data-layout="mobile"] .shell {
    max-width: 560px !important; padding-left: 16px !important; padding-right: 16px !important;
-   padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)) !important;
  }
  [data-layout="mobile"] .stat-grid { grid-template-columns: 1fr 1fr !important; }
- /* And put back everything the desktop media query would otherwise take
-    away, since that query is looking at the window while this element is
-    only phone-wide. */
- [data-layout="mobile"] .botnav { display: block !important; }
- [data-layout="mobile"] .fab {
-   bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; right: 18px !important;
- }
+ [data-layout="mobile"] .fab { right: 18px !important; }
+ /* The phone treatment of the tab row keys off the window too, so pin it
+    here as well. */
+ [data-layout="mobile"] .topnav { gap: 11px !important; }
+ [data-layout="mobile"] .topnav-link { font-size: 12px !important; letter-spacing: -0.02em !important; }
+ [data-layout="mobile"] .topnav-link svg { display: none !important; }
 
  /* The mirror image: a host rendering the app at desktop width inside a
     window that may be any size. Same reason as above — the media query
@@ -679,11 +683,12 @@ function Styles({ theme }) {
  [data-layout="desktop"] .topnav { display: flex !important; }
  [data-layout="desktop"] .shell {
    max-width: 1440px !important; padding-left: 40px !important; padding-right: 40px !important;
-   padding-bottom: 56px !important;
  }
  [data-layout="desktop"] .stat-grid { grid-template-columns: repeat(4, 1fr) !important; }
- [data-layout="desktop"] .botnav { display: none !important; }
- [data-layout="desktop"] .fab { bottom: 26px !important; right: 26px !important; }
+ [data-layout="desktop"] .fab { right: 26px !important; }
+ [data-layout="desktop"] .topnav { gap: 26px !important; }
+ [data-layout="desktop"] .topnav-link { font-size: 13.5px !important; }
+ [data-layout="desktop"] .topnav-link svg { display: flex !important; }
 
  /* Collapsible stock heading. The row is full width, so fx-chip's glow
     would ring the whole line — a plain colour shift is the right weight
@@ -1419,7 +1424,10 @@ export default function ResellOS() {
  return (
  <div className="reseller-root" style={{ minHeight: "100vh", background: C.void, color: C.bone, fontFamily: SANS }}>
  <Styles theme={theme} />
- <div className="shell" style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px calc(104px + env(safe-area-inset-bottom, 0px))" }}>
+ {/* The bottom padding was a 104px strip reserved for the fixed tab bar.
+     With the bar gone it only needs enough room to clear the assistant
+     button, plus the iPhone home indicator. */}
+ <div className="shell" style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px calc(92px + env(safe-area-inset-bottom, 0px))" }}>
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 18, paddingBottom: 14 }}>
  <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.03em" }}>
  RESELLING<span style={{ color: C.accent }}>.</span>
@@ -1462,32 +1470,10 @@ export default function ResellOS() {
  </div>
  </div>
 
- {/* Tab bar, flush to the bottom edge on every tab. It was a rounded pill
-     floating 14px up, which left a strip of the page scrolling past
-     underneath it. Now it spans the full width, sits on the edge, and is
-     opaque enough that content passes behind rather than through it.
-     The safe-area inset keeps it clear of the iPhone home indicator. */}
- <nav className="botnav" style={{
-   position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 40,
-   background: "color-mix(in srgb, var(--c-void) 94%, transparent)",
-   backdropFilter: "blur(16px)",
-   WebkitBackdropFilter: "blur(16px)",
-   borderTop: `1px solid ${C.line}`,
-   paddingBottom: "env(safe-area-inset-bottom, 0px)",
- }}>
- <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", padding: "9px 6px 11px" }}>
- {TABS.map(([k, name, Icon]) => {
- const on = tab === k;
- return (
- <button key={k} onClick={() => go(k)} aria-label={name} aria-current={on ? "page" : undefined}
- style={{ flex: 1, background: "none", border: "none", cursor: "pointer", padding: "5px 0", display: "grid", justifyItems: "center", gap: 4 }}>
- <Icon size={20} strokeWidth={on ? 2.5 : 1.9} color={on ? C.accent : C.dead} />
- <span style={{ fontSize: 9.5, fontWeight: on ? 700 : 500, color: on ? C.bone : C.dead }}>{name}</span>
- </button>
- );
- })}
- </div>
- </nav>
+ {/* The fixed bottom tab bar used to live here. It is gone on every screen
+     size now — the tab row under the wordmark is the only navigation, which
+     means one place to look for it instead of two, and nothing overlaying
+     the content. */}
 
  <FloatingAI db={db} biz={biz} page={tab} focus={jump} user={user} />
  </div>
@@ -3391,7 +3377,7 @@ RULES FOR THIS APPLICATION:
  return (
  <>
  <button onClick={() => setOpen(true)} aria-label="Open AI assistant" className="fx fx-accent fab"
- style={{ position: "fixed", bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", right: 18, width: 52, height: 52, borderRadius: 999, background: C.accent, border: "none", cursor: "pointer", zIndex: 45, boxShadow: "0 10px 28px -8px rgba(0,0,0,.5)", display: open ? "none" : "grid", placeItems: "center" }}>
+ style={{ position: "fixed", bottom: "calc(26px + env(safe-area-inset-bottom, 0px))", right: 18, width: 52, height: 52, borderRadius: 999, background: C.accent, border: "none", cursor: "pointer", zIndex: 45, boxShadow: "0 10px 28px -8px rgba(0,0,0,.5)", display: open ? "none" : "grid", placeItems: "center" }}>
  <Sparkles size={21} color="#fff" />
  </button>
 
