@@ -652,6 +652,17 @@ function Styles({ theme }) {
  }
  [data-layout="mobile"] .stat-grid { grid-template-columns: 1fr 1fr !important; }
 
+ /* The mirror image: a host rendering the app at desktop width inside a
+    window that may be any size. Same reason as above — the media query
+    reads the window, not the box — so a desktop preview frame opened on a
+    laptop, a tablet or a phone still shows the desktop layout. Nothing
+    sets this in normal use either. */
+ [data-layout="desktop"] .topnav { display: flex !important; }
+ [data-layout="desktop"] .shell {
+   max-width: 1440px !important; padding-left: 40px !important; padding-right: 40px !important;
+ }
+ [data-layout="desktop"] .stat-grid { grid-template-columns: repeat(4, 1fr) !important; }
+
  /* Collapsible stock heading. The row is full width, so fx-chip's glow
     would ring the whole line — a plain colour shift is the right weight
     here. !important because the label style is inline and would win. */
