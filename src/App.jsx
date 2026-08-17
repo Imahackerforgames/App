@@ -2214,6 +2214,171 @@ function ProductCard({ item, idx, onDetail }) {
  );
 }
 
+/* ── Sold activity over the selected window ───────────────────────
+   Read this before trusting the shape of the line.
+
+   The reference data holds three things per product: a 90-day sold count,
+   a weekly sell-through rate, and a trend direction. That is a total and a
+   slope — not a day-by-day sales history. So this does not claim to know
+   what sold on any given day. It distributes the window's estimated total
+   across buckets along the slope the trend implies: rising, level or
+   falling. The buckets always add back to exactly the number printed above
+   the chart.
+
+   So the total is an estimate and the shape is a model of the trend. That
+   is what the card already tells the reader it is, and connecting a
+   marketplace replaces both with counted sales. */
+function soldSeries(item, windowDays, total) {
+  const ref = CATALOG.find((c) => c.title === item.title) || item;
+  /* Bucket widths per window, picked to give a readable number of points
+     without implying daily precision the data doesn't have. */
+  const plan = windowDays === 7 ? { n: 7, days: 1 }
+    : windowDays === 30 ? { n: 10, days: 3 }
+    : { n: 13, days: 7 };
+
+  // Trend sets the ratio between the oldest bucket and the newest one.
+  const ratio = ref.trend === "up" ? 1.75 : ref.trend === "down" ? 0.55 : 1;
+  const weights = Array.from({ length: plan.n }, (_, i) =>
+    1 + (ratio - 1) * (plan.n === 1 ? 1 : i / (plan.n - 1)));
+  const sum = weights.reduce((a, w) => a + w, 0);
+
+  /* Carry the rounding remainder forward and give the last bucket whatever
+     is left, so the buckets sum to `total` exactly rather than to total ± n
+     after independent rounding. */
+  let exact = 0, used = 0;
+  const counts = weights.map((w, i) => {
+    exact += (w / sum) * total;
+    const v = i === plan.n - 1 ? total - used : Math.round(exact - used);
+    used += v;
+    return Math.max(0, v);
+  });
+
+  const dayMs = 864e5;
+  const tomorrow = new Date(); tomorrow.setHours(0, 0, 0, 0);
+  tomorrow.setTime(tomorrow.getTime() + dayMs);
+
+  const fmt = (d, o) => d.toLocaleDateString(undefined, o);
+  const points = counts.map((sold, i) => {
+    const to = tomorrow.getTime() - (plan.n - 1 - i) * plan.days * dayMs;
+    const from = new Date(to - plan.days * dayMs);
+    const last = new Date(to - dayMs);
+    return {
+      sold,
+      tick: plan.days === 1 ? "SMTWTFS"[from.getDay()] : fmt(from, { month: "numeric", day: "numeric" }),
+      full: plan.days === 1
+        ? fmt(from, { weekday: "short", day: "numeric", month: "short" })
+        : `${fmt(from, { month: "short", day: "numeric" })} – ${fmt(last, { month: "short", day: "numeric" })}`,
+    };
+  });
+  return { points, tickEvery: points.length > 10 ? 2 : 1 };
+}
+
+/* One-series sibling of TrendChart, deliberately not a rewrite of it — the
+   home chart plots two money series against each other and works; this
+   plots counts. Same visual language: readout above the plot so nothing
+   covers the line, quiet grid, accent line over a gradient, crosshair and
+   marker on hover, fixed-height status row so nothing shifts. */
+function SoldChart({ item, windowDays, total }) {
+  const [hover, setHover] = useState(null);
+  const wrapRef = useRef(null);
+  const { points, tickEvery } = useMemo(
+    () => soldSeries(item, windowDays, total), [item.title, windowDays, total]); // eslint-disable-line
+
+  const W = 320, H = 130;
+  const PAD = { t: 14, r: 12, b: 20, l: 12 };
+  const iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b;
+  const peak = Math.max(1, ...points.map((p) => p.sold));
+  const last = points.length - 1;
+
+  const x = (i) => PAD.l + (last === 0 ? iw / 2 : (i / last) * iw);
+  const y = (v) => PAD.t + ih - (Math.max(0, v) / peak) * ih;
+  const line = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(p.sold).toFixed(1)}`).join(" ");
+  const area = `${line} L${x(last).toFixed(1)} ${(PAD.t + ih).toFixed(1)} L${x(0).toFixed(1)} ${(PAD.t + ih).toFixed(1)} Z`;
+  const active = hover == null ? null : points[hover];
+
+  const track = (clientX) => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const px = ((clientX - r.left) / r.width) * W;
+    setHover(clamp(last === 0 ? 0 : Math.round(((px - PAD.l) / iw) * last), 0, last));
+  };
+
+  return (
+    <div>
+      <div role="status" style={{ height: 32, marginBottom: 4 }}>
+        <div style={{ fontSize: 9.5, color: C.dead, fontFamily: MONO, height: 13 }}>
+          {active ? active.full : ""}
+        </div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <svg width="14" height="4" aria-hidden="true" style={{ flexShrink: 0 }}>
+            <line x1="0" y1="2" x2="14" y2="2" stroke={C.accent} strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          {active && (
+            <span style={{ fontSize: 13, fontWeight: 800, color: C.bone, fontVariantNumeric: "tabular-nums" }}>
+              {active.sold}
+            </span>
+          )}
+          <span style={{ fontSize: 10.5, color: C.dim }}>
+            {active ? "sold" : "Sold over time"}
+          </span>
+        </div>
+      </div>
+
+      <div ref={wrapRef} style={{ position: "relative", touchAction: "pan-y" }}
+        onPointerMove={(e) => track(e.clientX)}
+        onPointerLeave={() => setHover(null)}>
+        <svg viewBox={`0 0 ${W} ${H}`} role="img"
+          aria-label={`Sold activity, ${points.length} points over ${windowDays} days`}
+          style={{ display: "block", width: "100%", height: "auto", overflow: "visible" }}>
+          {[0, 0.5, 1].map((f) => {
+            const gy = PAD.t + ih - f * ih;
+            return (
+              <g key={f}>
+                <line x1={PAD.l} y1={gy} x2={W - PAD.r} y2={gy} stroke={C.line} strokeWidth="1"
+                  strokeOpacity={f === 0 ? 1 : 0.45} strokeDasharray={f === 0 ? undefined : "2 4"} />
+                {f > 0 && (
+                  <text x={PAD.l} y={gy - 4} fill={C.dead} fontSize="8" fontFamily={MONO}>
+                    {Math.round(peak * f)}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+
+          <defs>
+            <linearGradient id="soldFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={C.accent} stopOpacity="0.28" />
+              <stop offset="100%" stopColor={C.accent} stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path d={area} fill="url(#soldFill)" />
+          <path d={line} fill="none" stroke={C.accent} strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round" />
+
+          {active && (
+            <>
+              <line x1={x(hover)} y1={PAD.t} x2={x(hover)} y2={PAD.t + ih}
+                stroke={C.accent} strokeWidth="1" strokeOpacity="0.45" />
+              <circle cx={x(hover)} cy={y(active.sold)} r="4.5" fill={C.panel}
+                stroke={C.accent} strokeWidth="2.5" />
+            </>
+          )}
+
+          {points.map((p, i) => (
+            (i % tickEvery === 0 || i === last) && (
+              <text key={i} x={x(i)} y={H - 4} textAnchor="middle"
+                fill={hover === i ? C.bone : C.dead} fontSize="8.5" fontFamily={MONO}>
+                {p.tick}
+              </text>
+            )
+          ))}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 function ProductDetailSheet({ item, db, put, onClose }) {
  const [window_, setWindowD] = useState(90);
  const [sold, setSold] = useState(null);
@@ -2269,14 +2434,24 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  ) : sold.unavailable ? (
  <div style={{ fontFamily: MONO, fontSize: 14, color: C.dim }}>No reliable sold data</div>
  ) : (
+ <>
  <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 600 }}>
  {sold.count} <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>sold, last {window_} days</span>
  </div>
+ {/* Same chart language as the home screen, driven by the 7d/30d/90d
+     chips above, so the line and the number always describe one window.
+     The buckets sum to exactly the count printed above it. */}
+ <div style={{ marginTop: 12 }}>
+ <SoldChart item={item} windowDays={window_} total={sold.count} />
+ </div>
+ </>
  )}
  <p style={{ fontSize: 11, color: C.dead, margin: "8px 0 0" }}>
  {sold?.unavailable
  ? "This product isn't in our reference data. Use the marketplace links below to check sold listings directly."
- : sold?.estimated ? "Estimated from available signals — connect a marketplace for verified counts." : ""}
+ : sold?.estimated
+ ? "Estimated from available signals — connect a marketplace for verified counts. The total is an estimate and the curve models the trend direction, not counted daily sales."
+ : ""}
  </p>
  <div style={{ marginTop: 12, fontSize: 13, color: C.dim }}>
  Recent sold price: <span style={{ color: C.bone, fontWeight: 700, fontFamily: MONO }}>
