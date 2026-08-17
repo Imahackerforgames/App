@@ -1271,7 +1271,7 @@ export default function ResellOS() {
  return (
  <div className="reseller-root" style={{ minHeight: "100vh", background: C.void, color: C.bone, fontFamily: SANS }}>
  <Styles theme={theme} />
- <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px 96px" }}>
+ <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px calc(104px + env(safe-area-inset-bottom, 0px))" }}>
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 18, paddingBottom: 14 }}>
  <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.03em" }}>
  RESELLING<span style={{ color: C.accent }}>.</span>
@@ -1294,20 +1294,30 @@ export default function ResellOS() {
  </div>
  </div>
 
- <nav style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "rgba(0,0,0,.0)", zIndex: 40 }}>
- <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 12px 14px" }}>
- <div style={{ display: "flex", background: "color-mix(in srgb, var(--c-void) 88%, transparent)", backdropFilter: "blur(14px)", border: `1px solid ${C.line}`, borderRadius: 22, padding: "7px 6px" }}>
+ {/* Tab bar, flush to the bottom edge on every tab. It was a rounded pill
+     floating 14px up, which left a strip of the page scrolling past
+     underneath it. Now it spans the full width, sits on the edge, and is
+     opaque enough that content passes behind rather than through it.
+     The safe-area inset keeps it clear of the iPhone home indicator. */}
+ <nav style={{
+   position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 40,
+   background: "color-mix(in srgb, var(--c-void) 94%, transparent)",
+   backdropFilter: "blur(16px)",
+   WebkitBackdropFilter: "blur(16px)",
+   borderTop: `1px solid ${C.line}`,
+   paddingBottom: "env(safe-area-inset-bottom, 0px)",
+ }}>
+ <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", padding: "9px 6px 11px" }}>
  {TABS.map(([k, name, Icon]) => {
  const on = tab === k;
  return (
  <button key={k} onClick={() => go(k)} aria-label={name} aria-current={on ? "page" : undefined}
- style={{ flex: 1, background: "none", border: "none", cursor: "pointer", padding: "7px 0", display: "grid", justifyItems: "center", gap: 4 }}>
- <Icon size={19} strokeWidth={on ? 2.5 : 1.9} color={on ? C.accent : C.dead} />
+ style={{ flex: 1, background: "none", border: "none", cursor: "pointer", padding: "5px 0", display: "grid", justifyItems: "center", gap: 4 }}>
+ <Icon size={20} strokeWidth={on ? 2.5 : 1.9} color={on ? C.accent : C.dead} />
  <span style={{ fontSize: 9.5, fontWeight: on ? 700 : 500, color: on ? C.bone : C.dead }}>{name}</span>
  </button>
  );
  })}
- </div>
  </div>
  </nav>
 
@@ -2933,7 +2943,7 @@ RULES FOR THIS APPLICATION:
  return (
  <>
  <button onClick={() => setOpen(true)} aria-label="Open AI assistant" className="fx fx-accent"
- style={{ position: "fixed", bottom: 92, right: 18, width: 52, height: 52, borderRadius: 999, background: C.accent, border: "none", cursor: "pointer", zIndex: 45, boxShadow: "0 10px 28px -8px rgba(0,0,0,.5)", display: open ? "none" : "grid", placeItems: "center" }}>
+ style={{ position: "fixed", bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", right: 18, width: 52, height: 52, borderRadius: 999, background: C.accent, border: "none", cursor: "pointer", zIndex: 45, boxShadow: "0 10px 28px -8px rgba(0,0,0,.5)", display: open ? "none" : "grid", placeItems: "center" }}>
  <Sparkles size={21} color="#fff" />
  </button>
 
