@@ -623,7 +623,8 @@ function Styles({ theme }) {
    /* Grey at rest — the row shouldn't compete with the page. */
    color: var(--c-dead);
    border-bottom: 2px solid transparent;
-   transition: color .16s, border-color .16s;
+   transition: color .16s, border-color .16s, background .16s,
+               box-shadow .16s, transform .16s cubic-bezier(.2,.7,.3,1);
  }
  /* Hovering and being on the tab read the same: the word takes the
     theme's accent. The underline is what separates "could go here"
@@ -631,13 +632,40 @@ function Styles({ theme }) {
  .topnav-link:hover { color: var(--c-accent); }
  .topnav-link[aria-current="page"] { color: var(--c-accent); border-bottom-color: var(--c-accent); }
 
- /* Phones: drop the icons and tighten the type and spacing so all five
-    names fit across without scrolling. On anything narrower than about
-    340px they scroll, which is the fallback, not the plan. */
+ /* ── Phone tab row: bubbles ───────────────────────────────────────
+    The icons drop out and each name gets its own capsule, sharing the
+    width equally so the five read as one segmented control rather than a
+    line of text. The bubble is what carries state here, so the desktop
+    underline is switched off — two markers for one thing is noise.
+
+    Touch has no hover, so the bubble has to answer to three states: it
+    fills on hover for anyone on a trackpad, presses in on :active for a
+    finger, and sits filled on whichever tab you're on. */
  @media (max-width: 699px) {
-   .topnav { gap: 11px !important; }
-   .topnav-link { font-size: 12px; letter-spacing: -0.02em; }
+   .topnav { gap: 4px !important; }
+   .topnav-link {
+     flex: 1 1 0; min-width: 0; justify-content: center;
+     font-size: 11px; letter-spacing: -0.02em;
+     padding: 7px 3px;
+     border-radius: 999px;
+     border-bottom-color: transparent !important;
+   }
    .topnav-link svg { display: none; }
+
+   .topnav-link:hover {
+     background: color-mix(in srgb, var(--c-accent) 13%, transparent);
+     box-shadow: var(--glow);
+     transform: translateY(-1px);
+   }
+   /* A finger gets the squash instead of the lift. */
+   .topnav-link:active { transform: scale(.93); }
+   .topnav-link[aria-current="page"] {
+     background: color-mix(in srgb, var(--c-accent) 20%, transparent);
+     color: var(--c-accent);
+   }
+   .topnav-link[aria-current="page"]:hover {
+     background: color-mix(in srgb, var(--c-accent) 26%, transparent);
+   }
  }
 
  /* ── Desktop layout ────────────────────────────────────────────────
@@ -671,9 +699,28 @@ function Styles({ theme }) {
  [data-layout="mobile"] .fab { right: 18px !important; }
  /* The phone treatment of the tab row keys off the window too, so pin it
     here as well. */
- [data-layout="mobile"] .topnav { gap: 11px !important; }
- [data-layout="mobile"] .topnav-link { font-size: 12px !important; letter-spacing: -0.02em !important; }
+ [data-layout="mobile"] .topnav { gap: 4px !important; }
+ [data-layout="mobile"] .topnav-link {
+   flex: 1 1 0 !important; min-width: 0 !important; justify-content: center !important;
+   font-size: 11px !important; letter-spacing: -0.02em !important;
+   padding: 7px 3px !important;
+   border-radius: 999px !important;
+   border-bottom-color: transparent !important;
+ }
  [data-layout="mobile"] .topnav-link svg { display: none !important; }
+ [data-layout="mobile"] .topnav-link:hover {
+   background: color-mix(in srgb, var(--c-accent) 13%, transparent) !important;
+   box-shadow: var(--glow) !important;
+   transform: translateY(-1px);
+ }
+ [data-layout="mobile"] .topnav-link:active { transform: scale(.93); }
+ [data-layout="mobile"] .topnav-link[aria-current="page"] {
+   background: color-mix(in srgb, var(--c-accent) 20%, transparent) !important;
+   color: var(--c-accent) !important;
+ }
+ [data-layout="mobile"] .topnav-link[aria-current="page"]:hover {
+   background: color-mix(in srgb, var(--c-accent) 26%, transparent) !important;
+ }
 
  /* The mirror image: a host rendering the app at desktop width inside a
     window that may be any size. Same reason as above — the media query
@@ -704,6 +751,8 @@ function Styles({ theme }) {
  @media (prefers-reduced-motion: reduce) {
    *{animation:none !important; transition:none !important} .rise{opacity:1 !important}
    .fx:hover, .fx:active { transform: none !important; }
+   /* The tab bubbles keep their colour, lose their lift and squash. */
+   .topnav-link:hover, .topnav-link:active { transform: none !important; }
  }
  `}</style>
  );
