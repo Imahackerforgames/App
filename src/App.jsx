@@ -542,6 +542,51 @@ function Styles({ theme }) {
    box-shadow: var(--glow); }
  .lnk { transition: background .15s, color .15s, border-color .15s; }
  .lnk:hover { background:${C.accent} !important; color:#fff !important; border-color:${C.accent} !important; }
+
+ /* ── Desktop layout ────────────────────────────────────────────────
+    Phones get the bottom tab bar; wide screens get the tab names in a
+    row across the top, which is where a desktop user looks for them.
+    Only one of the two is ever mounted-visible, so there is never a
+    second, competing way to change tabs. */
+ .topnav { display: none; }
+ .topnav-link {
+   background: none; border: none; padding: 0 1px 8px; cursor: pointer;
+   font-family: inherit; font-size: 13.5px; font-weight: 600;
+   letter-spacing: -0.01em; white-space: nowrap;
+   /* Grey at rest — the row shouldn't compete with the page. */
+   color: var(--c-dead);
+   border-bottom: 2px solid transparent;
+   transition: color .16s, border-color .16s;
+ }
+ /* Hovering and being on the tab read the same: the word takes the
+    theme's accent. The underline is what separates "could go here"
+    from "am here". */
+ .topnav-link:hover { color: var(--c-accent); }
+ .topnav-link[aria-current="page"] { color: var(--c-accent); border-bottom-color: var(--c-accent); }
+
+ @media (min-width: 900px) {
+   .topnav { display: flex; }
+   .botnav { display: none; }
+   /* Wider column and no reserved strip at the bottom, now that nothing
+      is pinned down there. !important because these are inline styles. */
+   .shell { max-width: 780px !important; padding-bottom: 56px !important; }
+   .fab { bottom: 26px !important; right: 26px !important; }
+ }
+
+ /* Escape hatch for a host that is showing the app at phone size inside a
+    wider window — a preview frame, an embed, a split pane. Media queries
+    read the window, not the box, so without this the app would put its
+    desktop nav inside a 412px-wide frame. Nothing sets this in normal use;
+    the media query above is the real behaviour. */
+ [data-layout="mobile"] .topnav { display: none !important; }
+ [data-layout="mobile"] .botnav { display: block !important; }
+ [data-layout="mobile"] .shell {
+   max-width: 560px !important;
+   padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)) !important;
+ }
+ [data-layout="mobile"] .fab {
+   bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; right: 18px !important;
+ }
  button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible, textarea:focus-visible {
  outline: 2px solid ${C.accent}; outline-offset: 3px; }
  ::-webkit-scrollbar { width:0; height:0; }
@@ -1271,7 +1316,7 @@ export default function ResellOS() {
  return (
  <div className="reseller-root" style={{ minHeight: "100vh", background: C.void, color: C.bone, fontFamily: SANS }}>
  <Styles theme={theme} />
- <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px calc(104px + env(safe-area-inset-bottom, 0px))" }}>
+ <div className="shell" style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px calc(104px + env(safe-area-inset-bottom, 0px))" }}>
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 18, paddingBottom: 14 }}>
  <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.03em" }}>
  RESELLING<span style={{ color: C.accent }}>.</span>
@@ -1284,6 +1329,26 @@ export default function ResellOS() {
  Sign out
  </button>
  </div>
+
+ {/* Desktop tab row. It lives in the shell rather than inside HomeScreen
+     so it sits in the same place on every tab — a nav that only existed
+     on Home would be a nav you could walk away from and not get back to.
+     On Home that puts it directly above the range filter. */}
+ <nav className="topnav" aria-label="Sections"
+   style={{ gap: 26, alignItems: "center", borderBottom: `1px solid ${C.line}`, marginBottom: 20 }}>
+ {TABS.map(([k, name, Icon]) => {
+ const on = tab === k;
+ return (
+ <button key={k} onClick={() => go(k)} className="topnav-link"
+   aria-current={on ? "page" : undefined}
+   style={{ display: "flex", alignItems: "center", gap: 7 }}>
+ {/* The icon follows the word — currentColor means one rule drives both. */}
+ <Icon size={15} strokeWidth={on ? 2.4 : 1.9} color="currentColor" />
+ {name}
+ </button>
+ );
+ })}
+ </nav>
 
  <div key={tab}>
  {tab === "home" && <HomeScreen db={db} put={put} biz={biz} range={range} setRange={setRange} go={go} />}
@@ -1299,7 +1364,7 @@ export default function ResellOS() {
      underneath it. Now it spans the full width, sits on the edge, and is
      opaque enough that content passes behind rather than through it.
      The safe-area inset keeps it clear of the iPhone home indicator. */}
- <nav style={{
+ <nav className="botnav" style={{
    position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 40,
    background: "color-mix(in srgb, var(--c-void) 94%, transparent)",
    backdropFilter: "blur(16px)",
@@ -1398,9 +1463,17 @@ function TrendChart({ sales, range }) {
   const wrapRef = useRef(null);
   const { points, tickEvery } = useMemo(() => chartSeries(sales, range), [sales, range]);
 
-  // 320x140 renders about 364x159 in the card — roughly a 2.3:1 plot, wide
-  // enough to read a trend without the card swallowing the screen.
-  const W = 320, H = 140;
+  /* The viewBox height is fixed and its width tracks the container, which
+     pins the scale factor at one value on every screen. With a fixed 320
+     wide viewBox the whole drawing multiplied up with the card — on a
+     desktop-width card the plot grew to ~340px tall and the tick text with
+     it. Now a wider card buys more horizontal room instead, and the chart
+     stays 159px tall with the same stroke weights and label sizes
+     everywhere. 364 is the phone card's inner width, so the first paint
+     before the observer reports is already correct on a phone. */
+  const [boxW, setBoxW] = useState(364);
+  const H = 140, SCALE = 364 / 320;
+  const W = Math.max(240, Math.round(boxW / SCALE));
   const PAD = { t: 14, r: 12, b: 20, l: 12 };
   const iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b;
   const peak = Math.max(1, ...points.map((p) => Math.max(p.revenue, p.profit)));
@@ -1413,6 +1486,16 @@ function TrendChart({ sales, range }) {
 
   const hasData = points.some((p) => p.revenue > 0 || p.profit > 0);
   const active = hover == null ? null : points[hover];
+
+  /* Only the width is read, and the SVG's height is what changes when the
+     width does, so this can't feed back into itself. */
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => setBoxW(Math.round(entry.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const track = (clientX) => {
     const el = wrapRef.current;
@@ -1457,7 +1540,9 @@ function TrendChart({ sales, range }) {
         onPointerLeave={() => setHover(null)}>
         {/* height:auto lets the viewBox set the aspect. With a fixed pixel
             height the SVG scaled to fit the shorter axis and sat letterboxed
-            in the middle of the card instead of filling it. */}
+            in the middle of the card instead of filling it. The viewBox width
+            comes from the measured container, so this always resolves to the
+            full card width by 159px tall. */}
         <svg viewBox={`0 0 ${W} ${H}`} role="img"
           aria-label={`Revenue and profit, ${points.length} points`}
           style={{ display: "block", width: "100%", height: "auto", overflow: "visible" }}>
@@ -2949,7 +3034,7 @@ RULES FOR THIS APPLICATION:
 
  return (
  <>
- <button onClick={() => setOpen(true)} aria-label="Open AI assistant" className="fx fx-accent"
+ <button onClick={() => setOpen(true)} aria-label="Open AI assistant" className="fx fx-accent fab"
  style={{ position: "fixed", bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", right: 18, width: 52, height: 52, borderRadius: 999, background: C.accent, border: "none", cursor: "pointer", zIndex: 45, boxShadow: "0 10px 28px -8px rgba(0,0,0,.5)", display: open ? "none" : "grid", placeItems: "center" }}>
  <Sparkles size={21} color="#fff" />
  </button>
