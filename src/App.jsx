@@ -2273,6 +2273,46 @@ function soldSeries(item, windowDays, total) {
   return { points, tickEvery: points.length > 10 ? 2 : 1 };
 }
 
+/* The marketplaces to offer in the sold-activity filter: the ones on this
+   product's side of the market. Online products get the online boards,
+   local products get the local ones — a sold count for a couch on Poshmark
+   would be meaningless. */
+function filterMarkets(item) {
+  const local = MARKETS[item.source]?.kind === "local";
+  return local ? LOCAL : ONLINE;
+}
+
+/* Split a sold total across the marketplaces that publish sold listings.
+
+   There is no per-marketplace breakdown in the reference data — one total
+   per product, full stop. So this apportions that one total, giving the
+   board the product was actually observed on the larger share. It is a
+   model, and the card says so whenever a single marketplace is selected.
+
+   The rounding remainder is carried the same way the chart's buckets carry
+   theirs, so the parts sum to `total` exactly: pick each marketplace in
+   turn and you have accounted for the whole number the All markets view
+   shows, with nothing invented and nothing lost. Rounding to whole sales
+   means two equally-weighted boards can land a sale apart; that beats a
+   split that doesn't add up.
+
+   Marketplaces with no sold feed are absent from the result — the card
+   reports that rather than guessing a number for them. */
+function marketSplit(item, total) {
+  const pool = filterMarkets(item).filter((k) => MARKETS[k]?.sold);
+  const weight = (k) => (k === item.source ? 2.2 : 1);
+  const sum = pool.reduce((a, k) => a + weight(k), 0) || 1;
+  const out = {};
+  let exact = 0, used = 0;
+  pool.forEach((k, i) => {
+    exact += (weight(k) / sum) * total;
+    const v = i === pool.length - 1 ? total - used : Math.round(exact - used);
+    used += v;
+    out[k] = Math.max(0, v);
+  });
+  return out;
+}
+
 /* One-series sibling of TrendChart, deliberately not a rewrite of it — the
    home chart plots two money series against each other and works; this
    plots counts. Same visual language: readout above the plot so nothing
@@ -2381,6 +2421,7 @@ function SoldChart({ item, windowDays, total }) {
 
 function ProductDetailSheet({ item, db, put, onClose }) {
  const [window_, setWindowD] = useState(90);
+ const [soldMarket, setSoldMarket] = useState("all");
  const [sold, setSold] = useState(null);
  const [related, setRelated] = useState([]);
  const [saved, setSaved] = useState(false);
@@ -2394,11 +2435,26 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  SearchProvider.findSimilarProducts(item).then(setRelated);
  }, [item.title, window_]); // eslint-disable-line
 
+ // A different product may not even sell on the marketplace that was picked
+ // for the last one, so the filter starts over with it.
+ useEffect(() => { setSoldMarket("all"); }, [item.title]);
+
  const save = async () => {
  const list = db.watchlist || [];
  await put("watchlist", saved ? list.filter((w) => w.title !== item.title) : [...list, { title: item.title, cat: item.cat }]);
  setSaved(!saved);
  };
+
+ /* Sold activity for the marketplace currently picked. "All markets" is the
+    whole total, which is what the card has always shown, so the default view
+    is unchanged. A single marketplace takes its modelled share of that same
+    total — never more than the total, and the shares across the boards that
+    publish sold data add back up to it. */
+ const split = sold && !sold.unavailable ? marketSplit(item, sold.count) : {};
+ const noSoldFeed = soldMarket !== "all" && !MARKETS[soldMarket]?.sold;
+ const shownCount = !sold || sold.unavailable || noSoldFeed ? 0
+   : soldMarket === "all" ? sold.count
+   : (split[soldMarket] ?? 0);
 
  const c = +cost || 0;
  const calc = (c > 0 && item.comp > 0) ? profitFrom({ sell: item.comp, cost: c, feePct: s.feePct, pay: s.payPct, ship: s.ship }) : null;
@@ -2429,28 +2485,61 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  ))}
  </div>
  </div>
+ {/* Marketplace filter. Every board on this product's side of the market
+     is offered, including the ones that publish no sold listings — being
+     told Depop has no sold data is more useful than that option quietly
+     not existing. */}
+ {!sold?.unavailable && (
+ <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 13 }}>
+ {["all", ...filterMarkets(item)].map((k) => (
+ <button key={k} onClick={() => setSoldMarket(k)} className="fx fx-chip"
+   style={{ ...pillBtn(soldMarket === k), padding: "4px 10px", fontSize: 10.5 }}>
+ {k === "all" ? "All markets" : marketLabel(k)}
+ </button>
+ ))}
+ </div>
+ )}
+
  {!sold ? (
  <div style={{ fontFamily: MONO, fontSize: 13, color: C.dead }}>Checking…</div>
  ) : sold.unavailable ? (
  <div style={{ fontFamily: MONO, fontSize: 14, color: C.dim }}>No reliable sold data</div>
+ ) : noSoldFeed ? (
+ /* Picked a board that doesn't publish completed listings. Say that
+    rather than modelling a number for it. */
+ <div style={{ fontFamily: MONO, fontSize: 13.5, color: C.dim, lineHeight: 1.5 }}>
+ {marketLabel(soldMarket)} doesn't publish sold listings, so there's no
+ sold count to show. Its link under Sources opens a live search.
+ </div>
  ) : (
  <>
  <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 600 }}>
- {sold.count} <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>sold, last {window_} days</span>
+ {shownCount} <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>
+ sold, last {window_} days{soldMarket === "all" ? "" : ` on ${marketLabel(soldMarket)}`}
+ </span>
  </div>
- {/* Same chart language as the home screen, driven by the 7d/30d/90d
-     chips above, so the line and the number always describe one window.
-     The buckets sum to exactly the count printed above it. */}
+ {shownCount > 0 ? (
+ /* Same chart language as the home screen, driven by the window chips
+    and the marketplace filter above, so the line and the number
+    always describe one slice. The buckets sum to exactly the count
+    printed above it. */
  <div style={{ marginTop: 12 }}>
- <SoldChart item={item} windowDays={window_} total={sold.count} />
+ <SoldChart item={item} windowDays={window_} total={shownCount} />
  </div>
+ ) : (
+ <div style={{ fontSize: 12, color: C.dead, marginTop: 8 }}>
+ Too few sales in this window to chart. Try a longer window.
+ </div>
+ )}
  </>
  )}
  <p style={{ fontSize: 11, color: C.dead, margin: "8px 0 0" }}>
  {sold?.unavailable
  ? "This product isn't in our reference data. Use the marketplace links below to check sold listings directly."
+ : noSoldFeed
+ ? ""
  : sold?.estimated
- ? "Estimated from available signals — connect a marketplace for verified counts. The total is an estimate and the curve models the trend direction, not counted daily sales."
+ ? `Estimated from available signals — connect a marketplace for verified counts. The total is an estimate and the curve models the trend direction, not counted daily sales.${soldMarket === "all" ? "" : ` The reference data holds one total per product, so the ${marketLabel(soldMarket)} split is an estimate too.`}`
  : ""}
  </p>
  <div style={{ marginTop: 12, fontSize: 13, color: C.dim }}>
