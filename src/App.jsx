@@ -362,6 +362,22 @@ Rules: specific products with model/size detail; integers for price; "why" max 5
  },
 };
 
+/* What to call this person on screen. A display name set in Settings wins;
+   otherwise fall back to how they signed in — username first, then the local
+   part of the email, which reads as a name where the full address does not.
+   Returns "" when there is nothing to go on, so each caller picks its own
+   wording for that case. */
+function displayName(user, profile) {
+  const set = (profile?.name || "").trim();
+  if (set) return set;
+  const uname = (user?.username || "").trim();
+  if (uname) return uname;
+  // Signing in by username puts that username in `email`, and splitting a
+  // string with no "@" in it just returns the string.
+  const mail = (user?.email || "").trim();
+  return mail ? mail.split("@")[0] : "";
+}
+
 const demandLabel = (vel) => vel == null ? "Unknown" : vel >= 6 ? "High" : vel >= 3 ? "Medium" : "Low";
 const compLabel = (sellers) => sellers == null ? "Unknown" : sellers >= 50 ? "High" : sellers >= 20 ? "Medium" : "Low";
 const satLabel = (vel, sellers) => {
@@ -1447,7 +1463,7 @@ export default function ResellOS() {
  /* Whatever we can call this person. Indexing straight into user.email
     crashed the whole app to a blank screen when a sign-in produced a session
     with no address on it — a label is never worth taking the UI down for. */
- const who = (user?.username || user?.email || "").trim() || "Signed in";
+ const who = displayName(user, db.profile) || "Signed in";
 
  if (!ready) return <div style={{ minHeight: "100vh", background: THEMES.heat.void }} />;
 
@@ -1513,7 +1529,7 @@ export default function ResellOS() {
  </nav>
 
  <div key={tab}>
- {tab === "home" && <HomeScreen db={db} put={put} biz={biz} range={range} setRange={setRange} go={go} />}
+ {tab === "home" && <HomeScreen db={db} put={put} biz={biz} range={range} setRange={setRange} go={go} user={user} />}
  {tab === "discover" && <Discover db={db} put={put} jump={jump} go={go} />}
  {tab === "saturation" && <Saturation db={db} go={go} />}
  {tab === "business" && <Business db={db} biz={biz} put={put} range={range} setRange={setRange} jump={jump} />}
@@ -1760,7 +1776,7 @@ function TrendChart({ sales, range }) {
   );
 }
 
-function HomeScreen({ db, put, biz, range, setRange, go }) {
+function HomeScreen({ db, put, biz, range, setRange, go, user }) {
  const [notifOpen, setNotifOpen] = useState(false);
  const hour = new Date().getHours();
  const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -1774,7 +1790,7 @@ function HomeScreen({ db, put, biz, range, setRange, go }) {
  <div className="rise" style={{ ...rise(0), display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
  <div>
  <h1 style={{ fontSize: 25, fontWeight: 800, letterSpacing: "-0.03em", margin: 0, lineHeight: 1.2 }}>
- {greet}, {db.profile.name || "there"} 👋
+ {greet}, {displayName(user, db.profile) || "there"} 👋
  </h1>
  <p style={{ fontSize: 13.5, color: C.dim, margin: "6px 0 0" }}>{msg}</p>
  </div>
