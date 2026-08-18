@@ -109,15 +109,33 @@ async function sessionToken() {
  } catch { return null; }
 }
 
+/* Headers for a call to one of this project's Edge Functions.
+
+   All of them run with verify_jwt on, and the whole point of that is that
+   only a signed-in person can spend the project's search and model credits.
+   That requires sending THEIR access token — the publishable key identifies
+   the project, not a user. product-search and market-research were sending
+   only the publishable key, which is not a user JWT at all under the new
+   sb_publishable_* key format.
+
+   The fallback keeps demo mode working: with no session there is no token,
+   and the call goes out with the publishable key exactly as it used to. */
+async function fnHeaders() {
+ const token = await sessionToken();
+ return {
+   "Content-Type": "application/json",
+   apikey: SUPABASE_PUBLISHABLE_KEY,
+   Authorization: `Bearer ${token || SUPABASE_PUBLISHABLE_KEY}`,
+ };
+}
+
 /* Routed through the ai-assistant Edge Function, not api.anthropic.com.
    Calling Anthropic straight from the browser cannot work: the API sends no
    CORS headers to web origins, so the request is blocked before it leaves the
    page ("Failed to fetch" / "Load failed"), and the key would be exposed even
    if it did. The key lives server-side in the function. */
 async function askClaude(messages, { context = "" } = {}) {
- const token = await sessionToken();
- const headers = { "Content-Type": "application/json", apikey: SUPABASE_PUBLISHABLE_KEY };
- if (token) headers.Authorization = `Bearer ${token}`;
+ const headers = await fnHeaders();
 
  let res;
  try {
@@ -213,11 +231,7 @@ const SearchProvider = {
      try {
        const res = await fetch(SEARCH_FN, {
          method: "POST",
-         headers: {
-           "Content-Type": "application/json",
-           "apikey": SUPABASE_PUBLISHABLE_KEY,
-           "Authorization": `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-         },
+         headers: await fnHeaders(),
          body: JSON.stringify({ query, mode, maxResults: 10 }),
        });
        if (res.ok) {
@@ -276,11 +290,7 @@ Rules: real listing pages only, never news/blogs/forums/videos/articles. Never i
      try {
        const res = await fetch(RESEARCH_FN, {
          method: "POST",
-         headers: {
-           "Content-Type": "application/json",
-           "apikey": SUPABASE_PUBLISHABLE_KEY,
-           "Authorization": `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-         },
+         headers: await fnHeaders(),
          body: JSON.stringify({ question, depth }),
        });
        if (res.ok) {
