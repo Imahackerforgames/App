@@ -1,0 +1,16 @@
+# Netlify, as an alternative to Vercel. Same build either way — this is a
+# static Vite bundle with no server of its own; the backend is Supabase
+# Edge Functions, which are deployed separately and are not affected by
+# hosting choice.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# The app keeps its screen in React state rather than in the URL, so every
+# path has to return index.html. Without this a refresh on any URL other
+# than "/" would 404 against a file that was never built.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
