@@ -237,14 +237,22 @@ const SearchProvider = {
        if (res.ok) {
          const data = await res.json();
          if (Array.isArray(data.results) && data.results.length) {
-           return data.results.map((r) => ({
+           const rows = data.results.map((r) => ({
              title: stripPrices(r.title), market: r.market,
              cond: "", url: safeUrl(r.url), image: r.image || null,
              snippet: r.snippet || "", source: "tavily",
            })).filter((r) => r.url);
+           /* Only return these if something survived safeUrl. The function
+              searches craigslist.org for local queries, which is not one of
+              the marketplaces this app covers and so is not on the app's
+              host allowlist — a local search returning mostly Craigslist
+              used to come back as an empty array, which rendered as a blank
+              results list with nothing to explain it. Falling through
+              instead gets the reader the catalog and a sentence saying why. */
+           if (rows.length) return rows;
          }
        }
-       // non-OK or empty falls through to the fallback below
+       // non-OK, empty, or nothing left after filtering falls through below
      } catch { /* network/CORS — fall through */ }
    }
 
