@@ -238,7 +238,10 @@ const SearchProvider = {
        const res = await fetch(SEARCH_FN, {
          method: "POST",
          headers: await fnHeaders(),
-         body: JSON.stringify({ query, mode, maxResults: 10 }),
+         /* marketplaces is what the filter chips select. It used to be
+            computed in ProductSearch and then dropped here, so picking
+            "eBay" searched all five online boards exactly like "All". */
+         body: JSON.stringify({ query, mode, marketplaces, maxResults: 10 }),
        });
        if (!res.ok) {
          /* The function reports its own faults precisely — a missing
@@ -302,9 +305,9 @@ Rules: real listing pages only, never news/blogs/forums/videos/articles. Never i
    return catalogMatches(query, why);
  },
 
- async searchLocalProducts(query, loc = {}) {
+ async searchLocalProducts(query, loc = {}, marketplaces = LOCAL) {
    return SearchProvider.searchProducts(
-     `${query} ${loc.zip || loc.state || ""}`.trim(), LOCAL, "local");
+     `${query} ${loc.zip || loc.state || ""}`.trim(), marketplaces, "local");
  },
 
  // Current market info for the chatbot. Returns SOURCES so the assistant
@@ -341,6 +344,45 @@ End with a line starting "SOURCES:" listing the URLs you used, comma separated.`
    return { answer: stripPrices(body.trim()),
             sources: urls.slice(0, 5).map((u) => ({ title: u.replace(/^https?:\/\//, "").split("/")[0], url: u })),
             stale: false, retrievedAt: new Date().toISOString(), via: "claude" };
+ },
+
+ /* Signals for a product that isn't in the reference catalog — which is
+    every result a live search returns.
+
+    Two passes over the same marketplaces: active listings, then completed
+    ones. That gives two counts that are genuinely observed rather than
+    modelled, and between them they answer the two questions that matter —
+    how many other people are selling this, and is it actually moving.
+
+    Both counts are samples, not totals. Tavily returns at most 20 per pass,
+    so a busy product reports 20 and means "at least 20". Every screen that
+    shows these says so; presenting a sample as a total would be worse than
+    showing nothing. */
+ async analyzeProduct(title, { marketplaces = ONLINE, mode = "online" } = {}) {
+   const pass = async (sold) => {
+     const res = await fetch(SEARCH_FN, {
+       method: "POST",
+       headers: await fnHeaders(),
+       body: JSON.stringify({ query: title, mode, marketplaces, sold, maxResults: 20 }),
+     });
+     if (!res.ok) throw new Error(`Search service returned ${res.status}.`);
+     return res.json();
+   };
+
+   const [active, sold] = await Promise.all([pass(false), pass(true)]);
+   const listings = Number(active.count) || 0;
+   const soldSeen = Number(sold.count) || 0;
+
+   return {
+     listings,
+     soldSeen,
+     /* Both passes cap at 20, so anything at the cap is a floor. */
+     listingsCapped: listings >= 20,
+     soldCapped: soldSeen >= 20,
+     markets: active.markets || [],
+     soldMarkets: sold.markets || [],
+     retrievedAt: active.retrievedAt || new Date().toISOString(),
+   };
  },
 
  async getRecentSoldData(title, windowDays = 90) {
@@ -412,6 +454,19 @@ function displayName(user, profile) {
   return mail ? mail.split("@")[0] : "";
 }
 
+/* Labels for observed live counts. Deliberately not the same functions as
+   demandLabel/compLabel, which read catalog fields on a different scale —
+   sharing them would have quietly implied the two are measured the same
+   way. Thresholds are per sample of at most 20. */
+const seenCompLabel = (n) => n >= 15 ? "High" : n >= 6 ? "Medium" : n > 0 ? "Low" : "None found";
+const seenDemandLabel = (n) => n >= 10 ? "High" : n >= 4 ? "Medium" : n > 0 ? "Low" : "None found";
+const seenSatLabel = (listings, soldSeen) => {
+  if (!listings) return "Unknown";
+  if (!soldSeen) return "Crowded";
+  const ratio = listings / soldSeen;
+  return ratio >= 3 ? "Crowded" : ratio >= 1.5 ? "Filling up" : "Room to move";
+};
+
 const demandLabel = (vel) => vel == null ? "Unknown" : vel >= 6 ? "High" : vel >= 3 ? "Medium" : "Low";
 const compLabel = (sellers) => sellers == null ? "Unknown" : sellers >= 50 ? "High" : sellers >= 20 ? "Medium" : "Low";
 const satLabel = (vel, sellers) => {
@@ -481,9 +536,38 @@ const CATALOG = [
  { title: "Supreme Camp Cap", cat: "Headwear", source: "depop", comp: 68, vel: 2.4, sellers: 26, comps90: 9, trend: "flat" },
 ];
 
+/* Search suggestions. The old list was ten entries, so typing almost
+   anything produced one match or none. These are products that actually
+   move in resale, spread across the categories the app already knows
+   about, so a couple of letters lands on something useful. */
 const VOCAB = [...new Set([...CATALOG.map((c) => c.title),
- "Dior Sauvage", "Creed Aventus", "Jordan 1", "Jordan 4", "Nike Dunk Low",
- "Supreme Box Logo", "Carhartt Detroit Jacket", "Casio G-Shock", "PS5", "Dyson Airwrap",
+ // Sneakers
+ "Jordan 1 Low", "Jordan 1 High", "Jordan 3", "Jordan 4", "Jordan 11",
+ "Nike Dunk Low Panda", "Nike Dunk Low", "Air Force 1", "New Balance 550",
+ "New Balance 990", "Yeezy Slide", "Yeezy 350", "Adidas Samba", "Asics Gel-Kayano",
+ "Salomon XT-6", "Air Max 90", "Air Max 95", "Travis Scott Jordan",
+ // Streetwear and clothing
+ "Supreme Box Logo Hoodie", "Carhartt Detroit Jacket", "Carhartt Double Knee",
+ "Stussy Hoodie", "The North Face Nuptse", "Patagonia Fleece", "Arc'teryx Beta",
+ "Nike Tech Fleece", "Essentials Fear of God", "Levi's 501 Vintage",
+ "Harley Davidson Tee", "Vintage Band Tee", "Ralph Lauren Polo Bear",
+ // Fragrance
+ "Dior Sauvage", "Creed Aventus", "Bleu de Chanel", "Baccarat Rouge 540",
+ "Tom Ford Tobacco Vanille", "Versace Eros", "YSL Y EDP",
+ // Watches and accessories
+ "Casio G-Shock", "Seiko SKX007", "Seiko 5", "Casio F91W", "Apple Watch",
+ "Ray-Ban Wayfarer", "Oakley Sunglasses",
+ // Bags
+ "Coach Tabby", "Louis Vuitton Neverfull", "Telfar Shopping Bag", "Jansport Backpack",
+ // Electronics
+ "PS5", "PS5 Controller", "Nintendo Switch", "Nintendo Switch OLED", "Steam Deck",
+ "AirPods Pro", "Sony WH-1000XM4", "Sony WH-1000XM5", "iPad", "Kindle Paperwhite",
+ "Meta Quest 3", "GoPro Hero", "Nintendo DS Lite",
+ // Home and tools
+ "Dyson Airwrap", "Dyson V8", "Instant Pot", "Ninja Creami", "Stanley Tumbler",
+ "KitchenAid Mixer", "Le Creuset Dutch Oven", "DeWalt Drill", "Milwaukee M18",
+ // Collectibles
+ "Pokemon Booster Box", "Pokemon Card Lot", "Lego Star Wars Set", "Funko Pop Grail",
 ])];
 
 const STATES = "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY".split(" ");
@@ -2110,9 +2194,16 @@ function ProductSearch({ db, onAnalyze }) {
  const n = q.toLowerCase().trim();
  if (n.length < 2) { setSugs([]); return; }
  const t = setTimeout(() => {
+ /* Names that begin with what was typed come first — those are what
+    someone half-way through a word is reaching for — then names that
+    merely contain it, so "dunk" still finds "Nike Dunk Low Panda". */
  const a = VOCAB.filter((v) => v.toLowerCase().startsWith(n));
  const b = VOCAB.filter((v) => !v.toLowerCase().startsWith(n) && v.toLowerCase().includes(n));
- setSugs([...a, ...b].slice(0, 5));
+ /* Also match on any word inside the name, so "panda" or "airwrap" land
+    even though neither starts the title. */
+ const c = VOCAB.filter((v) => !a.includes(v) && !b.includes(v)
+   && v.toLowerCase().split(/[^a-z0-9]+/).some((w) => w.startsWith(n)));
+ setSugs([...a, ...b, ...c].slice(0, 8));
  }, 110);
  return () => clearTimeout(t);
  }, [q]);
@@ -2125,7 +2216,7 @@ function ProductSearch({ db, onAnalyze }) {
  const pool = scope === "local" ? LOCAL : ONLINE;
  const marketplaces = filter === "all" ? pool : pool.includes(filter) ? [filter] : pool;
  const [rows_, blurb_] = await Promise.all([
- scope === "local" ? SearchProvider.searchLocalProducts(t, db.profile) : SearchProvider.searchProducts(t, marketplaces),
+ scope === "local" ? SearchProvider.searchLocalProducts(t, db.profile, marketplaces) : SearchProvider.searchProducts(t, marketplaces),
  describeProduct(t).catch(() => ""),
  ]);
  setRows(rows_); setBlurb(blurb_);
@@ -2532,6 +2623,7 @@ function SoldChart({ item, windowDays, total }) {
 function ProductDetailSheet({ item, db, put, onClose }) {
  const [window_, setWindowD] = useState(90);
  const [sold, setSold] = useState(null);
+ const [live, setLive] = useState(null);
  const [related, setRelated] = useState([]);
  const [saved, setSaved] = useState(false);
  const [showCost, setShowCost] = useState(false);
@@ -2543,6 +2635,21 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  SearchProvider.getRecentSoldData(item.title, window_).then(setSold);
  SearchProvider.findSimilarProducts(item).then(setRelated);
  }, [item.title, window_]); // eslint-disable-line
+
+ /* Anything that came out of a live search has no catalog row behind it, so
+    every signal on this sheet used to read "Unknown". Go and measure it
+    instead: two searches, one for active listings and one for completed
+    ones. Only for products the catalog doesn't already cover, so opening a
+    known product costs nothing. */
+ useEffect(() => {
+   if (CATALOG.some((c) => c.title === item.title)) { setLive(null); return; }
+   let alive = true;
+   setLive({ loading: true });
+   SearchProvider.analyzeProduct(item.title)
+     .then((r) => alive && setLive(r))
+     .catch((e) => alive && setLive({ error: e.message || "Couldn't analyze this product." }));
+   return () => { alive = false; };
+ }, [item.title]);
 
  const save = async () => {
  const list = db.watchlist || [];
@@ -2562,12 +2669,53 @@ function ProductDetailSheet({ item, db, put, onClose }) {
     explains them in words. */
  return (
  <Sheet title={item.title} sub="Market data — estimates, not guarantees" onClose={onClose}>
+ {/* Catalog products keep their own numbers. Everything else reads the
+     two live passes, so a searched product gets measured signals instead
+     of four tiles saying "Unknown". */}
  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginBottom: 6 }}>
- <Mini l="Demand" v={demandLabel(item.vel)} />
- <Mini l="Competition" v={compLabel(item.sellers)} />
- <Mini l="Saturation" v={satLabel(item.vel, item.sellers)} />
+ {live?.listings !== undefined ? (
+ <>
+ <Mini l="Demand" v={seenDemandLabel(live.soldSeen)} />
+ <Mini l="Competition" v={seenCompLabel(live.listings)} />
+ <Mini l="Saturation" v={seenSatLabel(live.listings, live.soldSeen)} />
+ <Mini l="Marketplaces" v={live.markets.length ? String(live.markets.length) : "—"} />
+ </>
+ ) : (
+ <>
+ <Mini l="Demand" v={live?.loading ? "Checking…" : demandLabel(item.vel)} />
+ <Mini l="Competition" v={live?.loading ? "Checking…" : compLabel(item.sellers)} />
+ <Mini l="Saturation" v={live?.loading ? "Checking…" : satLabel(item.vel, item.sellers)} />
  <Mini l="Trend" v={item.trend === "up" ? "Rising" : item.trend === "down" ? "Falling" : "Flat"} />
+ </>
+ )}
  </div>
+
+ {/* The raw counts those labels came from, said plainly. A label like
+     "High" is a judgement; "18 active listings seen" is the evidence,
+     and the reader is entitled to both. */}
+ {live?.listings !== undefined && (
+ <div style={{ ...card, marginTop: 10 }}>
+ <div style={{ ...label, marginBottom: 10 }}>Measured just now</div>
+ <Row l="Active listings found" r={`${live.listings}${live.listingsCapped ? "+" : ""}`} />
+ <Row l="Sold listings found" r={`${live.soldSeen}${live.soldCapped ? "+" : ""}`} />
+ <Row l="Selling on" r={live.markets.length ? live.markets.join(", ") : "None found"} />
+ <Row l="Sold data from" r={live.soldMarkets.length ? live.soldMarkets.join(", ") : "None found"} />
+ <p style={{ fontSize: 11, color: C.dead, margin: "10px 0 0", lineHeight: 1.55 }}>
+ Counted from live marketplace listings, up to 20 per search — a "+" means
+ at least that many, not a total. Dated 7/30/90-day sold counts and a trend
+ direction need a connected marketplace account; searching the web can see
+ what is listed now, not what sold last Tuesday.
+ </p>
+ </div>
+ )}
+
+ {live?.error && (
+ <div style={{ ...card, marginTop: 10, borderColor: C.accentDim }}>
+ <p style={{ fontSize: 12.5, color: C.dim, margin: 0, lineHeight: 1.6 }}>
+ Couldn't measure this product live. <span style={{ fontFamily: MONO, color: C.accent }}>{live.error}</span>
+ </p>
+ </div>
+ )}
 
  <div style={{ ...card, marginTop: 10 }}>
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>

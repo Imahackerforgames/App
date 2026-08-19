@@ -23,16 +23,27 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
    is invisible in the dashboard.
    ═══════════════════════════════════════════════════════════════ */
 
-const ONLINE_DOMAINS = [
-  "ebay.com", "mercari.com", "vinted.com", "poshmark.com", "depop.com",
-];
+/* The seven marketplaces this product covers, keyed the way the app names
+   them, so a marketplace filter can be passed straight through. */
+const MARKET_DOMAIN: Record<string, string> = {
+  ebay: "ebay.com",
+  mercari: "mercari.com",
+  vinted: "vinted.com",
+  poshmark: "poshmark.com",
+  depop: "depop.com",
+  offerup: "offerup.com",
+  facebook: "facebook.com/marketplace",
+};
+const ONLINE_DOMAINS = ["ebay.com", "mercari.com", "vinted.com", "poshmark.com", "depop.com"];
 /* craigslist.org used to be here. It is not one of the seven marketplaces
    this product covers, and the app's own URL allowlist is built from that
    list — so every Craigslist result was fetched, counted against the
    quota, and then discarded before it could be shown. */
-const LOCAL_DOMAINS = [
-  "offerup.com", "facebook.com/marketplace",
-];
+const LOCAL_DOMAINS = ["offerup.com", "facebook.com/marketplace"];
+
+/* Only marketplaces that publish completed listings can answer "did this
+   sell", so a sold pass is restricted to these however the filter is set. */
+const SOLD_CAPABLE = new Set(["ebay.com", "mercari.com", "poshmark.com"]);
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -89,12 +100,41 @@ Deno.serve(async (req: Request) => {
       console.warn(`product-search: the stored secret does not start with "tvly-" (starts "${fp.prefix}"). This is probably not a Tavily key.`);
     }
 
-    const { query, mode = "online", maxResults = 10 } = await req.json();
+    const {
+      query,
+      mode = "online",
+      maxResults = 10,
+      /* Which marketplaces to search. The app computes this from its filter
+         chips and it used to be dropped on the floor here, so choosing
+         "eBay" searched all five online boards exactly like "All". */
+      marketplaces,
+      /* When true, look for completed listings rather than active ones. The
+         two passes together are what make an analysis possible: active
+         listings measure competition, sold listings measure demand. */
+      sold = false,
+    } = await req.json();
+
     if (!query || typeof query !== "string" || !query.trim()) {
       return json({ error: "Missing 'query'." }, 400);
     }
 
-    const domains = mode === "local" ? LOCAL_DOMAINS : ONLINE_DOMAINS;
+    const pool = mode === "local" ? LOCAL_DOMAINS : ONLINE_DOMAINS;
+    let domains = Array.isArray(marketplaces) && marketplaces.length
+      ? marketplaces.map((k: string) => MARKET_DOMAIN[k]).filter(Boolean)
+      : pool;
+    /* A filter naming only marketplaces outside this mode would leave
+       nothing to search, which reads as "no results" rather than as a bad
+       filter. Fall back to the whole pool instead. */
+    if (!domains.length) domains = pool;
+    if (sold) {
+      const capable = domains.filter((d: string) => SOLD_CAPABLE.has(d));
+      domains = capable.length ? capable : [...SOLD_CAPABLE];
+    }
+
+    /* Bias the query itself toward completed listings. The sold pages live
+       on the same domains as the active ones, so the domain list cannot
+       separate them — the wording is what does. */
+    const searchQuery = sold ? `${query.trim()} sold completed listing` : query.trim();
 
     const res = await fetch("https://api.tavily.com/search", {
       method: "POST",
@@ -107,7 +147,7 @@ Deno.serve(async (req: Request) => {
            key both ways across API versions, and sending both removes an
            auth-format mismatch as a possible cause of a 401. */
         api_key: key,
-        query: query.trim(),
+        query: searchQuery,
         search_depth: "basic",
         include_domains: domains,
         max_results: Math.min(Number(maxResults) || 10, 20),
@@ -162,11 +202,15 @@ Deno.serve(async (req: Request) => {
       }))
       .filter((r: any) => r.market);
 
-    console.log(`product-search: ok — "${query}" (${mode}) → ${results.length} of ${(data.results ?? []).length} raw results kept.`);
+    const markets = [...new Set(results.map((r: any) => r.market))];
+    console.log(`product-search: ok — "${query}" (${mode}${sold ? ", sold" : ""}) over [${domains.join(", ")}] → ${results.length} of ${(data.results ?? []).length} raw results kept across ${markets.length} marketplaces.`);
 
     return json({
       query,
       mode,
+      sold,
+      searchedDomains: domains,
+      markets,
       count: results.length,
       retrievedAt: new Date().toISOString(),
       source: "tavily",
