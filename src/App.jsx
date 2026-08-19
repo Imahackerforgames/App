@@ -200,7 +200,7 @@ function needsWebSearch(q) {
    `matched` records whether the query hit anything, so the UI can say
    "no match, here's what is in the catalog" rather than implying these
    were search results. */
-function catalogMatches(query) {
+function catalogMatches(query, reason = "") {
   const words = String(query).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1);
   const scored = CATALOG
     .map((c) => {
@@ -220,6 +220,11 @@ function catalogMatches(query) {
     url: MARKETS[c.source]?.url?.(c.title) || "",
     source: "catalog",
     matched: hit,
+    /* Why the live path didn't happen, in the function's own words. Without
+       this the screen said only "live search is unavailable", which is true
+       but useless — the function knows exactly what is wrong and says so in
+       its response body, and that message was being thrown away. */
+    reason,
   }));
 }
 
@@ -227,6 +232,7 @@ const SearchProvider = {
  async searchProducts(query, marketplaces = ONLINE, mode = "online") {
    // Preferred path: Tavily via the Edge Function. Real listing pages,
    // domain-restricted at the source, key never exposed.
+   let why = "";
    if (USE_TAVILY) {
      try {
        const res = await fetch(SEARCH_FN, {
@@ -234,6 +240,14 @@ const SearchProvider = {
          headers: await fnHeaders(),
          body: JSON.stringify({ query, mode, maxResults: 10 }),
        });
+       if (!res.ok) {
+         /* The function reports its own faults precisely — a missing
+            TAVILY_API_KEY, an upstream Tavily status — so read the body
+            rather than guessing from the status code. Only the curated
+            `error` field is surfaced; `detail` can carry upstream noise. */
+         const body = await res.json().catch(() => ({}));
+         why = String(body.error || `Search service returned ${res.status}.`).slice(0, 160);
+       }
        if (res.ok) {
          const data = await res.json();
          if (Array.isArray(data.results) && data.results.length) {
@@ -253,7 +267,9 @@ const SearchProvider = {
          }
        }
        // non-OK, empty, or nothing left after filtering falls through below
-     } catch { /* network/CORS — fall through */ }
+     } catch {
+       why = "Couldn't reach the search service.";
+     }
    }
 
    // Second try: Claude with web search. Slower and less precise, but works
@@ -282,8 +298,8 @@ Rules: real listing pages only, never news/blogs/forums/videos/articles. Never i
      if (rows.length) return rows;
    } catch { /* unreachable or unconfigured — fall through */ }
 
-   // Always something to show.
-   return catalogMatches(query);
+   // Always something to show, and always a reason why it is this.
+   return catalogMatches(query, why);
  },
 
  async searchLocalProducts(query, loc = {}) {
@@ -2193,6 +2209,13 @@ function ProductSearch({ db, onAnalyze }) {
  {rows[0].matched
  ? "Live web search is unavailable, so these are matches from the app's built-in reference catalog. Analyze works fully on them. View Product opens a sold-listings search on that marketplace."
  : `Live web search is unavailable and the built-in catalog has no match for that. Showing all ${rows.length} reference products instead.`}
+ {/* The precise fault, straight from the search function. This is what
+     turns "it doesn't work" into a fix you can act on. */}
+ {rows[0].reason && (
+ <span style={{ display: "block", marginTop: 7, color: C.accent, fontFamily: MONO, fontSize: 11.5 }}>
+ {rows[0].reason}
+ </span>
+ )}
  </p>
  </div>
  )}
