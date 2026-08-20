@@ -187,6 +187,54 @@ function needsWebSearch(q) {
   return WEB_HINTS.some((h) => s.includes(h));
 }
 
+/* Seed queries for AI Discover, per category.
+
+   Discover has to start somewhere: unlike Product Search there is no term
+   from the user, so it picks a seed and reads back what is actually listed
+   against it.
+
+   These are deliberately category-level rather than specific products. A
+   seed like "air force 1" returns twenty listings of one shoe, which
+   collapses to a single card — correct, but it can never fill five. A seed
+   like "sneakers" returns listings for many different shoes, which is what
+   a discovery screen is for. */
+const DISCOVER_SEEDS = {
+  Shoes: ["sneakers", "jordan sneakers", "nike shoes", "adidas sneakers",
+    "new balance sneakers", "running shoes", "designer sneakers", "basketball shoes",
+    "skate shoes", "vintage sneakers"],
+  Clothes: ["vintage jacket", "designer hoodie", "streetwear jacket", "vintage t-shirt",
+    "fleece jacket", "denim jacket", "workwear jacket", "vintage sweatshirt",
+    "puffer jacket", "designer shirt"],
+  Jewelry: ["gold chain", "silver ring", "tennis bracelet", "gold bracelet",
+    "vintage ring", "pendant necklace"],
+  Accessories: ["mens watch", "vintage watch", "sunglasses", "designer bag",
+    "leather wallet", "smart watch", "crossbody bag"],
+  Headwear: ["fitted cap", "vintage hat", "snapback", "trucker hat", "beanie"],
+  Colognes: ["mens cologne", "designer fragrance", "eau de parfum", "perfume bottle",
+    "niche fragrance"],
+  Other: ["game console", "wireless headphones", "kitchen appliance", "power tool",
+    "lego set", "trading cards", "camera", "tablet", "smart speaker", "hair tool"],
+};
+/* Local resale is a different trade — bulky things that cost too much to
+   ship, which is exactly why they are sold face to face. */
+const LOCAL_SEEDS = ["treadmill", "dresser", "power tools", "bicycle", "sectional couch",
+  "lawn mower", "air compressor", "patio furniture", "mini fridge", "dewalt drill"];
+
+/* Marketplace label back to the key the app uses everywhere else. The search
+   function returns "eBay"; MARKETS is keyed "ebay". */
+const MARKET_KEY = Object.fromEntries(
+  Object.entries(MARKETS).map(([k, m]) => [m.label.toLowerCase(), k]));
+
+/* Remembering the last seed is what makes "Find again" mean it. Without it
+   the same random pick could come up twice in a row and the button would
+   look broken. */
+let lastDiscoverSeed = "";
+function pickSeed(pool) {
+  const options = pool.length > 1 ? pool.filter((x) => x !== lastDiscoverSeed) : pool;
+  lastDiscoverSeed = options[Math.floor(Math.random() * options.length)];
+  return lastDiscoverSeed;
+}
+
 /* Last-resort product source: the app's own reference catalog.
 
    Both remote paths need a reachable backend and a key — Tavily through the
@@ -346,7 +394,7 @@ End with a line starting "SOURCES:" listing the URLs you used, comma separated.`
             stale: false, retrievedAt: new Date().toISOString(), via: "claude" };
  },
 
- /* Signals for a product that isn't in the reference catalog — which is
+/* Signals for a product that isn't in the reference catalog — which is
     every result a live search returns.
 
     Two passes over the same marketplaces: active listings, then completed
@@ -400,6 +448,73 @@ End with a line starting "SOURCES:" listing the URLs you used, comma separated.`
 
  async getMarketSignals(f) {
  const local = f.mode === "local";
+ const mode = local ? "local" : "online";
+ const marketplaces = local ? LOCAL : ONLINE;
+
+ /* Live path, and the reason this screen works at all now. Discover used
+    to go only through Claude, so when that key had no credit the whole
+    screen fell back to six catalog rows — while Product Search, which
+    goes through Tavily, was working fine two chips away. Same search
+    service as Product Search, seeded with a rotating category term. */
+ try {
+   const pool = local ? LOCAL_SEEDS
+     : (DISCOVER_SEEDS[f.cat] || Object.values(DISCOVER_SEEDS).flat());
+
+   /* Listing titles repeat heavily — twenty results are often the same
+      item twenty times — so collapse on the opening words, otherwise
+      "5 products" would be one product five times. */
+   const seen = new Set();
+   const picked = [];
+   const seeds = [];
+
+   /* Up to three seeds, stopping as soon as there are five distinct
+      products. One seed usually suffices; a narrow category on a quiet
+      day might not, and coming back with two cards would look broken. */
+   for (let attempt = 0; attempt < 3 && picked.length < 5; attempt++) {
+     const seed = pickSeed(pool);
+     seeds.push(seed);
+     const res = await fetch(SEARCH_FN, {
+       method: "POST",
+       headers: await fnHeaders(),
+       body: JSON.stringify({ query: seed, mode, marketplaces, maxResults: 20 }),
+     });
+     if (!res.ok) break;
+     const data = await res.json();
+
+     const fresh = (data.results || [])
+       .map((r) => ({ ...r, url: safeUrl(r.url) }))
+       .filter((r) => r.url && r.title)
+       .filter((r) => {
+         const k = stripPrices(r.title).toLowerCase().split(/\s+/).slice(0, 4).join(" ");
+         if (seen.has(k)) return false;
+         seen.add(k);
+         return true;
+       });
+
+     /* Shuffled, so the same seed twice still turns the set over rather
+        than returning the same five in the same order. */
+     for (let i = fresh.length - 1; i > 0; i--) {
+       const j = Math.floor(Math.random() * (i + 1));
+       [fresh[i], fresh[j]] = [fresh[j], fresh[i]];
+     }
+     picked.push(...fresh);
+   }
+
+   const rows = picked.slice(0, 5).map((r, i) => ({
+     rank: i + 1,
+     title: stripPrices(r.title),
+     cat: f.cat && f.cat !== "All" ? f.cat : (local ? "Local" : "Other"),
+     source: MARKET_KEY[String(r.market || "").toLowerCase()] || (local ? "offerup" : "ebay"),
+     url: r.url,
+     /* Left null on purpose. These are live listings, not catalog rows —
+        See More measures them for real rather than the card asserting a
+        demand figure nobody counted. */
+     comp: null, vel: null, sellers: null, comps90: null, trend: "flat",
+     why: "", origin: "tavily", seeds,
+   }));
+   if (rows.length) return rows;
+ } catch { /* fall through to the paths below */ }
+
  const where = local
  ? `sourced LOCALLY and resold — bulky/heavy items that cost too much to ship: furniture, tools, exercise equipment, appliances, bikes.${f.state ? ` Bias toward ${f.state}.` : ""}`
  : `sourced and resold ONLINE — small, light, identifiable items: cologne, sneakers, streetwear, watches, bags, electronics.`;
@@ -432,6 +547,7 @@ Rules: specific products with model/size detail; integers for price; "why" max 5
  .filter((c) => !f.cat || f.cat === "All" || c.cat === f.cat)
  .slice()
  .sort((a, b) => b.vel - a.vel)
+ .slice(0, 5)
  .map((c, i) => ({ ...c, rank: i + 1, why: c.why || "", origin: "catalog" }));
  if (!rows.length) throw new Error(`No ${f.cat} products in the built-in catalog. Try All, or a different category.`);
  return rows;
@@ -2068,7 +2184,10 @@ function AIDiscover({ db, put, onDetail }) {
  setBusy(true); setErr(null); setStage(0);
  try {
  let list = await SearchProvider.getMarketSignals(f);
- if (f.ticket !== "all") list = list.filter((r) => TICKET(r.comp) === f.ticket);
+ /* Live listings carry no comparable price, so a ticket filter has nothing
+    to test them against. Filter only the rows that do have one rather than
+    silently dropping every live result. */
+ if (f.ticket !== "all") list = list.filter((r) => r.comp == null || TICKET(r.comp) === f.ticket);
  const at = new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
  setRows(list); setStamp(at);
  try { await window.storage.set("ros:found", JSON.stringify({ list, at })); } catch {}
@@ -2425,16 +2544,27 @@ function ProductCard({ item, idx, onDetail }) {
  <div style={{ flex: 1, minWidth: 0 }}>
  <div style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.3 }}>{item.title}</div>
  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
- <TrendIcon trend={item.trend} />
+ {/* No trend icon on a live listing — a flat dash there reads as a
+     measured "no movement" rather than "not measured yet". */}
+ {item.vel != null && <TrendIcon trend={item.trend} />}
  <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.dim }}>
- {item.cat} · {kind} · Demand {demandLabel(item.vel)}
+ {/* A live listing has no counted demand behind it, so name the
+     marketplace it is on instead of printing "Demand Unknown". */}
+ {item.vel == null
+   ? `${item.cat} · ${kind} · ${marketLabel(item.source)}`
+   : `${item.cat} · ${kind} · Demand ${demandLabel(item.vel)}`}
  </span>
  </div>
  {item.why && <div style={{ fontSize: 12, color: C.dead, marginTop: 5 }}>{item.why}</div>}
  </div>
  </div>
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.line}` }}>
- <span style={{ fontFamily: MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: VERDICT_COLOR[v.tone] }}>{v.label}</span>
+ {/* The verdict is a call made from counted signals. A live listing has
+     none yet, so it says what to do about that rather than shouting
+     "NOT ENOUGH DATA" at every card on the screen. */}
+ <span style={{ fontFamily: MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: item.vel == null ? C.dead : VERDICT_COLOR[v.tone] }}>
+ {item.vel == null ? "TAP TO MEASURE" : v.label}
+ </span>
  <button onClick={() => onDetail(item)} className="fx fx-chip"
  style={{ display: "flex", alignItems: "center", gap: 5, background: "transparent", border: `1px solid ${C.accentDim}`, borderRadius: 999, padding: "7px 14px", color: C.bone, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
  See More <ChevronRight size={13} />
