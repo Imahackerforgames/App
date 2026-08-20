@@ -101,13 +101,67 @@ const stripPrices = (t) => (t || "").replace(/\$\s?[\d,]+(\.\d{1,2})?/g, "").rep
 
 const AI_FN = `${SUPABASE_URL}/functions/v1/ai-assistant`;
 
-/** The signed-in user's access token, for the JWT-gated Edge Functions. */
+/** The signed-in user's access token, for the JWT-gated Edge Functions.
+
+   Supabase access tokens last about an hour. Nothing here ever refreshed
+   one, so an app left open past that point had every JWT-gated call
+   rejected by the gateway with a 401 — and because that rejection carries
+   no CORS headers, the browser could not read it and reported a failed
+   fetch instead. On screen that read as "couldn't reach the search
+   service", which sent us looking at Tavily and the network when the real
+   answer was that the session had quietly gone stale.
+
+   So: refresh it, a minute before it lapses, and persist the new pair. */
+/* Two calls going out together — the search and the blurb beside it — each
+   found the token stale and each refreshed it. Harmless but wasteful, and it
+   races: the second refresh can land first and store the older pair. One
+   in-flight refresh, shared. */
+let refreshInFlight = null;
+
 async function sessionToken() {
  try {
    const a = await window.storage.get("ros:session");
-   return a ? JSON.parse(a.value).token || null : null;
+   if (!a) return null;
+   const sess = JSON.parse(a.value);
+   if (!sess.token) return null;
+
+   const stillFresh = sess.expiresAt && sess.expiresAt * 1000 > Date.now() + 60_000;
+   if (stillFresh) return sess.token;
+   /* A session saved before this app knew to keep refresh tokens has
+      nothing to renew with. Hand back what we have; the caller will get a
+      401 and the app says so plainly rather than pretending. */
+   if (!sess.refresh) return sess.token;
+
+   refreshInFlight = refreshInFlight || (async () => {
+     const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+       method: "POST",
+       headers: { "Content-Type": "application/json", apikey: SUPABASE_PUBLISHABLE_KEY },
+       body: JSON.stringify({ refresh_token: sess.refresh }),
+     });
+     if (!res.ok) return sess.token;
+     const d = await res.json();
+     if (!d.access_token) return sess.token;
+
+     const next = {
+       ...sess,
+       token: d.access_token,
+       refresh: d.refresh_token || sess.refresh,
+       expiresAt: d.expires_at || Math.floor(Date.now() / 1000) + (Number(d.expires_in) || 3600),
+     };
+     try { await window.storage.set("ros:session", JSON.stringify(next)); } catch {}
+     return next.token;
+   })().finally(() => { refreshInFlight = null; });
+
+   return refreshInFlight;
  } catch { return null; }
 }
+
+/** Everything a stored session needs to outlive its access token. */
+const sessionFields = (d) => ({
+  token: d.access_token,
+  refresh: d.refresh_token || null,
+  expiresAt: d.expires_at || (d.expires_in ? Math.floor(Date.now() / 1000) + Number(d.expires_in) : null),
+});
 
 /* Headers for a call to one of this project's Edge Functions.
 
@@ -1135,7 +1189,7 @@ function AuthScreen({ onDone, theme }) {
           setPhase("verify"); setCode("");
           setBusy(false); return;
         }
-        onDone({ email, provider: "email", token: d.access_token, id: d.user?.id, username: username.trim() });
+        onDone({ email, provider: "email", ...sessionFields(d), id: d.user?.id, username: username.trim() });
       } else if (loginWith === "username") {
         // Supabase authenticates by email, so the username is resolved to an
         // account server-side by the username-login function.
@@ -1146,10 +1200,10 @@ function AuthScreen({ onDone, theme }) {
         });
         const d = await res.json().catch(() => ({}));
         if (!res.ok || !d.access_token) throw new Error(d.error || "Username or password is incorrect.");
-        onDone({ email: d.user?.email || loginId.trim(), provider: "email", token: d.access_token, id: d.user?.id });
+        onDone({ email: d.user?.email || loginId.trim(), provider: "email", ...sessionFields(d), id: d.user?.id });
       } else {
         const d = await supabaseAuth("token?grant_type=password", { email: loginId.trim(), password: pw });
-        onDone({ email: loginId.trim(), provider: "email", token: d.access_token, id: d.user?.id });
+        onDone({ email: loginId.trim(), provider: "email", ...sessionFields(d), id: d.user?.id });
       }
     } catch (e) {
       // Sandbox blocked the call, or the project isn't reachable from here.
@@ -1173,7 +1227,7 @@ function AuthScreen({ onDone, theme }) {
     try {
       const d = await supabaseAuth("verify", { type: "signup", email, token });
       if (!d.access_token) { setErr("That code didn't work. Check it and try again."); return; }
-      onDone({ email, provider: "email", token: d.access_token, id: d.user?.id, username: username.trim() });
+      onDone({ email, provider: "email", ...sessionFields(d), id: d.user?.id, username: username.trim() });
     } catch (e) {
       if (/failed to fetch|networkerror|load failed/i.test(e.message)) {
         setNote("Can't reach Supabase from this preview. Continuing in demo mode.");
@@ -1223,7 +1277,7 @@ function AuthScreen({ onDone, theme }) {
           headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${d.access_token}` },
         });
         const u = await res.json();
-        onDone({ email: u.email, provider: "google", token: d.access_token, id: u.id });
+        onDone({ email: u.email, provider: "google", ...sessionFields(d), id: u.id });
       } catch (e) {
         setErr("Signed in, but couldn't load your account. Try again.");
         setBusy(false);
@@ -1657,14 +1711,22 @@ export default function ResellOS() {
    try {
      const h = window.location.hash || "";
      if (h.includes("access_token=")) {
-       const token = new URLSearchParams(h.slice(1)).get("access_token");
+       const hash = new URLSearchParams(h.slice(1));
+       const token = hash.get("access_token");
+       /* The implicit flow hands back a refresh token and a lifetime
+          alongside the access token. Keeping them is what lets a Google
+          session survive its first hour. */
+       const refresh = hash.get("refresh_token");
+       const expiresIn = Number(hash.get("expires_in"));
        if (token) {
          const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
            headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${token}` },
          });
          if (res.ok) {
            const u = await res.json();
-           const profile = { email: u.email, provider: "google", token, id: u.id };
+           const profile = { email: u.email, provider: "google", token, id: u.id,
+             refresh: refresh || null,
+             expiresAt: expiresIn ? Math.floor(Date.now() / 1000) + expiresIn : null };
            setUser(profile); setStage("app");
            try { await window.storage.set("ros:session", JSON.stringify(profile)); } catch {}
            // strip the tokens out of the address bar

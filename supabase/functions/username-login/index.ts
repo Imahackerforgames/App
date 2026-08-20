@@ -88,7 +88,18 @@ Deno.serve(async (req: Request) => {
       return json(DENIED, 400);
     }
 
-    return json({ access_token: session.access_token, user: session.user });
+    /* The refresh token and expiry come back too. Returning only the access
+       token meant a username sign-in had no way to renew itself, so an hour
+       later every JWT-gated function call started failing — which surfaced
+       in the app as "couldn't reach the search service" rather than as an
+       expired session. Still no email in the response. */
+    return json({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+      expires_at: session.expires_at,
+      expires_in: session.expires_in,
+      user: session.user,
+    });
   } catch (error) {
     console.error("username-login error:", error);
     return json({ error: "Couldn't sign you in. Please try again." }, 500);
