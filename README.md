@@ -90,3 +90,60 @@ Email and password sign-in already works against real Supabase.
 
 If its report describes files that aren't here, stop — it isn't reading
 your actual code.
+
+---
+
+## Working on this as a team
+
+**The live app:** https://app-resell6.vercel.app — public, no access needed.
+Anyone can open it and make their own account. Accounts don't see each
+other's data.
+
+**To change the code**, you need to be a collaborator on this repository.
+Then:
+
+```bash
+git clone https://github.com/Imahackerforgames/App.git
+cd App
+npm install
+npm run dev
+```
+
+Pushing to the default branch deploys to the live URL automatically, in
+about a minute. That is worth knowing before you push: there is no staging
+step. For anything non-trivial, branch and open a pull request:
+
+```bash
+git checkout -b your-change
+# ...work...
+git push -u origin your-change
+```
+
+**What you do not need access to.** Vercel and Supabase are only for whoever
+administers deployments and the database. Contributing code needs neither —
+push to GitHub and the deploy happens on its own.
+
+### Keys and secrets
+
+`src/App.jsx` contains the Supabase URL and its publishable key. Those are
+meant to be public; the publishable key only grants what row-level security
+allows, and every table is scoped to its owner.
+
+Three keys are **not** in this repository and must never be added to it:
+
+| Key | Lives in |
+|---|---|
+| `TAVILY_API_KEY` | Supabase → Edge Functions → Secrets |
+| `ANTHROPIC_API_KEY` | Supabase → Edge Functions → Secrets |
+| Supabase service role key | Supabase only, never anywhere else |
+
+Anything prefixed `VITE_` is compiled into the browser bundle and readable by
+anyone using the app, so no secret may ever be named that way.
+
+### Where things live
+
+- `src/App.jsx` — the whole frontend
+- `src/components/AIAssistant.jsx` — the assistant panel
+- `supabase/functions/` — the backend, deployed separately to Supabase
+- `DEPLOY.md` — hosting and the two post-deploy settings
+- `CLAUDE.md` — how the AI integration is wired, and its constraints
