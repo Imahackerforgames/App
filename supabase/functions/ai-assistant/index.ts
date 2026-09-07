@@ -197,10 +197,64 @@ async function askClaude(
   return response;
 }
 
+/* Has this caller paid?
+
+   The gateway has already verified the JWT by the time this runs, so the
+   payload can be read for its subject without re-verifying. The entitlement
+   itself is then read with the service role, because the entitlements table
+   is deliberately unreadable and unwritable by the browser except for the
+   caller's own row.
+
+   Every failure answers false. A malformed token, a missing row, an expired
+   plan, a database that will not answer — all of it is "not premium". The
+   only way through is a live row that says otherwise. */
+async function callerIsPro(req: Request): Promise<boolean> {
+  try {
+    const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+    const payload = jwt.split(".")[1];
+    if (!payload) return false;
+    /* base64url, and JWT strips the padding. atob wants standard base64 with
+       padding intact, so put both back before decoding. */
+    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/")
+      .padEnd(payload.length + ((4 - (payload.length % 4)) % 4), "=");
+    const claims = JSON.parse(atob(b64));
+    const userId = claims?.sub;
+    if (!userId) return false;
+
+    const url = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !serviceKey) {
+      console.error("ai-assistant: cannot check entitlement, SUPABASE_URL or service role key missing.");
+      return false;
+    }
+
+    const res = await fetch(
+      `${url}/rest/v1/entitlements?select=plan,expires_at&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
+      { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+    );
+    if (!res.ok) return false;
+    const rows = await res.json();
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row || row.plan !== "pro") return false;
+    if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return false;
+    return true;
+  } catch (e) {
+    console.error("ai-assistant: entitlement check failed:", String(e));
+    return false;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") {
     return json({ error: "Method not allowed." }, 405);
+  }
+
+  /* Checked before the key is even looked at, so a free account cannot spend
+     a cent of model credit. The UI hides the assistant too, but hiding is
+     not enforcing — this is the half that holds if someone edits the page. */
+  if (!(await callerIsPro(req))) {
+    return json({ error: "The assistant is a premium feature. Upgrade in Settings to use it.", upgrade: true }, 402);
   }
 
   if (!Deno.env.get("ANTHROPIC_API_KEY")) {

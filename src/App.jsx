@@ -99,6 +99,36 @@ function safeUrl(u) {
 }
 const stripPrices = (t) => (t || "").replace(/\$\s?[\d,]+(\.\d{1,2})?/g, "").replace(/\s{2,}/g, " ").trim();
 
+/* Where "Upgrade to premium" sends people. A Commas checkout link — paste
+   yours here. Leaving it empty is safe: the button explains itself and does
+   nothing rather than opening a broken tab. */
+const COMMAS_CHECKOUT_URL = "";
+
+/* Whether this account has paid, read from the entitlements table.
+
+   Every failure lands on free. No session, no row, a request that errors, a
+   plan that has expired — all of it returns free. That is deliberate: the
+   only way to be premium is for a row to exist saying so, and only the
+   service role can write one. Clicking the upgrade button grants nothing,
+   and neither does anything a browser can do to this app. */
+async function fetchEntitlement() {
+  const free = { plan: "free", expiresAt: null };
+  try {
+    const token = await sessionToken();
+    if (!token) return free;
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/entitlements?select=plan,expires_at&limit=1`,
+      { headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${token}` } },
+    );
+    if (!res.ok) return free;
+    const rows = await res.json();
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row || row.plan !== "pro") return free;
+    if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return free;
+    return { plan: "pro", expiresAt: row.expires_at || null };
+  } catch { return free; }
+}
+
 const AI_FN = `${SUPABASE_URL}/functions/v1/ai-assistant`;
 
 /** The signed-in user's access token, for the JWT-gated Edge Functions.
@@ -1701,6 +1731,21 @@ export default function ResellOS() {
  const [tab, setTab] = useState("home");
  const [jump, setJump] = useState(null);
  const [user, setUser] = useState(null);
+ /* Starts free and stays free until the server says otherwise. Nothing in
+    the browser can change this to "pro" — it is only ever the answer that
+    came back from the entitlements table. */
+ const [ent, setEnt] = useState({ plan: "free", expiresAt: null });
+ const [entLoading, setEntLoading] = useState(false);
+ const isPro = ent.plan === "pro";
+
+ /* Re-read the plan. Called after sign-in, and by the "I've paid" button in
+    Settings so someone who has just been activated does not have to guess
+    when to reload. */
+ const refreshEntitlement = async () => {
+   setEntLoading(true);
+   try { setEnt(await fetchEntitlement()); } finally { setEntLoading(false); }
+ };
+
  const [aiOpen, setAiOpen] = useState(false);
  const [range, setRange] = useState("30");
  const biz = useBusiness(db, range);
@@ -1755,6 +1800,15 @@ export default function ResellOS() {
    setTab("home");
    try { await window.storage.delete("ros:session"); } catch {}
  };
+ /* Tied to the user, so signing out drops back to free immediately rather
+    than leaving the previous person's plan on screen. */
+ useEffect(() => {
+   if (!user) { setEnt({ plan: "free", expiresAt: null }); return; }
+   let alive = true;
+   fetchEntitlement().then((e) => alive && setEnt(e));
+   return () => { alive = false; };
+ }, [user]);
+
  const theme = db.profile.theme || "heat";
  /* Whatever we can call this person. Indexing straight into user.email
     crashed the whole app to a blank screen when a sign-in produced a session
@@ -1826,10 +1880,11 @@ export default function ResellOS() {
 
  <div key={tab}>
  {tab === "home" && <HomeScreen db={db} put={put} biz={biz} range={range} setRange={setRange} go={go} user={user} />}
- {tab === "discover" && <Discover db={db} put={put} jump={jump} go={go} />}
+ {tab === "discover" && <Discover db={db} put={put} jump={jump} go={go} isPro={isPro} />}
  {tab === "saturation" && <Saturation db={db} go={go} />}
  {tab === "business" && <Business db={db} biz={biz} put={put} range={range} setRange={setRange} jump={jump} />}
- {tab === "settings" && <SettingsPage db={db} put={put} reset={reset} user={user} signOut={signOut} />}
+ {tab === "settings" && <SettingsPage db={db} put={put} reset={reset} user={user} signOut={signOut}
+   isPro={isPro} ent={ent} refreshEntitlement={refreshEntitlement} entLoading={entLoading} />}
  </div>
  </div>
 
@@ -1838,7 +1893,7 @@ export default function ResellOS() {
      means one place to look for it instead of two, and nothing overlaying
      the content. */}
 
- <FloatingAI db={db} biz={biz} page={tab} focus={jump} user={user} />
+ <FloatingAI db={db} biz={biz} page={tab} focus={jump} user={user} isPro={isPro} />
  </div>
  );
 }
@@ -2199,7 +2254,45 @@ function NotificationCenter({ db, put, onClose, go }) {
  );
 }
 
-function Discover({ db, put, jump, go }) {
+/* What a free account sees where a premium feature would be.
+
+   It states the price of admission and gets out of the way. No countdown, no
+   nagging — the feature is simply not here, and the button that opens the
+   checkout is the same one as in Settings. */
+function PremiumGate({ title, blurb, onUpgrade }) {
+  return (
+    <div className="rise" style={{ ...card, borderRadius: 20, textAlign: "center", padding: "30px 20px" }}>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 14, color: C.accent }}>
+        <Sparkles size={30} />
+      </div>
+      <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: "-0.02em" }}>{title}</div>
+      <p style={{ fontSize: 13.5, color: C.dim, margin: "10px auto 20px", lineHeight: 1.6, maxWidth: 380 }}>
+        {blurb}
+      </p>
+      <button onClick={onUpgrade} className="fx fx-accent"
+        style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 999,
+          padding: "13px 26px", cursor: "pointer", fontSize: 13.5, fontWeight: 700 }}>
+        Upgrade to premium
+      </button>
+      <p style={{ fontSize: 11, color: C.dead, margin: "14px 0 0", lineHeight: 1.55 }}>
+        Already paid? Open Settings and press “I've paid — check again”.
+      </p>
+    </div>
+  );
+}
+
+/* Opens the checkout. Kept in one place so the two upgrade buttons cannot
+   drift apart, and so an unset link fails visibly here rather than opening a
+   blank tab for a customer. */
+function openCheckout() {
+  if (!COMMAS_CHECKOUT_URL) {
+    alert("The checkout link hasn't been set yet. Add your Commas link to COMMAS_CHECKOUT_URL in src/App.jsx.");
+    return;
+  }
+  window.open(COMMAS_CHECKOUT_URL, "_blank", "noopener,noreferrer");
+}
+
+function Discover({ db, put, jump, go, isPro }) {
  const [sub, setSub] = useState(jump?.sub || "ai");
  const [detail, setDetail] = useState(jump?.item || null);
  useEffect(() => { if (jump?.sub) setSub(jump.sub); if (jump?.item) setDetail(jump.item); }, [jump]);
@@ -2214,7 +2307,12 @@ function Discover({ db, put, jump, go }) {
  </button>
  ))}
  </div>
- {sub === "ai" && <AIDiscover db={db} put={put} onDetail={setDetail} />}
+ {sub === "ai" && (isPro
+   ? <AIDiscover db={db} put={put} onDetail={setDetail} />
+   : <PremiumGate
+       title="AI Discover is premium"
+       blurb="Premium finds products that are selling right now, across every marketplace, and measures each one for demand, competition and saturation. Product Search stays free."
+       onUpgrade={openCheckout} />)}
  {sub === "search" && <ProductSearch db={db} onAnalyze={(r) => {
  const known = CATALOG.find((c) => c.title.toLowerCase() === r.title.toLowerCase());
  setDetail(known || { title: r.title, cat: "Other", source: "ebay", comp: null,
@@ -3611,7 +3709,7 @@ function Essentials() {
  );
 }
 
-function SettingsPage({ db, put, reset, user, signOut }) {
+function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitlement, entLoading }) {
  return (
  <div style={{ paddingTop: 4 }}>
  <Group title="Account">
@@ -3706,13 +3804,40 @@ function SettingsPage({ db, put, reset, user, signOut }) {
  </Group>
 
  <Group title="Billing">
- <Row l="Plan" r="Free" />
+ <Row l="Plan" r={isPro ? "Premium" : "Free"} />
+ {isPro && ent.expiresAt && (
+ <Row l="Renews / expires" r={new Date(ent.expiresAt).toLocaleDateString()} />
+ )}
+
+ {!isPro && (
+ <>
+ <button onClick={openCheckout} className="fx fx-accent"
+ style={{ width: "100%", marginTop: 10, padding: "14px", border: "none", borderRadius: 999,
+   cursor: "pointer", fontSize: 14, fontWeight: 700, background: C.accent, color: "#fff",
+   display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+ <Sparkles size={16} /> Upgrade to premium
+ </button>
+ <p style={{ fontSize: 11.5, color: C.dead, marginTop: 10, lineHeight: 1.6 }}>
+ Premium unlocks the AI assistant and AI Discover. Payment is handled by
+ Commas — this app never sees your card. Activation is manual at the moment,
+ so allow a few hours after paying, then press the button below.
+ </p>
+ </>
+ )}
+
+ {/* Manual activation means someone can be paid-up before the app knows it.
+     This is how they check without having to guess when to reload. */}
+ <button onClick={refreshEntitlement} disabled={entLoading} className="fx fx-chip"
+ style={{ ...pillBtn(false), width: "100%", padding: "12px", marginTop: 10, fontWeight: 700,
+   cursor: entLoading ? "wait" : "pointer" }}>
+ {entLoading ? "Checking…" : isPro ? "Re-check my plan" : "I've paid — check again"}
+ </button>
+
  <Field label="Starting balance" value={db.settings.startingBalance} type="number" prefix="$"
  onChange={(v) => put("settings", { ...db.settings, startingBalance: +v || 0 })} />
  <p style={{ fontSize: 11.5, color: C.dead, marginTop: 6, lineHeight: 1.6 }}>
  Current Balance on Home = this number + realized profit from every sale you've logged.
- Needs a real payment provider (e.g. Stripe) before real charges — card numbers must never
- touch this app directly.
+ Card details are entered on Commas, never here.
  </p>
  </Group>
 
@@ -3744,7 +3869,7 @@ const PAGE_STARTERS = {
  settings: [["❓", "How do themes work?"], ["🔐", "Is my data private?"]],
 };
 
-function FloatingAI({ db, biz, page, focus, user }) {
+function FloatingAI({ db, biz, page, focus, user, isPro }) {
  const [open, setOpen] = useState(false);
 
  // Everything the assistant knows about this user's business. Sent to the
@@ -3783,6 +3908,36 @@ RULES FOR THIS APPLICATION:
  };
 
  const starters = PAGE_STARTERS[page] || PAGE_STARTERS.home;
+
+ /* A free account still gets the button — the feature should be visible, or
+    nobody knows it exists — but the sheet holds the upgrade panel rather than
+    the chat. The server refuses free accounts as well, so this is the
+    courteous half of the gate, not the whole of it. */
+ if (!isPro) return (
+ <>
+ <button onClick={() => setOpen(true)} aria-label="Open AI assistant" className="fx fx-accent fab"
+ style={{ position: "fixed", bottom: "calc(26px + env(safe-area-inset-bottom, 0px))", right: 18, width: 52, height: 52, borderRadius: 999, background: C.accent, border: "none", cursor: "pointer", zIndex: 45, boxShadow: "0 10px 28px -8px rgba(0,0,0,.5)", display: open ? "none" : "grid", placeItems: "center" }}>
+ <Sparkles size={21} color="#fff" />
+ </button>
+ {open && (
+ <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.6)", zIndex: 55, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+ <div onClick={(e) => e.stopPropagation()} className="rise"
+ style={{ background: C.panel, width: "100%", maxWidth: 560, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTop: `1px solid ${C.line}`, padding: "22px 20px 30px" }}>
+ <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+ <button onClick={() => setOpen(false)} aria-label="Close" className="fx"
+ style={{ background: C.raised, border: "none", borderRadius: 999, width: 30, height: 30, cursor: "pointer", color: C.dim, display: "grid", placeItems: "center" }}>
+ <X size={15} />
+ </button>
+ </div>
+ <PremiumGate
+   title="The assistant is premium"
+   blurb="Ask anything about your inventory, your numbers or the resale market, and get an answer that knows your business. Premium unlocks it."
+   onUpgrade={openCheckout} />
+ </div>
+ </div>
+ )}
+ </>
+ );
 
  return (
  <>
