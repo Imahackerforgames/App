@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Hair Rookie — Ponytails & Quick Weaves | Downtown Atlanta</title>
+  <meta name="description" content="Downtown Atlanta stylist specializing in ponytails, quick weaves and protective styles. $10 deposit to book." />
+  <meta property="og:title" content="The Hair Rookie — Downtown Atlanta Stylist" />
+  <meta property="og:description" content="Ponytails, quick weaves and protective styles in downtown Atlanta." />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#3d1f2b" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- Draft banner: hidden automatically once DRAFT_MODE is false in data.js -->
+  <div class="draft-banner" id="draftBanner" hidden>
+    <strong>Draft</strong> — prices and reviews below are samples. Open
+    <code>data.js</code>, replace them, then set <code>DRAFT_MODE = false</code>.
+  </div>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="#top" id="brandLink">
+        The Hair Rookie
+        <span id="brandSub">Downtown Atlanta</span>
+      </a>
+      <button class="nav-toggle" id="navToggle" aria-label="Menu" aria-expanded="false">☰</button>
+      <nav class="nav" id="nav">
+        <a href="#services">Services</a>
+        <a href="#gallery">Gallery</a>
+        <a href="#reviews">Reviews</a>
+        <a href="#booking">Booking</a>
+        <a class="btn btn-primary btn-sm" id="navBook" href="#booking">Book now</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+
+    <!-- ============ HERO ============ -->
+    <section class="hero">
+      <div class="wrap">
+        <div class="hero-grid">
+          <div>
+            <p class="eyebrow" id="heroEyebrow">Downtown Atlanta</p>
+            <h1>Ponytails that stay <em>laid</em>.</h1>
+            <p class="hero-lede" id="heroLede">
+              Sleek ponytails, quick weaves and protective styles — done with a
+              light hand and a clean finish, in downtown Atlanta.
+            </p>
+            <div class="hero-cta">
+              <a class="btn btn-primary" id="heroBook" href="#booking">Book an appointment</a>
+              <a class="btn btn-ghost" href="#gallery">See the work</a>
+            </div>
+            <div class="hero-meta">
+              <span><i class="dot"></i><b id="statusText">April books are open</b></span>
+              <span id="depositLine">$10 deposit to book</span>
+              <span>Hair not included</span>
+            </div>
+          </div>
+
+          <aside class="hero-card">
+            <h3>Booking at a glance</h3>
+            <p class="sub">Everything you need before you reach out.</p>
+            <ul>
+              <li><i class="check">✓</i><span><b>$10 deposit</b> secures your slot and comes off your total.</span></li>
+              <li><i class="check">✓</i><span><b>Bring your own hair</b> — bundles or wig. Ask if you're unsure what to buy.</span></li>
+              <li><i class="check">✓</i><span><b>Downtown Atlanta.</b> Exact address goes out once your deposit is in.</span></li>
+              <li><i class="check">✓</i><span><b>Come prepped</b> — washed, blow-dried and detangled unless prep is included.</span></li>
+            </ul>
+            <a class="btn btn-primary" id="cardBook" href="#booking">Check availability</a>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SERVICES ============ -->
+    <section class="section section-alt" id="services">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Services &amp; pricing</h2>
+          <p>Times are estimates and can shift with hair length and density. Message for anything you don't see listed.</p>
+        </div>
+        <div class="services" id="serviceGrid"></div>
+        <div class="note-strip" id="priceNote" hidden></div>
+      </div>
+    </section>
+
+    <!-- ============ GALLERY ============ -->
+    <section class="section" id="gallery">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Recent work</h2>
+          <p>Straight from the chair. Tap any look to open the original post on Instagram.</p>
+        </div>
+        <div class="gallery" id="galleryGrid"></div>
+        <div class="note-strip" id="galleryNote" hidden></div>
+      </div>
+    </section>
+
+    <!-- ============ REVIEWS ============ -->
+    <section class="section section-alt" id="reviews">
+      <div class="wrap">
+        <div class="section-head center">
+          <h2>What clients say</h2>
+          <p>Real words from the people in the chair.</p>
+        </div>
+        <div class="reviews" id="reviewGrid"></div>
+        <div class="note-strip" id="reviewNote" hidden></div>
+      </div>
+    </section>
+
+    <!-- ============ POLICIES + FAQ ============ -->
+    <section class="section" id="policies">
+      <div class="wrap">
+        <div class="two-col">
+          <div>
+            <div class="section-head">
+              <h2>Before you book</h2>
+              <p>A few things that keep every appointment running on time.</p>
+            </div>
+            <ul class="policy-list" id="policyList"></ul>
+          </div>
+          <div>
+            <div class="section-head">
+              <h2>Questions</h2>
+              <p>The ones that come up most.</p>
+            </div>
+            <div id="faqList"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ BOOKING CTA ============ -->
+    <section class="cta-band" id="booking">
+      <div class="wrap">
+        <h2>Ready for your appointment?</h2>
+        <p id="ctaCopy">
+          Send a message with the style you want and the day that works for you.
+          A $10 deposit locks your slot in.
+        </p>
+        <div class="cta-actions" id="ctaActions"></div>
+        <p class="cta-note" id="ctaNote"></p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div>
+        <div class="brand">The Hair Rookie<span id="footSub">Downtown Atlanta, GA</span></div>
+      </div>
+      <div class="foot-links" id="footLinks"></div>
+      <div id="footCopy">&copy; <span id="year"></span> The Hair Rookie</div>
+    </div>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
