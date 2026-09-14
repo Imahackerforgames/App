@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Queen K Beauty Etc — Savannah, GA</title>
+  <meta name="description" content="Quick weaves, sew ins, ponytails, wig installs, locs, natural hair and colour in Savannah, GA. Book your appointment online." />
+  <meta property="og:title" content="Queen K Beauty Etc" />
+  <meta property="og:description" content="Hello Gorgeous — book your appointment in Savannah, GA." />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#000000" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Bebas+Neue&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <div class="draft-banner" id="draftBanner" hidden>
+    <strong>Draft</strong> — items marked “sample price” still need real numbers.
+    Edit <code>data.js</code>, then set <code>DRAFT_MODE = false</code>.
+  </div>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="#top">
+        <svg class="crown" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M3 8.5 6.2 12 12 4.5 17.8 12 21 8.5 19.4 19H4.6L3 8.5Z"/>
+          <rect x="4.6" y="19.8" width="14.8" height="1.8" rx=".9"/>
+        </svg>
+        <span class="brand-txt"><b>QUEEN K</b><span>Beauty Etc</span></span>
+      </a>
+      <button class="nav-toggle" id="navToggle" aria-label="Menu" aria-expanded="false">☰</button>
+      <nav class="nav" id="nav">
+        <a href="#styles">Styles</a>
+        <a href="#book">Book</a>
+        <a href="#proof">Reviews</a>
+        <a href="#policies">Policies</a>
+        <a href="#contact">Contact</a>
+        <a class="btn btn-white btn-sm" href="#book">Book now</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+
+    <!-- ============ HERO ============ -->
+    <section class="hero">
+      <div class="sparkle-band"></div>
+      <div class="wrap">
+        <div class="hero-inner">
+          <svg class="crown-lg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M3 8.5 6.2 12 12 4.5 17.8 12 21 8.5 19.4 19H4.6L3 8.5Z"/>
+            <rect x="4.6" y="19.8" width="14.8" height="1.8" rx=".9"/>
+          </svg>
+          <h1>
+            <span class="script">Hello</span>
+            <span class="display">GORGEOUS</span>
+          </h1>
+          <p class="hero-sub" id="heroSub"></p>
+          <div class="hero-cta">
+            <a class="btn btn-white" href="#book">Schedule an appointment</a>
+            <a class="btn btn-outline" href="#styles">View styles &amp; prices</a>
+          </div>
+          <div class="hero-badges" id="heroBadges"></div>
+        </div>
+      </div>
+      <div class="sparkle-band"></div>
+    </section>
+
+    <!-- ============ STYLES & PRICES ============ -->
+    <section class="section" id="styles">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="script">Styles</span>
+          <span class="display">&amp; PRICES</span>
+          <p>Tap any style to start booking it. Filter to what you came for.</p>
+        </div>
+        <div class="filters" id="filters" role="group" aria-label="Filter by category"></div>
+        <div class="cats" id="catGrid"></div>
+        <div class="note-strip" id="priceNote" hidden></div>
+      </div>
+    </section>
+
+    <!-- ============ ADD-ONS ============ -->
+    <section class="section" id="addons" style="padding-top:0">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="script">Add-ons</span>
+          <p>Add any of these to your service when you book.</p>
+        </div>
+        <div class="addons" id="addonList"></div>
+      </div>
+    </section>
+
+    <!-- ============ BOOKING ============ -->
+    <section class="section" id="book">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="script">Book</span>
+          <span class="display">YOUR APPOINTMENT</span>
+          <p>Pick your style, your day and your time — then confirm on the booking page.</p>
+        </div>
+
+        <div class="booker">
+          <div class="booker-steps">
+            <div class="booker-col">
+              <div class="step-label"><i class="step-num">1</i> Choose your style</div>
+              <div class="svc-select">
+                <div class="sel-wrap">
+                  <select id="svcSelect" aria-label="Choose a service"></select>
+                </div>
+              </div>
+
+              <div class="step-label" style="margin-top:26px"><i class="step-num">2</i> Pick a day</div>
+              <div class="cal-head">
+                <div class="cal-month" id="calMonth"></div>
+                <div class="cal-nav">
+                  <button id="calPrev" aria-label="Previous month">‹</button>
+                  <button id="calNext" aria-label="Next month">›</button>
+                </div>
+              </div>
+              <div class="cal-grid" id="calGrid" role="grid" aria-label="Choose a date"></div>
+              <div class="cal-legend"><i class="fee-dot"></i> Extra fee applies on this day</div>
+            </div>
+
+            <div class="booker-col">
+              <div class="step-label"><i class="step-num">3</i> Pick a time</div>
+              <div class="slot-date" id="slotDate">Select a day first</div>
+              <div class="slot-tz" id="slotTz"></div>
+              <div class="slots" id="slotGrid"></div>
+            </div>
+          </div>
+
+          <div class="summary">
+            <div class="summary-lines">
+              <div class="summary-main" id="sumMain">YOUR APPOINTMENT</div>
+              <div class="summary-sub" id="sumSub">Choose a style, a day and a time.</div>
+              <div class="summary-note" id="sumNote"></div>
+            </div>
+            <a class="btn btn-white" id="sumGo" href="#" aria-disabled="true">Continue to booking</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CLIENT PHOTOS + REVIEWS ============ -->
+    <section class="section" id="proof">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="script">Reviews from our customers</span>
+        </div>
+        <div class="polaroids" id="polaroids"></div>
+        <div class="note-strip" id="photoNote" hidden></div>
+
+        <div class="reviews" id="reviewGrid" style="margin-top:44px"></div>
+        <div class="note-strip" id="reviewNote" hidden></div>
+      </div>
+    </section>
+
+    <!-- ============ POLICIES ============ -->
+    <section class="section" id="policies">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="script">Booking Policies</span>
+        </div>
+        <div class="pol-grid" id="bookingPolGrid"></div>
+
+        <div class="section-head" style="margin-top:64px">
+          <span class="script">Salon Policies</span>
+        </div>
+        <div class="pol-grid" id="salonPolGrid"></div>
+      </div>
+    </section>
+
+    <!-- ============ CHECKLIST ============ -->
+    <section class="section" id="checklist" style="padding-top:0">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="display" style="font-size:.95rem;letter-spacing:.34em;color:var(--grey)">PREPARE BEFORE APPOINTMENT</span>
+          <span class="script">Checklist</span>
+        </div>
+        <div class="checklist" id="checkGrid"></div>
+      </div>
+    </section>
+
+    <!-- ============ CONTACT & HOURS ============ -->
+    <section class="section" id="contact">
+      <div class="wrap">
+        <div class="contact-grid">
+          <div class="panel">
+            <h3><span class="script">Contact me</span></h3>
+            <ul class="contact-list" id="contactList"></ul>
+          </div>
+          <div class="panel">
+            <h3><span class="script">Booking hours</span></h3>
+            <div class="hours-main">
+              <div class="days" id="hoursDays"></div>
+              <div class="time" id="hoursTime"></div>
+            </div>
+            <ul class="fee-list" id="feeList"></ul>
+          </div>
+        </div>
+        <div class="addr" id="addr"></div>
+      </div>
+    </section>
+
+    <!-- ============ FAQ ============ -->
+    <section class="section" id="faq" style="padding-top:0">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="script">Questions</span>
+        </div>
+        <div class="faq-wrap" id="faqList"></div>
+      </div>
+    </section>
+
+    <!-- ============ CTA ============ -->
+    <section class="cta">
+      <div class="wrap">
+        <span class="script">Thank you</span>
+        <span class="display">FOR BOOKING!</span>
+        <p id="ctaTag"></p>
+        <div class="cta-actions" id="ctaActions"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div class="brand">
+        <svg class="crown" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M3 8.5 6.2 12 12 4.5 17.8 12 21 8.5 19.4 19H4.6L3 8.5Z"/>
+          <rect x="4.6" y="19.8" width="14.8" height="1.8" rx=".9"/>
+        </svg>
+        <span class="brand-txt"><b>QUEEN K</b><span>Beauty Etc</span></span>
+      </div>
+      <div class="foot-links" id="footLinks"></div>
+      <div>&copy; <span id="year"></span> Queen K Beauty Etc</div>
+    </div>
+  </footer>
+
+  <div class="book-bar"><a class="btn btn-white" href="#book">Schedule an appointment</a></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
