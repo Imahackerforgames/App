@@ -52,6 +52,20 @@ client uses the site. The demo screen carries a permanent warning banner
 that is part of its markup rather than an option, so it cannot render
 without it, and a test confirms submitting it makes zero network requests.
 
+### Deposit or pay in full
+
+The payment screen offers both. The deposit is the flat amount in
+`business.deposit`; paying in full charges the service price **plus any
+surcharge the chosen slot carries** — a $175 style booked on a Sunday
+evening comes to $250, and the deposit option shows $225 still owed on the
+day. Both figures come from `quote()` in `app.js`, which is the single
+place the cost is worked out, so the summary bar and the payment screen
+cannot disagree.
+
+Note that in `"acuity"` mode this choice belongs to her Acuity account
+rather than to this site — whether a service takes a deposit or the full
+amount is configured per appointment type there.
+
 ### When you wire up a real processor
 
 Do **not** collect card numbers in this page's own inputs. Use

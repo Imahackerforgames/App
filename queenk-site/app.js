@@ -152,7 +152,7 @@ $('svcSelect').innerHTML =
       }).join('')}
     </optgroup>`).join('');
 
-const state = { service: '', date: null, time: null, fee: 0, feeLabel: '' };
+const state = { service: '', date: null, time: null, payChoice: 'deposit' };
 
 const MONTHS = ['January','February','March','April','May','June',
                 'July','August','September','October','November','December'];
@@ -310,8 +310,9 @@ $('catGrid').addEventListener('click', (e) => {
 });
 
 /* ---------- summary ---------- */
-function updateSummary() {
-  const parts = [];
+/* The one place the cost of the current selection is worked out, so the
+   summary bar and the payment screen can never disagree. */
+function quote() {
   let fees = 0;
   const feeLabels = [];
 
@@ -324,6 +325,24 @@ function updateSummary() {
     if (f.amount) { fees += f.amount; feeLabels.push(`${money(f.amount)} ${f.label.toLowerCase()} fee`); }
   }
 
+  const svcPrice = (allServices.find((x) => x.label === state.service) || {}).price;
+  const priced = svcPrice !== null && svcPrice !== undefined;
+  const total = priced ? svcPrice + fees : null;
+  const deposit = business.deposit;
+
+  return {
+    svcPrice, priced, fees, feeLabels, total, deposit,
+    balance: priced ? Math.max(total - deposit, 0) : null,
+    /* What the client is paying right now. Pay-in-full needs a known price. */
+    dueNow: (state.payChoice === 'full' && priced) ? total : deposit
+  };
+}
+
+function updateSummary() {
+  const parts = [];
+  const q = quote();
+  const { fees, feeLabels } = q;
+
   $('sumMain').textContent = state.service
     ? state.service.toUpperCase()
     : 'YOUR APPOINTMENT';
@@ -333,8 +352,7 @@ function updateSummary() {
   }
   if (state.time !== null) parts.push(`<b>${fmt(state.time)}</b>`);
 
-  const svcPrice = (allServices.find((s) => s.label === state.service) || {}).price;
-  if (svcPrice !== null && svcPrice !== undefined) parts.push(`<b>${money(svcPrice)}</b>`);
+  if (q.priced) parts.push(`<b>${money(q.svcPrice)}</b>`);
 
   $('sumSub').innerHTML = parts.length
     ? parts.join(' &nbsp;·&nbsp; ')
@@ -342,15 +360,17 @@ function updateSummary() {
 
   const notes = [];
   if (feeLabels.length) notes.push(feeLabels.join(' + '));
-  notes.push(`${money(business.deposit)} deposit due at booking`);
+  notes.push(state.payChoice === 'full' && q.priced
+    ? `paying in full · ${money(q.total)}`
+    : `${money(q.deposit)} deposit due at booking`);
   $('sumNote').textContent = notes.join(' · ');
 
   const ready = state.service && state.date && state.time !== null;
   const go = $('sumGo');
   go.disabled = !ready;
   go.textContent = ready
-    ? `Confirm & pay ${money(business.deposit)} deposit →`
-    : 'Confirm & pay deposit';
+    ? `Confirm & pay ${money(q.dueNow)} →`
+    : 'Confirm & pay';
 }
 
 renderCalendar();
@@ -502,11 +522,32 @@ function buildEmbed() {
    processor and never touches this page. Then set payments.mode to
    "acuity", or point the new backend at her account. */
 function renderPaymentDemo() {
-  const price = (allServices.find((x) => x.label === state.service) || {}).price;
+  const q = quote();
   const when = state.date
     ? `${MONTHS[state.date.getMonth()]} ${state.date.getDate()}` +
       (state.time !== null ? ` at ${fmt(state.time)}` : '')
     : '';
+
+  /* Pay-in-full needs a known service price; without one, only the flat
+     deposit can be offered. */
+  const choice = q.priced ? `
+    <div class="pay-choice" role="group" aria-label="How much to pay now">
+      <button type="button" class="pay-opt" data-pay="deposit"
+              aria-pressed="${state.payChoice === 'deposit'}">
+        <span class="pay-opt-top">Pay deposit</span>
+        <span class="pay-opt-amt">${money(q.deposit)}</span>
+        <span class="pay-opt-sub">${money(q.balance)} due at your appointment</span>
+      </button>
+      <button type="button" class="pay-opt" data-pay="full"
+              aria-pressed="${state.payChoice === 'full'}">
+        <span class="pay-opt-top">Pay in full</span>
+        <span class="pay-opt-amt">${money(q.total)}</span>
+        <span class="pay-opt-sub">Nothing left to pay on the day</span>
+      </button>
+    </div>` : '';
+
+  const feeLine = q.feeLabels.length
+    ? `<div class="pay-fees">Includes ${q.feeLabels.join(' + ')}</div>` : '';
 
   $('payDemo').hidden = false;
   $('payDemo').innerHTML = `
@@ -521,11 +562,14 @@ function renderPaymentDemo() {
       <div>
         <span class="pay-svc">${esc(state.service || 'Your appointment')}</span>
         ${when ? `<span class="pay-when">${esc(when)}</span>` : ''}
+        ${feeLine}
       </div>
       <div class="pay-amount">
-        <small>Deposit due</small>${money(business.deposit)}
+        <small>Paying now</small>${money(q.dueNow)}
       </div>
     </div>
+
+    ${choice}
 
     <form class="pay-form" id="payForm" novalidate autocomplete="off">
       <label class="pay-field">
@@ -555,11 +599,11 @@ function renderPaymentDemo() {
         </label>
       </div>
       <button class="btn btn-white pay-submit" type="submit">
-        Pay ${money(business.deposit)} deposit &mdash; demo
+        Pay ${money(q.dueNow)} &mdash; demo
       </button>
       <p class="pay-foot">
         The finished version charges the card through ${esc(business.owner.split(' ')[0])}'s
-        own booking account, so the deposit lands with her.
+        own booking account, so the payment lands with her.
       </p>
     </form>`;
 
@@ -574,6 +618,14 @@ function renderPaymentDemo() {
   group($('payCard'), 16, false);
   group($('payExp'), 4, true);
 
+  for (const opt of $('payDemo').querySelectorAll('.pay-opt')) {
+    opt.addEventListener('click', () => {
+      state.payChoice = opt.dataset.pay;
+      updateSummary();
+      renderPaymentDemo();          // redraw with the new amount
+    });
+  }
+
   $('payForm').addEventListener('submit', (e) => {
     e.preventDefault();                       // goes nowhere, by design
     $('payDemo').innerHTML = `
@@ -581,10 +633,11 @@ function renderPaymentDemo() {
         payment processor behind it.</p>
       <div class="pay-done">
         <div class="pay-done-mark">✓</div>
-        <h3>This is where the deposit would be taken</h3>
-        <p>In the finished version the ${money(business.deposit)} deposit is charged
-           through ${esc(business.owner.split(' ')[0])}'s booking account and the slot
-           is held. To switch that on, set <code>payments.mode</code> to
+        <h3>This is where ${money(q.dueNow)} would be taken</h3>
+        <p>In the finished version that ${state.payChoice === 'full' ? 'full payment' : 'deposit'}
+           is charged through ${esc(business.owner.split(' ')[0])}'s booking account and the
+           slot is held${state.payChoice === 'full' ? '' : `, leaving ${money(q.balance)} for the day`}.
+           To switch that on, set <code>payments.mode</code> to
            <code>"acuity"</code> in <code>data.js</code>.</p>
         <button class="btn btn-outline btn-sm" type="button" id="payAgain">Back</button>
       </div>`;
