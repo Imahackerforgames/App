@@ -196,14 +196,14 @@ export const checklist = [
 
    TO ADD THEM:
    1. Save each of the four review photos.
-   2. Drop them into  queenk-site/assets/reviews/  as 01.jpg … 04.jpg
+   2. Drop them into  queenk-site/assets/reviews/  as 01.jpg … 05.jpg
    Each frame falls back to a styled placeholder until its file exists,
    so the page never shows a broken image.
 ------------------------------------------------------------ */
 export const clientPhotos = [
-  { image: "assets/reviews/01.jpg", caption: "Honey blonde lace install" },
+  { image: "assets/reviews/01.jpg", caption: "Honey blonde lace" },
   { image: "assets/reviews/02.jpg", caption: "Curly half-up ponytail" },
-  { image: "assets/reviews/03.jpg", caption: "Sleek straight ponytail" },
+  { image: "assets/reviews/03.jpg", caption: "Sleek ponytail" },
   { image: "assets/reviews/04.jpg", caption: "Body wave install" },
   { image: "assets/reviews/05.jpg", caption: "Blunt cut bob" }
 ];

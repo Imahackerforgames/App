@@ -7,9 +7,9 @@ the heading "Reviews from our customers".
 
 Save them here with these exact names:
 
-  01.jpg   Honey blonde lace install
+  01.jpg   Honey blonde lace
   02.jpg   Curly half-up ponytail
-  03.jpg   Sleek straight ponytail
+  03.jpg   Sleek ponytail
   04.jpg   Body wave install
   05.jpg   Blunt cut bob
 
