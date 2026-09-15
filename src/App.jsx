@@ -1285,6 +1285,11 @@ function AuthScreen({ onDone, theme, recovery = null }) {
   const [resetSent, setResetSent]   = useState(false);
   const [newPw, setNewPw]   = useState("");
   const [newPw2, setNewPw2] = useState("");
+  const [rcode, setRcode]   = useState("");
+  /* A session obtained by typing the 6-digit code instead of following the
+     link. Same shape as the one a link delivers, so everything downstream
+     is identical from here on. */
+  const [codeSession, setCodeSession] = useState(null);
 
   const t = THEMES[theme] || THEMES.heat;
   const strength = passwordStrength(pw);
@@ -1383,6 +1388,11 @@ function AuthScreen({ onDone, theme, recovery = null }) {
     } finally { setBusy(false); }
   };
 
+  /* The link and the code are two ways to reach the same authorisation.
+     Everything below reads this rather than the prop, so neither route
+     needs its own copy of the reset logic. */
+  const activeRecovery = recovery || codeSession;
+
   const resetStrength = passwordStrength(newPw);
   const resetMatches  = newPw.length > 0 && newPw === newPw2;
   const resetOk       = resetStrength.ok && resetMatches;
@@ -1399,7 +1409,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
 
   const backToLogin = () => {
     setErr(null); setNote(null); setResetSent(false);
-    setNewPw(""); setNewPw2("");
+    setNewPw(""); setNewPw2(""); setRcode(""); setCodeSession(null);
     setMode("login"); setPhase("form");
   };
 
@@ -1420,11 +1430,39 @@ function AuthScreen({ onDone, theme, recovery = null }) {
     } finally { setBusy(false); }
   };
 
+  /* Exchanges the 6-digit code for the same session the link would have
+     delivered. This is the route that survives everything that goes wrong
+     with links: a redirect URL that isn't on the allow list, a mail client
+     that opens the link in its own browser, and a scanner that spends the
+     one-time token before the person ever clicks it. Requires {{ .Token }}
+     in the Reset Password email template. */
+  const verifyResetCode = async () => {
+    const token = rcode.replace(/\D/g, "");
+    if (token.length !== 6 || busy) return;
+    setBusy(true); setErr(null); setNote(null);
+    try {
+      const d = await supabaseAuth("verify", { type: "recovery", email: resetEmail.trim(), token });
+      if (!d.access_token) { setErr("That code didn't work. Check it and try again."); return; }
+      setCodeSession({
+        token: d.access_token,
+        refresh: d.refresh_token || null,
+        expiresIn: Number(d.expires_in) || 0,
+      });
+      setPhase("reset");
+    } catch (e) {
+      if (/failed to fetch|networkerror|load failed/i.test(e.message)) {
+        setErr("Can't reach Supabase. Check your connection and try again.");
+      } else setErr(/expired|invalid/i.test(e.message)
+        ? "That code is wrong or has expired. Send yourself a new one."
+        : e.message);
+    } finally { setBusy(false); }
+  };
+
   /* Spends the recovery session on a new password. On success the same
      session becomes the signed-in one, so a reset ends in the app rather
      than back at a login form asking for the password just set. */
   const applyReset = async () => {
-    if (busy || !recovery?.token) return;
+    if (busy || !activeRecovery?.token) return;
     if (!resetStrength.ok) {
       const missing = resetStrength.met.filter((r) => !r.ok).map((r) => r.label.toLowerCase());
       setErr(`Password is too weak. Still needs ${missing.join(", ")}.`);
@@ -1433,13 +1471,13 @@ function AuthScreen({ onDone, theme, recovery = null }) {
     if (!resetMatches) { setErr("The two passwords don't match."); return; }
     setBusy(true); setErr(null); setNote(null);
     try {
-      const u = await updatePassword(recovery.token, newPw);
+      const u = await updatePassword(activeRecovery.token, newPw);
       clearAuthHash();
       onDone({
         email: u.email || "", provider: "email", id: u.id,
-        token: recovery.token,
-        refresh: recovery.refresh || null,
-        expiresAt: recovery.expiresIn ? Math.floor(Date.now() / 1000) + recovery.expiresIn : null,
+        token: activeRecovery.token,
+        refresh: activeRecovery.refresh || null,
+        expiresAt: activeRecovery.expiresIn ? Math.floor(Date.now() / 1000) + activeRecovery.expiresIn : null,
       });
     } catch (e) {
       if (/should be different|same.*password/i.test(e.message)) {
@@ -1704,13 +1742,44 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                         account would let anyone test addresses from this form. */}
                     <p style={{ fontSize: 13, color: t.dim, lineHeight: 1.55, margin: "0 0 20px" }}>
                       If an account exists for <span style={{ color: t.bone, fontWeight: 700 }}>{resetEmail.trim()}</span>,
-                      a reset link is on its way. Open it on this device — it's good for one hour,
-                      and it only works once.
+                      a reset email is on its way. Follow the link, or type the 6-digit code
+                      below. Either one is good for an hour and works once.
                     </p>
                     <p style={{ fontSize: 12, color: t.dead, lineHeight: 1.55, margin: "0 0 20px" }}>
                       Nothing after a couple of minutes? Check the spam folder, then try again.
                     </p>
-                    <button onClick={() => { setResetSent(false); setErr(null); }} className="auth-alt"
+
+                    {/* The code is the sturdier of the two routes. A link has
+                        to survive an allow list, a mail client that opens it
+                        in its own browser, and a scanner that spends the
+                        one-time token before anyone clicks it. Six digits
+                        typed here survive all three. */}
+                    <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim, marginBottom: 8 }}>
+                      Or type the code from the email
+                    </div>
+                    <div className="auth-in" style={{ background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px", marginBottom: 12 }}>
+                      <input value={rcode} inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+                        onChange={(e) => setRcode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        onKeyDown={(e) => e.key === "Enter" && verifyResetCode()}
+                        placeholder="000000" aria-label="6-digit reset code" className="otp-in"
+                        style={{ width: "100%", background: "none", border: "none", outline: "none",
+                          color: t.bone, fontFamily: MONO, fontSize: 24, fontWeight: 700,
+                          letterSpacing: "0.34em", textAlign: "center", padding: "14px 0" }} />
+                    </div>
+
+                    {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accent, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
+                    {note && <div style={{ fontSize: 12.5, color: t.dim, marginBottom: 12, lineHeight: 1.5 }}>{note}</div>}
+
+                    <button onClick={verifyResetCode} disabled={rcode.length !== 6 || busy} className="auth-cta"
+                      style={{ width: "100%", padding: "15px", borderRadius: 14, border: "none",
+                        cursor: rcode.length === 6 && !busy ? "pointer" : "not-allowed",
+                        fontFamily: SANS, fontSize: 15, fontWeight: 800, marginBottom: 12,
+                        background: rcode.length === 6 ? t.accent : t.raised,
+                        color: rcode.length === 6 ? "#fff" : t.dead }}>
+                      {busy ? "Checking…" : "Continue with code"}
+                    </button>
+
+                    <button onClick={() => { setResetSent(false); setErr(null); setRcode(""); }} className="auth-alt"
                       style={{ width: "100%", padding: "14px", borderRadius: 14, cursor: "pointer",
                         background: "transparent", color: t.bone, border: `1px solid ${t.line}`,
                         fontFamily: SANS, fontSize: 14, fontWeight: 600 }}>
@@ -1760,7 +1829,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                  arrived in the hash, or the link was stale and all we have is
                  the reason why. */
               <div>
-                {recovery?.error ? (
+                {activeRecovery?.error ? (
                   <>
                     <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 8 }}>
                       This link has expired
