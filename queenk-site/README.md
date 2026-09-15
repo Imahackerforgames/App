@@ -38,6 +38,31 @@ this site links out to the old booking page**:
    are all handled by the Acuity account she already uses, so nothing about
    her setup has to change.
 
+### Two payment modes
+
+`payments.mode` in `data.js` decides what step two shows:
+
+| Mode | What happens |
+|---|---|
+| `"acuity"` | Her real booking page runs in the popup, takes the card and pays her. This is the live path. |
+| `"demo"` | A mock-up of a payment screen. **Connected to nothing** — no processor, no network call, nothing stored, no money moved. For designing the screen before a backend exists. |
+
+**It currently ships as `"demo"`.** Switch it to `"acuity"` before any real
+client uses the site. The demo screen carries a permanent warning banner
+that is part of its markup rather than an option, so it cannot render
+without it, and a test confirms submitting it makes zero network requests.
+
+### When you wire up a real processor
+
+Do **not** collect card numbers in this page's own inputs. Use
+[Stripe Elements](https://stripe.com/docs/payments/elements) or
+[Square Web Payments](https://developer.squareup.com/docs/web-payments/overview):
+both render the card field inside their own iframe, so the number goes
+straight to the processor and never passes through this site. That is what
+keeps the business out of PCI scope. The mount point is marked in `app.js`
+where `renderPaymentDemo` sits — delete that function and mount the real
+one in its place.
+
 ### This needs a real domain
 
 Browsers only allow a site to embed another site's page when the host

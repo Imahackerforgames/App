@@ -53,6 +53,32 @@ export const business = {
   deposit:    25          // $25 deposit due upon booking
 };
 
+/* ---------- How the deposit gets paid ----------
+   "acuity"  — the real path. Her existing booking page runs inside the
+               popup, takes the card and pays her directly. Nothing to set
+               up; it uses the account she already has. Needs a real domain
+               (see README) — embeds are blocked on preview links.
+
+   "demo"    — a MOCK-UP of a payment screen. It is not connected to any
+               payment processor, nothing is sent anywhere, nothing is
+               stored, and no money moves. It exists so the screen can be
+               designed and reviewed before a real backend is wired in.
+
+   ⚠️  Switch this to "acuity" before any real client uses the site. The
+   demo screen carries a permanent warning banner so it can never be
+   mistaken for a real checkout, but it must not be what customers meet.
+------------------------------------------------------------ */
+export const payments = {
+  mode: "demo",
+
+  /* When a real processor is added, do NOT collect card numbers in this
+     page's own inputs. Use Stripe Elements or Square Web Payments — both
+     render the card field in their own iframe, so the number goes straight
+     to them and never passes through this site. The mount point is marked
+     in app.js. */
+  processor: null
+};
+
 /* ---------- Hours & fees — CONFIRMED from the flyer ---------- */
 export const hours = {
   standard:  { days: "Monday – Saturday", time: "9:30 AM – 5:30 PM" },

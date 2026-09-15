@@ -1,7 +1,7 @@
 /* ===== Queen K Beauty Etc — renders the page from data.js ===== */
 
 import {
-  DRAFT_MODE, business, hours, scheduling, categories, addOns,
+  DRAFT_MODE, business, payments, hours, scheduling, categories, addOns,
   bookingPolicies, salonPolicies, checklist, clientPhotos, reviews, faq
 } from './data.js';
 
@@ -486,6 +486,112 @@ function buildEmbed() {
     `and ${esc(business.owner.split(' ')[0])} will book you in.`;
 }
 
+/* ---------- demo payment screen ----------
+   A MOCK-UP. It is wired to nothing: no network call, no storage, no
+   processor. Its only job is to show what the deposit step looks like
+   while a real backend is still to come.
+
+   The warning banner is part of the markup rather than an option, so this
+   screen can never render without it. The inputs deliberately carry
+   autocomplete="off" and generic names so a browser will not offer to
+   autofill somebody's real saved card into a form that goes nowhere.
+
+   TO MAKE THIS REAL: delete this function and mount Stripe Elements or
+   Square Web Payments into #payDemo instead. Both render the card field
+   inside their own iframe, so the card number goes straight to the
+   processor and never touches this page. Then set payments.mode to
+   "acuity", or point the new backend at her account. */
+function renderPaymentDemo() {
+  const price = (allServices.find((x) => x.label === state.service) || {}).price;
+  const when = state.date
+    ? `${MONTHS[state.date.getMonth()]} ${state.date.getDate()}` +
+      (state.time !== null ? ` at ${fmt(state.time)}` : '')
+    : '';
+
+  $('payDemo').hidden = false;
+  $('payDemo').innerHTML = `
+    <p class="pay-warn">
+      <b>Demo screen — not a real checkout.</b>
+      This form is not connected to any payment processor. Nothing is sent
+      anywhere, nothing is saved, and no money moves. Do not type a real
+      card number.
+    </p>
+
+    <div class="pay-summary">
+      <div>
+        <span class="pay-svc">${esc(state.service || 'Your appointment')}</span>
+        ${when ? `<span class="pay-when">${esc(when)}</span>` : ''}
+      </div>
+      <div class="pay-amount">
+        <small>Deposit due</small>${money(business.deposit)}
+      </div>
+    </div>
+
+    <form class="pay-form" id="payForm" novalidate autocomplete="off">
+      <label class="pay-field">
+        <span>Name on card</span>
+        <input id="payName" type="text" autocomplete="off" placeholder="Jane Doe" />
+      </label>
+      <label class="pay-field">
+        <span>Card number</span>
+        <input id="payCard" type="text" inputmode="numeric" autocomplete="off"
+               placeholder="4242 4242 4242 4242" maxlength="23" />
+      </label>
+      <div class="pay-row">
+        <label class="pay-field">
+          <span>Expiry</span>
+          <input id="payExp" type="text" inputmode="numeric" autocomplete="off"
+                 placeholder="MM / YY" maxlength="7" />
+        </label>
+        <label class="pay-field">
+          <span>Security code</span>
+          <input id="payCvc" type="text" inputmode="numeric" autocomplete="off"
+                 placeholder="123" maxlength="4" />
+        </label>
+        <label class="pay-field">
+          <span>ZIP</span>
+          <input id="payZip" type="text" inputmode="numeric" autocomplete="off"
+                 placeholder="31401" maxlength="10" />
+        </label>
+      </div>
+      <button class="btn btn-white pay-submit" type="submit">
+        Pay ${money(business.deposit)} deposit &mdash; demo
+      </button>
+      <p class="pay-foot">
+        The finished version charges the card through ${esc(business.owner.split(' ')[0])}'s
+        own booking account, so the deposit lands with her.
+      </p>
+    </form>`;
+
+  /* Light formatting only — these values are never read back out. */
+  const group = (el, size, sep) => el.addEventListener('input', () => {
+    const digits = el.value.replace(/\D/g, '').slice(0, size);
+    el.value = digits.replace(/(.{4})/g, '$1 ').trim();
+    if (sep) el.value = digits.length > 2
+      ? digits.slice(0, 2) + ' / ' + digits.slice(2)
+      : digits;
+  });
+  group($('payCard'), 16, false);
+  group($('payExp'), 4, true);
+
+  $('payForm').addEventListener('submit', (e) => {
+    e.preventDefault();                       // goes nowhere, by design
+    $('payDemo').innerHTML = `
+      <p class="pay-warn"><b>Nothing was charged.</b> This is a demo screen with no
+        payment processor behind it.</p>
+      <div class="pay-done">
+        <div class="pay-done-mark">✓</div>
+        <h3>This is where the deposit would be taken</h3>
+        <p>In the finished version the ${money(business.deposit)} deposit is charged
+           through ${esc(business.owner.split(' ')[0])}'s booking account and the slot
+           is held. To switch that on, set <code>payments.mode</code> to
+           <code>"acuity"</code> in <code>data.js</code>.</p>
+        <button class="btn btn-outline btn-sm" type="button" id="payAgain">Back</button>
+      </div>`;
+    $('payAgain').addEventListener('click', renderPaymentDemo);
+  });
+}
+
 function showConfirmStep() {
   const price = (allServices.find((x) => x.label === state.service) || {}).price;
   const bits = [state.service];
@@ -493,13 +599,23 @@ function showConfirmStep() {
   if (state.time !== null) bits.push(fmt(state.time));
   if (price != null) bits.push(money(price));
 
+  const tail = payments.mode === 'demo'
+    ? ''
+    : ` — pick this time below to confirm and pay your ${money(business.deposit)} deposit.`;
   $('embedChosen').innerHTML =
-    `<b>${esc(bits[0])}</b> · ${bits.slice(1).map(esc).join(' · ')} — ` +
-    `pick this time below to confirm and pay your ${money(business.deposit)} deposit.`;
+    `<b>${esc(bits[0])}</b> · ${bits.slice(1).map(esc).join(' · ')}${tail}`;
 
   $('booker').hidden = true;
   $('embedWrap').hidden = false;
-  buildEmbed();
+
+  if (payments.mode === 'demo') {
+    $('embedFrame').hidden = true;
+    $('embedHelp').hidden = true;
+    renderPaymentDemo();
+  } else {
+    $('payDemo').hidden = true;
+    buildEmbed();
+  }
 }
 
 function showPickerStep() {
