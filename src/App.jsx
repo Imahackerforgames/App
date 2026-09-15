@@ -1181,20 +1181,6 @@ async function updatePassword(accessToken, password) {
   return d;
 }
 
-/* Does this token still open anything? Changing a password can revoke the
-   session that authorised the change — whether it does depends on the
-   project's session settings, so it cannot be assumed either way. Handing a
-   dead session to the app doesn't look like a revoked session; it looks like
-   the app is broken. One request settles it. */
-async function sessionStillValid(token) {
-  try {
-    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-      headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${token}` },
-    });
-    return res.ok;
-  } catch { return false; }
-}
-
 /* Reads a recovery landing off the address bar, and returns null for
    anything that isn't one.
 
@@ -1488,26 +1474,22 @@ function AuthScreen({ onDone, theme, recovery = null }) {
       const u = await updatePassword(activeRecovery.token, newPw);
       clearAuthHash();
 
-      /* The password is already changed at this point, so there is no
-         failure to report — only a question of whether we can carry them in
-         or have to ask them to log in. Either way they leave here knowing
-         the change worked. */
-      if (!(await sessionStillValid(activeRecovery.token))) {
-        setCodeSession(null);
-        setNewPw(""); setNewPw2(""); setRcode("");
-        setMode("login"); setPhase("form");
-        setLoginWith("email");
-        setLoginId(u.email || resetEmail.trim());
-        setNote("Password changed. Log in with your new one.");
-        return;
-      }
+      /* Always back to the login screen, never straight into the app.
 
-      onDone({
-        email: u.email || "", provider: "email", id: u.id,
-        token: activeRecovery.token,
-        refresh: activeRecovery.refresh || null,
-        expiresAt: activeRecovery.expiresIn ? Math.floor(Date.now() / 1000) + activeRecovery.expiresIn : null,
-      });
+         Typing the new password once proves it actually took, and it makes
+         the reset end the same way every time — carrying the recovery
+         session forward would end differently depending on whether the
+         password change revoked it, which is a project setting rather than
+         anything this code controls.
+
+         The recovery session is dropped here rather than stored. It has
+         done its one job. */
+      setCodeSession(null);
+      setNewPw(""); setNewPw2(""); setRcode("");
+      setMode("login"); setPhase("form");
+      setLoginWith("email");
+      setLoginId(u.email || resetEmail.trim());
+      setNote("Password changed. Log in with your new one.");
     } catch (e) {
       if (/should be different|same.*password/i.test(e.message)) {
         setErr("That's the password you already had. Pick a different one.");
@@ -1879,8 +1861,8 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                       Set a new password
                     </div>
                     <p style={{ fontSize: 13, color: t.dim, lineHeight: 1.55, margin: "0 0 20px" }}>
-                      Pick something you haven't used here before. You'll be signed in
-                      as soon as it's saved.
+                      Pick something you haven't used here before. You'll log in
+                      with it on the next screen.
                     </p>
 
                     <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim, marginBottom: 8 }}>New password</div>
@@ -1954,7 +1936,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                         fontFamily: SANS, fontSize: 15, fontWeight: 800,
                         background: resetOk ? t.accent : t.raised,
                         color: resetOk ? "#fff" : t.dead }}>
-                      {busy ? "Saving…" : "Save password and sign in"}
+                      {busy ? "Saving…" : "Save new password"}
                     </button>
                   </>
                 )}
