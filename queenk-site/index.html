@@ -30,13 +30,13 @@
         </svg>
         <span class="brand-txt"><b>QUEEN K</b><span>Beauty Etc</span></span>
       </a>
+      <div class="head-contact" id="headContact"></div>
       <button class="nav-toggle" id="navToggle" aria-label="Menu" aria-expanded="false">☰</button>
       <nav class="nav" id="nav">
         <a href="#styles">Styles</a>
-        <button class="nav-book" type="button" data-open-book>Book</button>
         <a href="#proof">Reviews</a>
-        <a href="#policies">Policies</a>
-        <a href="#contact">Contact</a>
+        <button class="nav-book" type="button" data-open-policies>Policies</button>
+        <a href="#hours">Hours</a>
         <button class="btn btn-white btn-sm" type="button" data-open-book>Book now</button>
       </nav>
     </div>
@@ -106,44 +106,17 @@
       </div>
     </section>
 
-    <!-- ============ POLICIES ============ -->
-    <section class="section" id="policies">
+    <!-- ============ HOURS ============ -->
+    <section class="section" id="hours">
       <div class="wrap">
-        <div class="section-head">
-          <span class="script">Good to know</span>
+        <div class="hours-band">
+          <div class="hours-main">
+            <div class="days" id="hoursDays"></div>
+            <div class="time" id="hoursTime"></div>
+            <div class="addr" id="addr"></div>
+          </div>
+          <ul class="fee-list" id="feeList"></ul>
         </div>
-        <div class="pol-text">
-          <div class="pol-col">
-            <h3>Booking</h3>
-            <dl id="bookingPolList"></dl>
-          </div>
-          <div class="pol-col">
-            <h3>In the salon</h3>
-            <dl id="salonPolList"></dl>
-          </div>
-        </div>
-        <p class="checklist-line"><b>Before you come:</b> <span id="checkLine"></span></p>
-      </div>
-    </section>
-
-    <!-- ============ CONTACT & HOURS ============ -->
-    <section class="section" id="contact">
-      <div class="wrap">
-        <div class="contact-grid">
-          <div class="panel">
-            <h3><span class="script">Contact me</span></h3>
-            <ul class="contact-list" id="contactList"></ul>
-          </div>
-          <div class="panel">
-            <h3><span class="script">Booking hours</span></h3>
-            <div class="hours-main">
-              <div class="days" id="hoursDays"></div>
-              <div class="time" id="hoursTime"></div>
-            </div>
-            <ul class="fee-list" id="feeList"></ul>
-          </div>
-        </div>
-        <div class="addr" id="addr"></div>
       </div>
     </section>
 
@@ -173,6 +146,28 @@
     </div>
   </footer>
 
+
+
+  <!-- ============ POLICIES (opens as a popup) ============ -->
+  <dialog class="book-dlg pol-dlg" id="polDlg" aria-labelledby="polDlgTitle">
+    <div class="dlg-head">
+      <h2 id="polDlgTitle"><span class="script">Good to know</span></h2>
+      <button class="dlg-close" id="polDlgClose" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="pol-body">
+      <div class="pol-text">
+        <div class="pol-col">
+          <h3>Booking</h3>
+          <dl id="bookingPolList"></dl>
+        </div>
+        <div class="pol-col">
+          <h3>In the salon</h3>
+          <dl id="salonPolList"></dl>
+        </div>
+      </div>
+      <p class="checklist-line"><b>Before you come:</b> <span id="checkLine"></span></p>
+    </div>
+  </dialog>
 
   <!-- ============ BOOKING (opens as a popup) ============ -->
   <dialog class="book-dlg" id="bookDlg" aria-labelledby="bookDlgTitle">

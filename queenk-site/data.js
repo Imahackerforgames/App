@@ -19,11 +19,11 @@ export const business = {
   fullName: "Queen K Beauty Etc",
   owner: "Queenie K Deloach",
   tagline: "Hello Gorgeous",
+  /* Her own opening line, kept short so the hero does not fill a phone
+     screen. The rules it refers to are one tap away on the Policies button. */
   welcome:
-    "Thank you for visiting! Book your appointment and read the rules. " +
-    "If you're interested in booking with me, please follow the instructions on the " +
-    "booking page, and kindly read through the rules and regulations so we both have " +
-    "a smooth and enjoyable experience.",
+    "Thank you for visiting! Book your appointment, and please read the rules " +
+    "so we both have a smooth and enjoyable experience.",
 
   phone:     "(912) 468-4033",
   email:     "queenkbeautyetc@gmail.com",

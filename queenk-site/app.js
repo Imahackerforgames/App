@@ -363,13 +363,12 @@ $('polaroids').innerHTML = clientPhotos.map((p) => `
     <div class="frame">
       <img src="${esc(p.image)}" alt="${esc(p.caption)}" loading="lazy" />
     </div>
-    <figcaption>${esc(p.caption)}</figcaption>
   </figure>`).join('');
 
-function fallbackPhoto(frame, img, caption) {
+function fallbackPhoto(frame, img) {
   if (!frame.isConnected || frame.querySelector('.ph')) return;
   img.remove();
-  frame.innerHTML = `<div class="ph">${svg('camera')}<span>${esc(caption)}</span></div>`;
+  frame.innerHTML = `<div class="ph">${svg('camera')}</div>`;
   // No on-page note: this is a customer-facing page, and the empty frame
   // already reads as "photo coming". Setup steps live in
   // assets/reviews/README.txt, and `node build.mjs` lists what's missing.
@@ -378,10 +377,10 @@ function fallbackPhoto(frame, img, caption) {
 for (const fig of document.querySelectorAll('.polaroid')) {
   const frame = fig.querySelector('.frame');
   const img = frame.querySelector('img');
-  const caption = fig.querySelector('figcaption').textContent;
-  img.addEventListener('error', () => fallbackPhoto(frame, img, caption), { once: true });
+  const caption = img.alt;
+  img.addEventListener('error', () => fallbackPhoto(frame, img), { once: true });
   // The image can fail before this listener attaches — no error event fires then.
-  if (img.complete && img.naturalWidth === 0) fallbackPhoto(frame, img, caption);
+  if (img.complete && img.naturalWidth === 0) fallbackPhoto(frame, img);
 }
 
 /* ---------- written reviews ---------- */
@@ -415,12 +414,19 @@ $('salonPolList').innerHTML = salonPolicies.map(polRow).join('');
 $('checkLine').textContent = checklist.join(' · ');
 
 /* ---------- contact & hours ---------- */
-const contact = [];
-if (business.phone) contact.push(`<li><a href="${esc(telHref(business.phone))}"><span class="c-icon">${svg('phone')}</span>${esc(business.phone)}</a></li>`);
-if (business.email) contact.push(`<li><a href="mailto:${esc(business.email)}"><span class="c-icon">${svg('mail')}</span>${esc(business.email)}</a></li>`);
-if (business.instagram) contact.push(`<li><a href="${esc(business.instagram)}" target="_blank" rel="noopener"><span class="c-icon">${svg('ig')}</span>${esc(business.igHandle)}</a></li>`);
-if (business.facebook) contact.push(`<li><span><span class="c-icon">${svg('fb')}</span>${esc(business.facebook)}</span></li>`);
-$('contactList').innerHTML = contact.join('');
+/* Contact sits in the sticky header so it is reachable from anywhere.
+   Labels show on wide screens; the icons alone carry it on a phone. */
+const headContact = [];
+if (business.phone) headContact.push(
+  `<a class="c-chip" href="${esc(telHref(business.phone))}" title="Call ${esc(business.phone)}">
+     ${svg('phone')}<span>${esc(business.phone)}</span></a>`);
+if (business.email) headContact.push(
+  `<a class="c-chip" href="mailto:${esc(business.email)}" title="Email ${esc(business.email)}">
+     ${svg('mail')}<span>Email</span></a>`);
+if (business.instagram) headContact.push(
+  `<a class="c-chip" href="${esc(business.instagram)}" target="_blank" rel="noopener"
+      title="Instagram ${esc(business.igHandle)}">${svg('ig')}<span>Instagram</span></a>`);
+$('headContact').innerHTML = headContact.join('');
 
 $('hoursDays').textContent = hours.standard.days;
 $('hoursTime').textContent = hours.standard.time;
@@ -517,6 +523,21 @@ function openBooker(service) {
 }
 
 $('sumGo').addEventListener('click', showConfirmStep);
+
+/* ---------- policies popup ---------- */
+const polDlg = $('polDlg');
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('[data-open-policies]')) return;
+  if (typeof polDlg.showModal === 'function') {
+    if (!polDlg.open) polDlg.showModal();
+  } else {
+    polDlg.setAttribute('open', '');
+  }
+  document.body.style.overflow = 'hidden';
+});
+$('polDlgClose').addEventListener('click', () => polDlg.close());
+polDlg.addEventListener('click', (e) => { if (e.target === polDlg) polDlg.close(); });
+polDlg.addEventListener('close', () => { document.body.style.overflow = ''; });
 $('embedBack').addEventListener('click', showPickerStep);
 
 function closeBooker() {
