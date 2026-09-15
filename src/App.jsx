@@ -1181,6 +1181,20 @@ async function updatePassword(accessToken, password) {
   return d;
 }
 
+/* Does this token still open anything? Changing a password can revoke the
+   session that authorised the change — whether it does depends on the
+   project's session settings, so it cannot be assumed either way. Handing a
+   dead session to the app doesn't look like a revoked session; it looks like
+   the app is broken. One request settles it. */
+async function sessionStillValid(token) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${token}` },
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 /* Reads a recovery landing off the address bar, and returns null for
    anything that isn't one.
 
@@ -1473,6 +1487,21 @@ function AuthScreen({ onDone, theme, recovery = null }) {
     try {
       const u = await updatePassword(activeRecovery.token, newPw);
       clearAuthHash();
+
+      /* The password is already changed at this point, so there is no
+         failure to report — only a question of whether we can carry them in
+         or have to ask them to log in. Either way they leave here knowing
+         the change worked. */
+      if (!(await sessionStillValid(activeRecovery.token))) {
+        setCodeSession(null);
+        setNewPw(""); setNewPw2(""); setRcode("");
+        setMode("login"); setPhase("form");
+        setLoginWith("email");
+        setLoginId(u.email || resetEmail.trim());
+        setNote("Password changed. Log in with your new one.");
+        return;
+      }
+
       onDone({
         email: u.email || "", provider: "email", id: u.id,
         token: activeRecovery.token,
