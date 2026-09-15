@@ -174,8 +174,8 @@ function appointmentWindow() {
 
    Google redirects the reply, which a browser will not let a page read, so
    this is deliberately fire-and-forget: the client's confirmation never waits
-   on it, and never fails because of it. The script logs every attempt under
-   Executions, and the Add to Google Calendar button is the backup. */
+   on it, and never fails because of it. Every attempt is listed under
+   Executions in the Apps Script dashboard, which is where a failure shows. */
 function sendToOwnerCalendar(details, { name, phone, email, paid }) {
   if (!business.calendarWebhookUrl) return false;
 
@@ -222,29 +222,6 @@ function bookingDetails({ name, phone, email, paid }) {
     `Paid now: ${money(paid)}`,
     q.priced && paid < q.total ? `Balance on the day: ${money(q.total - paid)}` : 'Paid in full'
   ].filter(Boolean).join('\n');
-}
-
-function calendarLink({ name, phone, email, paid }) {
-  const q = quote();
-  const { start, end, svc } = appointmentWindow();
-  const stamp = (d) =>
-    d.getFullYear() +
-    String(d.getMonth() + 1).padStart(2, '0') +
-    String(d.getDate()).padStart(2, '0') + 'T' +
-    String(d.getHours()).padStart(2, '0') +
-    String(d.getMinutes()).padStart(2, '0') + '00';
-
-  const details = bookingDetails({ name, phone, email, paid });
-
-  const params = new URLSearchParams({
-    action: 'TEMPLATE',
-    text: `${state.service} — ${business.fullName}`,
-    dates: `${stamp(start)}/${stamp(end)}`,
-    details,
-    location: business.location,
-    ctz: business.calendarTz
-  });
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
 $('svcSelect').innerHTML =
@@ -803,7 +780,6 @@ function renderPaymentDemo() {
     const phone = $('payPhone').value.trim();
     const email = $('payEmail').value.trim();
     const booking = { name, phone, email, paid: q.dueNow };
-    const gcal = calendarLink(booking);
     const sentToOwner = sendToOwnerCalendar(bookingDetails(booking), booking);
     $('payDemo').innerHTML = `
       <p class="pay-warn"><b>Nothing was charged.</b> This is a demo screen with no
@@ -817,18 +793,15 @@ function renderPaymentDemo() {
            To switch that on, set <code>payments.mode</code> to
            <code>"acuity"</code> in <code>data.js</code>.</p>
         <div class="pay-done-actions">
-          <a class="btn btn-white btn-sm" href="${esc(gcal)}" target="_blank" rel="noopener">
-            Add to Google Calendar
-          </a>
           <button class="btn btn-outline btn-sm" type="button" id="payAgain">Back</button>
         </div>
         <p class="pay-cal-note">
           ${sentToOwner
-            ? `This booking has been sent to ${esc(business.owner.split(' ')[0])}'s calendar
-               automatically. The button adds it to yours too.`
-            : `Opens a ready-made event with ${esc(name)}'s name, phone${email ? ', email' : ''},
-               the service and the amount. To have every booking reach her calendar on its own,
-               set up google-calendar/README.md.`}
+            ? `Added to ${esc(business.owner.split(' ')[0])}'s calendar automatically.`
+            : `<b>Calendar not connected yet.</b> Nothing was sent. Deploy the script in
+               <code>google-calendar/</code> and put its web app URL in
+               <code>business.calendarWebhookUrl</code>, and every booking will land on the
+               calendar by itself.`}
         </p>
       </div>`;
     $('payAgain').addEventListener('click', renderPaymentDemo);

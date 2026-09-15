@@ -83,26 +83,22 @@ whoever did the booking and on whatever device. It is free and there is
 nothing to maintain. Setup is in `google-calendar/README.md` and takes about
 two minutes. Leave the URL blank and the site simply skips the step.
 
-#### The manual backup
+#### If you would rather not deploy the script
 
-The confirmation offers **Add to Google Calendar**, a ready-made event
-carrying the service, length, date and time, the client's name and phone
-(and email if given), the total, what was paid and any balance due. It
-needs no backend — the whole event travels in the link.
-
-The catch is that a link has to be *clicked*. For every booking to land in
-her calendar **on its own**, use the sync that already exists:
+Acuity already syncs to Google Calendar by itself:
 
 > Acuity → **Integrations** → **Google Calendar** → connect the account.
 
 Every appointment booked through her scheduler then appears in her Google
-Calendar automatically, including ones made while she is asleep. That is
-the real answer to "keep track every time someone pays", it is part of the
-account she already has, and it needs no code here.
+Calendar automatically. It is part of the account she already has, and it
+needs no code here — but it only covers bookings made in her scheduler, not
+ones taken by this site's own payment screen. That is what the Apps Script
+above is for.
 
-A site like this one cannot write to her calendar by itself: doing that
-means holding a Google credential, which needs a backend. The sync above
-does it properly and for free.
+Either way, one of them has to be set up inside her Google account. Google
+will not let any website write to a calendar without the account holder
+granting it — that consent is the whole point of the permission, and there
+is no way to engineer around it from here.
 
 ### When you wire up a real processor
 
