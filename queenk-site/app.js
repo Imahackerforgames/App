@@ -376,9 +376,10 @@ function fallbackPhoto(frame, img, caption) {
   if (n.hidden) {
     n.hidden = false;
     n.innerHTML =
-      `<strong>Client photos not added yet.</strong> The review photos came through as a screenshot, ` +
-      `so the individual image files couldn't be saved automatically. Save the four photos and drop ` +
-      `them into <code>queenk-site/assets/reviews/</code> as <code>01.jpg</code>–<code>04.jpg</code>.`;
+      `<strong>Client photos not added yet.</strong> The photos were sent in chat, which means the ` +
+      `image files aren't on the machine that builds this page. Drop them into ` +
+      `<code>queenk-site/assets/reviews/</code> as <code>01.jpg</code>–<code>0${clientPhotos.length}.jpg</code>, ` +
+      `then run <code>node build.mjs</code> to bake them in.`;
   }
 }
 

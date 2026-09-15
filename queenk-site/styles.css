@@ -374,10 +374,13 @@ button { font: inherit; }
 .check-item:hover { background: var(--white); color: var(--black); transform: translateY(-4px); box-shadow: var(--glow); border-color: var(--white); }
 
 /* ---------- client photos (polaroids) ---------- */
-.polaroids { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+.polaroids { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; }
 .polaroid {
-  background: var(--white); padding: 11px 11px 40px; border-radius: 4px;
-  width: 210px; box-shadow: 0 18px 44px -14px rgba(0,0,0,.9);
+  /* <figure> carries a default margin of 1em 40px — without this reset the
+     wall spreads out and wraps early. */
+  margin: 0;
+  background: var(--white); padding: 7px 7px 26px; border-radius: 3px;
+  width: 148px; box-shadow: 0 12px 30px -12px rgba(0,0,0,.9);
   transition: transform .3s cubic-bezier(.2,.8,.3,1), box-shadow .3s;
   position: relative;
 }
@@ -390,13 +393,24 @@ button { font: inherit; }
 .polaroid .ph svg { width: 26px; height: 26px; opacity: .6; }
 .polaroid .ph span { font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; }
 .polaroid figcaption {
-  position: absolute; inset: auto 0 12px 0; text-align: center;
-  color: #222; font-size: .78rem; font-family: var(--sans);
+  position: absolute; inset: auto 0 8px 0; text-align: center;
+  color: #222; font-size: .66rem; font-family: var(--sans);
+  padding-inline: 6px; line-height: 1.25;
 }
+.polaroid .ph { padding: 10px; gap: 6px; }
+.polaroid .ph svg { width: 20px; height: 20px; }
+.polaroid .ph span { font-size: .56rem; }
+
+/* The photo wall sits between the hero and the prices — keep it compact
+   so it introduces the work without pushing the prices down the page. */
+#proof { padding-block: clamp(34px, 5vw, 56px); }
+#proof .section-head { margin-bottom: clamp(20px, 3vw, 30px); }
+#proof .section-head .script { font-size: clamp(2rem, 5vw, 2.9rem); }
 
 /* ---------- reviews ---------- */
 .reviews { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(290px, 100%), 1fr)); gap: 18px; }
 .review {
+  margin: 0;  /* same <figure> default margin reset */
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
   padding: 28px 26px; display: flex; flex-direction: column; gap: 13px;
   transition: all .25s cubic-bezier(.2,.8,.3,1);
@@ -506,7 +520,7 @@ details.faq-item p { margin: 0; padding: 0 22px 20px; color: var(--grey); font-s
   }
   .book-bar { display: block; }
   body { padding-bottom: 76px; }
-  .polaroid { width: calc(50% - 9px); }
+  .polaroid { width: calc(50% - 7px); max-width: 160px; }
   .summary { flex-direction: column; align-items: stretch; text-align: center; }
   .summary .btn { width: 100%; }
 }
