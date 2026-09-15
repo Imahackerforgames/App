@@ -30,7 +30,7 @@ export const business = {
   instagram: "https://www.instagram.com/queen_kreationss",
   igHandle:  "@queen_kreationss",
   facebook:  "Queenie K Deloach",
-  location:  "Savannah, GA — Southside area",
+  location:  "Savannah, GA",
 
   bookingUrl: "https://queenkbeautyetc.as.me/schedule/e8feb61a",
   timezone:   "Eastern Time (GMT-04:00)",
