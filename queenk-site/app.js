@@ -372,15 +372,9 @@ function fallbackPhoto(frame, img, caption) {
   if (!frame.isConnected || frame.querySelector('.ph')) return;
   img.remove();
   frame.innerHTML = `<div class="ph">${svg('camera')}<span>${esc(caption)}</span></div>`;
-  const n = $('photoNote');
-  if (n.hidden) {
-    n.hidden = false;
-    n.innerHTML =
-      `<strong>Client photos not added yet.</strong> The photos were sent in chat, which means the ` +
-      `image files aren't on the machine that builds this page. Drop them into ` +
-      `<code>queenk-site/assets/reviews/</code> as <code>01.jpg</code>–<code>0${clientPhotos.length}.jpg</code>, ` +
-      `then run <code>node build.mjs</code> to bake them in.`;
-  }
+  // No on-page note: this is a customer-facing page, and the empty frame
+  // already reads as "photo coming". Setup steps live in
+  // assets/reviews/README.txt, and `node build.mjs` lists what's missing.
 }
 
 for (const fig of document.querySelectorAll('.polaroid')) {
