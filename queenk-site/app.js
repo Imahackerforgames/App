@@ -14,8 +14,6 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
 const money = (n) => `$${Number(n).toLocaleString('en-US')}`;
 const telHref = (p) => `tel:${String(p).replace(/[^\d+]/g, '')}`;
 
-/* Every Book control points here. */
-const bookHref = business.bookingUrl;
 
 /* ---------- tiny icon set ---------- */
 const ICON = {
@@ -349,13 +347,10 @@ function updateSummary() {
 
   const ready = state.service && state.date && state.time !== null;
   const go = $('sumGo');
-  go.setAttribute('aria-disabled', String(!ready));
-  go.style.opacity = ready ? '1' : '.4';
-  go.style.pointerEvents = ready ? 'auto' : 'none';
-  go.href = bookHref;
-  go.target = '_blank';
-  go.rel = 'noopener';
-  go.textContent = ready ? 'Continue to booking →' : 'Continue to booking';
+  go.disabled = !ready;
+  go.textContent = ready
+    ? `Confirm & pay ${money(business.deposit)} deposit →`
+    : 'Confirm & pay deposit';
 }
 
 renderCalendar();
@@ -457,11 +452,61 @@ $('footLinks').innerHTML = [
    ============================================================ */
 const dlg = $('bookDlg');
 
+/* ---------- her Acuity scheduler, embedded ----------
+   Step 2 of the popup. The client picks style, day and time in the panel
+   above, then confirms and pays here — inside this page, on her existing
+   Acuity account, with no link out to the old booking site.
+
+   The frame is built on first use, not on page load, so nothing contacts
+   Acuity until someone is actually booking. */
+let embedBuilt = false;
+
+function buildEmbed() {
+  if (embedBuilt) return;
+  embedBuilt = true;
+
+  const frame = document.createElement('iframe');
+  frame.src = business.embedSrc;
+  frame.title = 'Choose your time and pay your deposit';
+  frame.allow = 'payment';                 // lets Acuity take the deposit
+  frame.referrerPolicy = 'no-referrer-when-downgrade';
+  $('embedFrame').appendChild(frame);
+
+  /* A browser gives a page no way to tell a loaded cross-site frame from a
+     refused one, so instead of guessing we always offer the phone as a
+     way through. */
+  $('embedHelp').innerHTML =
+    `Not loading? Call <a href="${esc(telHref(business.phone))}">${esc(business.phone)}</a> ` +
+    `and ${esc(business.owner.split(' ')[0])} will book you in.`;
+}
+
+function showConfirmStep() {
+  const price = (allServices.find((x) => x.label === state.service) || {}).price;
+  const bits = [state.service];
+  if (state.date) bits.push(`${MONTHS[state.date.getMonth()]} ${state.date.getDate()}`);
+  if (state.time !== null) bits.push(fmt(state.time));
+  if (price != null) bits.push(money(price));
+
+  $('embedChosen').innerHTML =
+    `<b>${esc(bits[0])}</b> · ${bits.slice(1).map(esc).join(' · ')} — ` +
+    `pick this time below to confirm and pay your ${money(business.deposit)} deposit.`;
+
+  $('booker').hidden = true;
+  $('embedWrap').hidden = false;
+  buildEmbed();
+}
+
+function showPickerStep() {
+  $('embedWrap').hidden = true;
+  $('booker').hidden = false;
+}
+
 function openBooker(service) {
   if (service) {
     state.service = service;
     $('svcSelect').value = service;
   }
+  showPickerStep();
   updateSummary();
   if (typeof dlg.showModal === 'function') {
     if (!dlg.open) dlg.showModal();
@@ -470,6 +515,9 @@ function openBooker(service) {
   }
   document.body.style.overflow = 'hidden';
 }
+
+$('sumGo').addEventListener('click', showConfirmStep);
+$('embedBack').addEventListener('click', showPickerStep);
 
 function closeBooker() {
   if (typeof dlg.close === 'function') dlg.close();
@@ -485,7 +533,10 @@ $('bookDlgClose').addEventListener('click', closeBooker);
 /* Click the backdrop (outside the panel) to dismiss. */
 dlg.addEventListener('click', (e) => { if (e.target === dlg) closeBooker(); });
 /* Escape fires dialog's own close event — keep body scroll in sync. */
-dlg.addEventListener('close', () => { document.body.style.overflow = ''; });
+dlg.addEventListener('close', () => {
+  document.body.style.overflow = '';
+  showPickerStep();                      // next open starts at step one
+});
 
 /* ---------- mobile nav ---------- */
 const nav = $('nav'), toggle = $('navToggle');

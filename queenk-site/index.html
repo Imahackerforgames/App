@@ -180,7 +180,17 @@
       <h2 id="bookDlgTitle"><span class="script">Book</span> <span class="display">YOUR APPOINTMENT</span></h2>
       <button class="dlg-close" id="bookDlgClose" type="button" aria-label="Close">&times;</button>
     </div>
-        <div class="booker">
+
+    <!-- Her Acuity scheduler, running inside the popup. -->
+    <div class="embed-wrap" id="embedWrap" hidden>
+      <div class="embed-bar">
+        <button class="link-btn" id="embedBack" type="button">&larr; Change time</button>
+        <p class="embed-chosen" id="embedChosen"></p>
+      </div>
+      <div class="embed-frame" id="embedFrame"></div>
+      <p class="embed-help" id="embedHelp"></p>
+    </div>
+        <div class="booker" id="booker" hidden>
           <div class="booker-steps">
             <div class="booker-col">
               <div class="step-label"><i class="step-num">1</i> Choose your style</div>
@@ -216,7 +226,7 @@
               <div class="summary-sub" id="sumSub">Choose a style, a day and a time.</div>
               <div class="summary-note" id="sumNote"></div>
             </div>
-            <a class="btn btn-white" id="sumGo" href="#" aria-disabled="true">Continue to booking</a>
+            <button class="btn btn-white" id="sumGo" type="button" disabled>Confirm &amp; pay deposit</button>
           </div>
         </div>
   </dialog>

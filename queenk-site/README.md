@@ -26,18 +26,47 @@ hours, fees, policies, reviews and FAQ all come from there.
 unconfirmed price as a **Sample**, so nothing invented can go live by accident.
 Set it to `false` once the real prices are in.
 
+## Payments and scheduling run on her existing Acuity account
+
+Booking happens in two steps inside the popup, and **no button anywhere on
+this site links out to the old booking page**:
+
+1. **Pick** — style, day and time, in this site's own panel.
+2. **Confirm & pay** — her real Acuity scheduler loads *inside the popup*
+   (`business.embedSrc` in `data.js`), where the client confirms the slot
+   and pays the deposit. Availability, the $25 deposit and the card payment
+   are all handled by the Acuity account she already uses, so nothing about
+   her setup has to change.
+
+### This needs a real domain
+
+Browsers only allow a site to embed another site's page when the host
+permits it. Opened from a local file, or from a sandboxed preview link, the
+scheduler area comes up blank. **Deploy the site to a real host and it
+works.** There is no way for a page to detect the difference — a browser
+reports a refused cross-site frame exactly like a successful one — so
+rather than guess, the confirm step always shows a quiet line offering her
+phone number.
+
+Two things to check on her side once it's deployed:
+
+- **Payments must be switched on in Acuity** for the deposit to be charged
+  in the embed. If they aren't, the client books but pays on arrival.
+- **Deep links per service** are possible. Each appointment type in Acuity
+  has its own scheduling link; drop one into a service's entry in
+  `data.js` and pressing Book can open straight to that service instead of
+  the full category list.
+
 ## The booking flow
 
-The site's booking section is the main upgrade over the bare Acuity page:
+Step one of the popup is this site's own picker:
 
 1. **Choose a style** — a dropdown of every service, or tap *Book* on any price bubble
 2. **Pick a day** — a real calendar, with Sundays dotted to show the extra fee
 3. **Pick a time** — PM slots in 15-minute steps, each showing its own surcharge
 
-The running summary shows the style, date, time, price, any fees, and the $25
-deposit. **Continue to booking** hands off to her real Acuity page, which is
-where the deposit is actually taken — this just gets the client there already
-decided.
+The running summary shows the style, date, time, price and any fees, and
+**Confirm & pay** moves to step two, above.
 
 Fees are applied exactly as her flyer states them:
 

@@ -33,6 +33,22 @@ export const business = {
   location:  "Savannah, GA",
 
   bookingUrl: "https://queenkbeautyetc.as.me/schedule/e8feb61a",
+
+  /* Her real Acuity scheduler, run INSIDE this site's booking popup, so a
+     client picks a time and pays the deposit without ever leaving the page
+     or seeing a link to the old booking site.
+
+     This is her own confirmed scheduling link with Acuity's embed flag
+     appended. Availability, the deposit and the card payment are all
+     handled by her existing Acuity account — this site is just the frame
+     around it, so nothing about her setup has to change.
+
+     IMPORTANT: browsers only allow this embed on a real domain. The
+     claude.ai preview link blocks third-party embeds, so there it falls
+     back to the built-in picker automatically (see app.js). Deploy the
+     site to a host and the real scheduler takes over. */
+  embedSrc: "https://queenkbeautyetc.as.me/schedule/e8feb61a?ref=embedded_csp",
+  embedTimeoutMs: 9000,
   timezone:   "Eastern Time (GMT-04:00)",
   deposit:    25          // $25 deposit due upon booking
 };
