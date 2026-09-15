@@ -14,6 +14,9 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
 const money = (n) => `$${Number(n).toLocaleString('en-US')}`;
 const telHref = (p) => `tel:${String(p).replace(/[^\d+]/g, '')}`;
 
+/* Every Book control points here. */
+const bookHref = business.bookingUrl;
+
 /* ---------- tiny icon set ---------- */
 const ICON = {
   x:       `<path d="M6 6l12 12M18 6L6 18"/>`,
@@ -64,11 +67,14 @@ function svcRow(cat, s) {
   return `
     <li class="svc">
       <span class="svc-name">
-        ${esc(s.name)}
-        ${s.duration ? `<span class="svc-dur">${esc(s.duration)}</span>` : ''}
-        ${s.sample ? `<span class="sample-flag">Sample</span>` : ''}
+        <span class="svc-title">
+          ${esc(s.name)}
+          ${s.duration ? `<span class="svc-dur">${esc(s.duration)}</span>` : ''}
+          ${s.sample ? `<span class="sample-flag">Sample</span>` : ''}
+        </span>
+        ${s.note ? `<span class="svc-note">${esc(s.note)}</span>` : ''}
       </span>
-      <span style="display:flex;align-items:center;gap:8px">
+      <span class="svc-actions">
         ${priceHtml}
         <button class="svc-book" type="button"
                 data-book="${esc(cat.name)} — ${esc(s.name)}">Book</button>
@@ -83,7 +89,13 @@ $('catGrid').innerHTML = categories.map((c) => `
       ${c.featured ? `<span class="tag-featured">Most booked</span>` : ''}
     </div>
     <p>${esc(c.blurb)}</p>
-    <ul class="svc-list">${c.services.map((s) => svcRow(c, s)).join('')}</ul>
+    ${c.services.length
+      ? `<ul class="svc-list">${c.services.map((s) => svcRow(c, s)).join('')}</ul>`
+      : `<div class="cat-empty">
+           <span>Pricing for this one is on the booking page.</span>
+           <a class="btn btn-outline btn-sm" href="${esc(bookHref)}"
+              target="_blank" rel="noopener">See times &amp; prices</a>
+         </div>`}
   </article>`).join('');
 
 $('filters').addEventListener('click', (e) => {
@@ -127,7 +139,7 @@ const allServices = categories.flatMap((c) =>
 
 $('svcSelect').innerHTML =
   `<option value="">Choose a style…</option>` +
-  categories.map((c) => `
+  categories.filter((c) => c.services.length).map((c) => `
     <optgroup label="${esc(c.name)}">
       ${c.services.map((s) => {
         const v = `${c.name} — ${s.name}`;
@@ -337,7 +349,7 @@ function updateSummary() {
   go.setAttribute('aria-disabled', String(!ready));
   go.style.opacity = ready ? '1' : '.4';
   go.style.pointerEvents = ready ? 'auto' : 'none';
-  go.href = business.bookingUrl;
+  go.href = bookHref;
   go.target = '_blank';
   go.rel = 'noopener';
   go.textContent = ready ? 'Continue to booking →' : 'Continue to booking';
@@ -380,6 +392,8 @@ for (const fig of document.querySelectorAll('.polaroid')) {
 }
 
 /* ---------- written reviews ---------- */
+if (!reviews.length) $('reviewGrid').hidden = true;
+
 $('reviewGrid').innerHTML = reviews.map((r) => `
   <figure class="review${r.sample ? ' is-sample' : ''}">
     <div class="stars" aria-label="${esc(r.stars)} out of 5">${'★'.repeat(r.stars || 5)}</div>

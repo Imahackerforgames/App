@@ -11,7 +11,7 @@
    can go live by accident.
    ============================================================ */
 
-export const DRAFT_MODE = true;
+export const DRAFT_MODE = false;
 
 /* ---------- Business — ALL CONFIRMED from her flyers ---------- */
 export const business = {
@@ -73,24 +73,13 @@ export const scheduling = {
 ------------------------------------------------------------ */
 export const categories = [
   {
-    name: "Coloring Service",
-    blurb: "Full colour, highlights and toning — on your hair or your bundles.",
-    featured: true,
-    services: [
-      // CONFIRMED — read directly from her booking page.
-      { name: "Entire Head of Color", price: 70, duration: "1 hr 50 min" },
-      { name: "Highlights",           price: null, sample: true },
-      { name: "Bundle / Wig Coloring", price: null, sample: true }
-    ]
-  },
-  {
     name: "Quick Weaves",
-    blurb: "Fast, full installs cut and styled to finish the same visit.",
+    blurb: "Closure and frontal quick weaves, cut and styled to finish.",
     featured: true,
     services: [
-      { name: "Full Quick Weave",         price: 120, sample: true },
-      { name: "Quick Weave w/ Leave-Out", price: 135, sample: true },
-      { name: "Bob Quick Weave",          price: 110, sample: true }
+      { name: "Closure Shortcut",                price: 175, duration: "2 hrs" },
+      { name: "Closure Quickweave",              price: 155, duration: "1 hr 30 min" },
+      { name: "Frontal Quick Weave (no styling)", price: 180, duration: "1 hr 50 min" }
     ]
   },
   {
@@ -98,63 +87,63 @@ export const categories = [
     blurb: "Long-wearing sewn installs built on a clean braid foundation.",
     featured: true,
     services: [
-      { name: "Full Sew In",    price: 180, sample: true },
-      { name: "Partial Sew In", price: 150, sample: true },
-      { name: "Closure Sew In", price: 200, sample: true }
-    ]
-  },
-  {
-    name: "Ponytails",
-    blurb: "Sleek, high or dramatic drop ponytails with a clean wrapped base.",
-    services: [
-      { name: "Sleek Ponytail",  price: 85, sample: true },
-      { name: "High Ponytail",   price: 85, sample: true },
-      { name: "Drop Ponytail",   price: 95, sample: true }
-    ]
-  },
-  {
-    name: "Wig Installs",
-    blurb: "Glued or glueless installs, customized, bleached and styled.",
-    services: [
-      { name: "Glueless Install",  price: 130, sample: true },
-      { name: "Glued Install",     price: 140, sample: true },
-      { name: "Install w/ Custom", price: 165, sample: true }
-    ]
-  },
-  {
-    name: "LACE",
-    blurb: "Lace customization — plucking, bleaching and a melted hairline.",
-    services: [
-      { name: "Lace Customization", price: 95, sample: true },
-      { name: "Frontal Prep",       price: 85, sample: true },
-      { name: "Closure Prep",       price: 70, sample: true }
-    ]
-  },
-  {
-    name: "Dreads",
-    blurb: "Starter locs, retwists and loc maintenance.",
-    services: [
-      { name: "Starter Locs",      price: 90, sample: true },
-      { name: "Retwist",           price: 75, sample: true },
-      { name: "Retwist w/ Style",  price: 95, sample: true }
+      { name: "Frontal Sew-In", price: 250, duration: "2 hrs 30 min" },
+      { name: "Closure Sew-In", price: 220, duration: "2 hrs" }
     ]
   },
   {
     name: "Natural Hair",
-    blurb: "Silk presses, twist-outs and healthy natural styling.",
+    blurb: "Haircuts, silk presses, relaxers and classic styling on your own hair.",
+    featured: true,
     services: [
-      { name: "Silk Press",    price: 75, sample: true },
-      { name: "Wash & Style",  price: 55, sample: true },
-      { name: "Twist-Out",     price: 65, sample: true }
+      { name: "Natural Haircut",      price: 100, duration: "45 min",       note: "Price changes depending on the cut" },
+      { name: "Blow Out / Silk Press", price: 140, duration: "1 hr 40 min", note: "Price varies depending on hair length" },
+      { name: "Relaxer / Roller Set", price: 120, duration: "1 hr" },
+      { name: "Fingerwaves",          price: 75,  duration: "1 hr" },
+      { name: "Pin Curl",             price: 75,  duration: "50 min" },
+      { name: "Add Tracks",           price: 70,  duration: "45 min" }
     ]
+  },
+  {
+    name: "Dreads",
+    blurb: "Starter locs, retwists and loc styling.",
+    services: [
+      { name: "Starter Locs", price: 125, duration: "2 hrs 5 min", note: "Pricing depends on size & length" },
+      { name: "Retwist",      price: 130, duration: "2 hrs",       note: "Prices start at $100 depending on size and length" },
+      { name: "Style Locs",   price: 55,  duration: "45 min",      note: "Prices change depending on the style" }
+    ]
+  },
+  {
+    name: "Coloring Service",
+    blurb: "Colour on your own hair or on your bundles.",
+    services: [
+      { name: "Entire Head of Color", price: 70, duration: "1 hr 50 min" }
+    ]
+  },
+
+  /* These four categories are live on her booking page, but their prices
+     weren't in the screenshots. Rather than invent numbers, each card sends
+     the client to the booking page. Add services here the same way as above
+     and the card fills in automatically. */
+  {
+    name: "LACE",
+    blurb: "Lace customization — plucking, bleaching and a melted hairline.",
+    services: []
+  },
+  {
+    name: "Ponytails",
+    blurb: "Sleek, high and low ponytails with a clean wrapped base.",
+    services: []
+  },
+  {
+    name: "Wig Installs",
+    blurb: "Glued and glueless installs, customized and styled.",
+    services: []
   },
   {
     name: "Touch Ups",
     blurb: "Quick refreshes between full appointments.",
-    services: [
-      { name: "Edge / Perimeter Touch Up", price: 45, sample: true },
-      { name: "Re-Style",                  price: 50, sample: true }
-    ]
+    services: []
   }
 ];
 
@@ -212,21 +201,22 @@ export const checklist = [
    so the page never shows a broken image.
 ------------------------------------------------------------ */
 export const clientPhotos = [
-  { image: "assets/reviews/01.jpg", caption: "Short cut & style" },
-  { image: "assets/reviews/02.jpg", caption: "Quick weave bob" },
-  { image: "assets/reviews/03.jpg", caption: "Layered pixie" },
-  { image: "assets/reviews/04.jpg", caption: "Colour & cut" }
+  { image: "assets/reviews/01.jpg", caption: "Honey blonde lace install" },
+  { image: "assets/reviews/02.jpg", caption: "Curly half-up ponytail" },
+  { image: "assets/reviews/03.jpg", caption: "Sleek straight ponytail" },
+  { image: "assets/reviews/04.jpg", caption: "Body wave install" },
+  { image: "assets/reviews/05.jpg", caption: "Blunt cut bob" }
 ];
 
 /* ---------- Written reviews ----------
-   ⚠️  Her flyer shows photos but no written quotes, so these are
-   placeholders. Replace the text, then set sample: false on each.
+   Her flyer shows client photos rather than written quotes, so this list is
+   empty and the written-review cards stay hidden.
+
+   To add real ones, fill in entries like:
+     { quote: "…", author: "Keisha R.", stars: 5, service: "Sew Ins" }
+   The section appears on its own as soon as there's at least one.
 ------------------------------------------------------------ */
-export const reviews = [
-  { quote: "Replace this with something a real client said about their cut or colour.", author: "Client name", stars: 5, service: "Coloring Service", sample: true },
-  { quote: "Replace this with a real review about a quick weave or sew in.",            author: "Client name", stars: 5, service: "Quick Weaves",     sample: true },
-  { quote: "Replace this with a real review about the overall experience.",             author: "Client name", stars: 5, service: "Sew Ins",          sample: true }
-];
+export const reviews = [];
 
 /* ---------- FAQ — answers drawn from her real policies ---------- */
 export const faq = [
