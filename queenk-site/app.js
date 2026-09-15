@@ -152,24 +152,66 @@ function durationMinutes(text) {
   return total || 60;
 }
 
-/* Google Calendar's event template link. No backend needed: the link
-   carries the whole event, and opening it drops it straight into the
-   calendar of whoever clicks. */
-function calendarLink({ name, phone, email, paid }) {
+/* The appointment's wall-clock start and end, plus how long it runs. */
+function appointmentWindow() {
   const svc = allServices.find((x) => x.label === state.service);
-  const q = quote();
-
   const start = new Date(state.date);
   start.setHours(Math.floor(state.time / 60), state.time % 60, 0, 0);
   const end = new Date(start.getTime() + durationMinutes(svc && svc.duration) * 60000);
-  const stamp = (d) =>
-    d.getFullYear() +
-    String(d.getMonth() + 1).padStart(2, '0') +
+  const local = (d) =>
+    d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
     String(d.getDate()).padStart(2, '0') + 'T' +
-    String(d.getHours()).padStart(2, '0') +
-    String(d.getMinutes()).padStart(2, '0') + '00';
+    String(d.getHours()).padStart(2, '0') + ':' +
+    String(d.getMinutes()).padStart(2, '0') + ':00';
+  return { start, end, startLocal: local(start), endLocal: local(end), svc };
+}
 
-  const details = [
+/* Hand the booking to the owner's Google Calendar.
+   The endpoint is a Google Apps Script running in her own account (see
+   google-calendar/README.md), so the event is created as her — automatically,
+   with no server in between.
+
+   Google redirects the reply, which a browser will not let a page read, so
+   this is deliberately fire-and-forget: the client's confirmation never waits
+   on it, and never fails because of it. The script logs every attempt under
+   Executions, and the Add to Google Calendar button is the backup. */
+function sendToOwnerCalendar(details, { name, phone, email, paid }) {
+  if (!business.calendarWebhookUrl) return false;
+
+  const w = appointmentWindow();
+  const payload = {
+    secret: business.calendarSecret,
+    title: `${state.service} — ${name}`,
+    start: w.startLocal,
+    end: w.endLocal,
+    timeZone: business.calendarTz,
+    location: business.location,
+    details
+  };
+
+  try {
+    fetch(business.calendarWebhookUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      /* text/plain keeps this a "simple" request, so the browser sends it
+         without a preflight that Apps Script would not answer. */
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).catch(() => {});      // never let a calendar hiccup break the booking
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/* Google Calendar's event template link. No backend needed: the link
+   carries the whole event, and opening it drops it straight into the
+   calendar of whoever clicks. */
+function bookingDetails({ name, phone, email, paid }) {
+  const q = quote();
+  const svc = allServices.find((x) => x.label === state.service);
+  return [
     `Service: ${state.service}`,
     svc && svc.duration ? `Length: ${svc.duration}` : '',
     `Client: ${name}`,
@@ -178,8 +220,21 @@ function calendarLink({ name, phone, email, paid }) {
     q.feeLabels.length ? `Fees: ${q.feeLabels.join(' + ')}` : '',
     q.priced ? `Total: ${money(q.total)}` : '',
     `Paid now: ${money(paid)}`,
-    q.priced && paid < q.total ? `Balance on the day: ${money(q.total - paid)}` : 'Paid in full',
+    q.priced && paid < q.total ? `Balance on the day: ${money(q.total - paid)}` : 'Paid in full'
   ].filter(Boolean).join('\n');
+}
+
+function calendarLink({ name, phone, email, paid }) {
+  const q = quote();
+  const { start, end, svc } = appointmentWindow();
+  const stamp = (d) =>
+    d.getFullYear() +
+    String(d.getMonth() + 1).padStart(2, '0') +
+    String(d.getDate()).padStart(2, '0') + 'T' +
+    String(d.getHours()).padStart(2, '0') +
+    String(d.getMinutes()).padStart(2, '0') + '00';
+
+  const details = bookingDetails({ name, phone, email, paid });
 
   const params = new URLSearchParams({
     action: 'TEMPLATE',
@@ -682,6 +737,26 @@ function renderPaymentDemo() {
   group($('payCard'), 16, false);
   group($('payExp'), 4, true);
 
+  /* The phone box lays itself out as (912) 555-0123 while you type, so the
+     client never has to think about brackets or dashes. Deleting works
+     normally because the caret is only forced to the end when you are
+     actually typing at the end. */
+  $('payPhone').addEventListener('input', (e) => {
+    const el = e.target;
+    const atEnd = el.selectionStart === el.value.length;
+    let d = el.value.replace(/\D/g, '');
+    if (d.length === 11 && d[0] === '1') d = d.slice(1);   // drop a leading 1
+    d = d.slice(0, 10);
+
+    let out = d;
+    if (d.length > 6)      out = `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+    else if (d.length > 3) out = `(${d.slice(0, 3)}) ${d.slice(3)}`;
+    else if (d.length > 0) out = `(${d}`;
+
+    el.value = out;
+    if (atEnd) el.setSelectionRange(out.length, out.length);
+  });
+
   for (const opt of $('payDemo').querySelectorAll('.pay-opt')) {
     opt.addEventListener('click', () => {
       state.payChoice = opt.dataset.pay;
@@ -727,7 +802,9 @@ function renderPaymentDemo() {
     const name = $('payName').value.trim();
     const phone = $('payPhone').value.trim();
     const email = $('payEmail').value.trim();
-    const gcal = calendarLink({ name, phone, email, paid: q.dueNow });
+    const booking = { name, phone, email, paid: q.dueNow };
+    const gcal = calendarLink(booking);
+    const sentToOwner = sendToOwnerCalendar(bookingDetails(booking), booking);
     $('payDemo').innerHTML = `
       <p class="pay-warn"><b>Nothing was charged.</b> This is a demo screen with no
         payment processor behind it.</p>
@@ -746,9 +823,12 @@ function renderPaymentDemo() {
           <button class="btn btn-outline btn-sm" type="button" id="payAgain">Back</button>
         </div>
         <p class="pay-cal-note">
-          Opens a ready-made event with ${esc(name)}'s name, phone${email ? ', email' : ''},
-          the service and the amount. For every real booking to land in the calendar on its
-          own, switch on Google Calendar sync inside the booking account — see the README.
+          ${sentToOwner
+            ? `This booking has been sent to ${esc(business.owner.split(' ')[0])}'s calendar
+               automatically. The button adds it to yours too.`
+            : `Opens a ready-made event with ${esc(name)}'s name, phone${email ? ', email' : ''},
+               the service and the amount. To have every booking reach her calendar on its own,
+               set up google-calendar/README.md.`}
         </p>
       </div>`;
     $('payAgain').addEventListener('click', renderPaymentDemo);

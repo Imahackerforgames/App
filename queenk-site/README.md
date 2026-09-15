@@ -75,6 +75,16 @@ the required fields are there.
 
 ### Getting bookings into Google Calendar
 
+**Automatically, with no server:** `google-calendar/` holds a Google Apps
+Script that runs inside the owner's own Google account. Paste it in, deploy
+it as a web app, and put its URL in `business.calendarWebhookUrl` — every
+completed booking then lands on her calendar by itself, created as her,
+whoever did the booking and on whatever device. It is free and there is
+nothing to maintain. Setup is in `google-calendar/README.md` and takes about
+two minutes. Leave the URL blank and the site simply skips the step.
+
+#### The manual backup
+
 The confirmation offers **Add to Google Calendar**, a ready-made event
 carrying the service, length, date and time, the client's name and phone
 (and email if given), the total, what was paid and any balance due. It

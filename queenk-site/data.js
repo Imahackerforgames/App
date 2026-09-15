@@ -53,6 +53,14 @@ export const business = {
   /* Used to build the Google Calendar event so the time lands correctly
      whatever timezone the person adding it is in. */
   calendarTz: "America/New_York",
+
+  /* Send every completed booking straight to the owner's Google Calendar,
+     with no server involved. Follow google-calendar/README.md — it takes
+     about two minutes — then paste the web app URL here and put the same
+     secret in both places. Leave blank and the site simply skips it; the
+     Add to Google Calendar button on the confirmation still works. */
+  calendarWebhookUrl: "",
+  calendarSecret: "",
   deposit:    25          // $25 deposit due upon booking
 };
 
