@@ -1,0 +1,1177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<!--ARTIFACT-BEGIN-->
+<title>Thehairrookiee</title>
+<meta name="description" content="Book with Thehairrookiee — hairstylist, Downtown Atlanta. Cuts, styling, braids. Book in under two minutes." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Grechen+Fuemen&family=Manrope:wght@400;500;600;700&display=swap" />
+<style>
+:root{
+  --ink:#08070b;
+  --ink2:#121017;
+  --ink3:#1b1823;
+  --ink4:#251f30;
+  --pink:#ff5aa5;
+  --pink-lt:#ffc2de;
+  --pink-soft:#f6b9d5;
+  --pink-deep:#f04e97;
+  --chrome:#f6f3f7;
+  --muted:#9d95a6;
+  --line:rgba(255,255,255,.10);
+  --line-2:rgba(255,255,255,.18);
+  --ok:#5fe3a1;
+  --tape:linear-gradient(176deg,var(--pink-lt) 0%,var(--pink) 42%,var(--pink-deep) 100%);
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Manrope","Helvetica Neue",Arial,sans-serif;
+  --f-script:"Grechen Fuemen","Brush Script MT",cursive;
+  --wrap:720px;
+}
+*{box-sizing:border-box}
+html{background:var(--ink);-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+section[id]{scroll-margin-top:14px}
+body{
+  margin:0;
+  background:var(--ink);
+  color:var(--chrome);
+  font:400 16px/1.65 var(--f-body);
+  overflow-x:hidden;
+}
+/* crumpled-paper ground: soft highlights + a fine noise veil */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(60% 40% at 18% 8%,rgba(255,90,165,.10),transparent 70%),
+    radial-gradient(50% 35% at 88% 28%,rgba(140,110,200,.09),transparent 70%),
+    radial-gradient(70% 45% at 50% 96%,rgba(255,90,165,.07),transparent 70%);
+}
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.055;
+  mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.wrap{width:100%;max-width:var(--wrap);margin-inline:auto;padding-inline:20px;position:relative;z-index:1}
+img{max-width:100%}
+[hidden]{display:none!important}
+:focus-visible{outline:2px solid var(--pink);outline-offset:3px;border-radius:4px}
+
+/* ---------- pink tape ---------- */
+.tape{
+  background:var(--tape);color:#14000a;
+  font:800 .72rem/1 var(--f-display);letter-spacing:.2em;text-transform:uppercase;
+  padding:11px 16px;text-align:center;
+}
+.tape-top{transform:rotate(-1.1deg);margin:22px -6px 0;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+
+/* ---------- hero ---------- */
+.hero{padding-block:26px 34px;text-align:center}
+.xoxo{
+  font:400 1.5rem/1 var(--f-script);color:var(--chrome);opacity:.8;
+  display:block;margin-bottom:-.35em;letter-spacing:.02em;
+}
+.wordmark{
+  font:400 clamp(2.9rem,12.5vw,5.6rem)/.95 var(--f-script);
+  margin:0;color:var(--chrome);text-wrap:balance;
+  text-shadow:0 0 34px rgba(255,90,165,.28);
+}
+.wordmark .heart{color:var(--pink);font-size:.5em;vertical-align:.6em;white-space:nowrap}
+.tagline{
+  font:600 1.05rem/1.4 var(--f-body);color:var(--pink-soft);
+  margin:10px 0 0;font-style:italic;
+}
+.tagline b{color:var(--pink);font-weight:700}
+.hero-note{color:var(--muted);margin:14px auto 0;max-width:42ch;font-size:.97rem}
+.hero-cta{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:22px}
+.facts{
+  display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:24px;
+}
+.fact{
+  border:1px solid var(--line);border-radius:999px;padding:7px 14px;
+  font:600 .74rem/1 var(--f-display);letter-spacing:.09em;text-transform:uppercase;
+  color:var(--muted);background:rgba(255,255,255,.02);
+}
+.fact b{color:var(--pink-soft);font-weight:800}
+
+/* ---------- buttons ---------- */
+.btn{
+  appearance:none;border:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  gap:8px;padding:14px 22px;border-radius:999px;text-decoration:none;
+  font:800 .82rem/1 var(--f-display);letter-spacing:.11em;text-transform:uppercase;
+  transition:transform .12s ease,box-shadow .18s ease,background .18s ease;
+}
+.btn-pink{background:var(--tape);color:#160009;box-shadow:0 10px 30px rgba(255,90,165,.3)}
+.btn-pink:hover{transform:translateY(-2px);box-shadow:0 14px 36px rgba(255,90,165,.42)}
+.btn-ghost{background:transparent;color:var(--chrome);border:1px solid var(--line-2)}
+.btn-ghost:hover{background:rgba(255,255,255,.06);transform:translateY(-2px)}
+.btn[disabled]{opacity:.38;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-sm{padding:11px 16px;font-size:.74rem}
+.btn-wide{width:100%}
+
+/* ---------- section furniture ---------- */
+section{position:relative;z-index:1}
+.sec{padding-block:44px}
+.sec-head{margin:0 0 6px}
+.eyebrow{
+  font:700 .7rem/1 var(--f-display);letter-spacing:.24em;text-transform:uppercase;
+  color:var(--pink);margin:0 0 10px;
+}
+h2{
+  font:800 clamp(1.7rem,6.2vw,2.35rem)/1.05 var(--f-display);
+  letter-spacing:-.015em;text-transform:uppercase;margin:0;text-wrap:balance;
+}
+h2 em{font-style:normal;color:var(--pink)}
+.sec-sub{color:var(--muted);margin:12px 0 0;max-width:56ch}
+
+/* ---------- booking card ---------- */
+.book{
+  background:linear-gradient(180deg,var(--ink2),#0d0b12);
+  border:1px solid var(--line);border-radius:22px;
+  box-shadow:0 30px 70px rgba(0,0,0,.6);
+  overflow:hidden;margin-top:20px;
+}
+.book-top{padding:18px 18px 0}
+.steps{display:flex;gap:6px;list-style:none;margin:0 0 16px;padding:0}
+.steps li{
+  flex:1;font:700 .62rem/1 var(--f-display);letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted);padding-bottom:9px;border-bottom:2px solid var(--line);text-align:center;
+  transition:color .2s ease,border-color .2s ease;
+}
+.steps li[data-on="1"]{color:var(--pink);border-bottom-color:var(--pink)}
+.steps li[data-done="1"]{color:var(--pink-soft);border-bottom-color:var(--pink-deep)}
+.panel{padding:4px 18px 18px}
+.panel-h{
+  font:800 1.12rem/1.25 var(--f-display);margin:0 0 4px;letter-spacing:-.01em;
+}
+.panel-p{color:var(--muted);font-size:.9rem;margin:0 0 14px}
+
+/* service picker */
+.cats{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;margin-bottom:10px;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.cat{
+  flex:0 0 auto;appearance:none;cursor:pointer;background:transparent;color:var(--muted);
+  border:1px solid var(--line);border-radius:999px;padding:9px 14px;
+  font:700 .72rem/1 var(--f-display);letter-spacing:.08em;text-transform:uppercase;
+  transition:.15s ease;
+}
+.cat:hover{color:var(--chrome);border-color:var(--line-2)}
+.cat[aria-pressed="true"]{background:var(--pink);border-color:var(--pink);color:#160009}
+.search{
+  width:100%;background:var(--ink3);border:1px solid var(--line);border-radius:12px;
+  padding:13px 15px;color:var(--chrome);font:500 .95rem var(--f-body);margin-bottom:10px;
+}
+.search::placeholder{color:#6f6878}
+.search:focus{outline:none;border-color:var(--pink);box-shadow:0 0 0 3px rgba(255,90,165,.16)}
+.list{max-height:330px;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:6px;padding-right:2px}
+.item{
+  display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;
+  background:var(--ink3);border:1px solid transparent;border-radius:12px;padding:12px 14px;
+  color:var(--chrome);font:inherit;transition:.14s ease;
+}
+.item:hover{background:var(--ink4);border-color:var(--line-2)}
+.item[aria-pressed="true"]{border-color:var(--pink);background:rgba(255,90,165,.12)}
+.item-main{flex:1;min-width:0}
+.item-n{font:700 .95rem/1.3 var(--f-body);display:block}
+.item-m{font-size:.76rem;color:var(--muted);display:block;margin-top:2px}
+.item-p{font:700 .9rem/1 var(--f-body);color:var(--pink-soft);white-space:nowrap;font-variant-numeric:tabular-nums}
+.hot{
+  display:inline-block;vertical-align:1px;margin-left:7px;
+  background:rgba(255,90,165,.18);color:var(--pink);border:1px solid rgba(255,90,165,.35);
+  border-radius:999px;padding:2px 7px;
+  font:800 .56rem/1.4 var(--f-display);letter-spacing:.1em;text-transform:uppercase;
+}
+.empty{color:var(--muted);text-align:center;padding:26px 10px;font-size:.9rem}
+
+/* day + time picker */
+.days{display:flex;gap:7px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
+.days::-webkit-scrollbar{display:none}
+.day{
+  flex:0 0 auto;width:62px;cursor:pointer;background:var(--ink3);color:var(--chrome);
+  border:1px solid transparent;border-radius:13px;padding:10px 0;text-align:center;font:inherit;
+  transition:.14s ease;
+}
+.day:hover:not([disabled]){background:var(--ink4)}
+.day[aria-pressed="true"]{border-color:var(--pink);background:rgba(255,90,165,.14)}
+.day[disabled]{opacity:.3;cursor:not-allowed;text-decoration:line-through}
+.day-w{display:block;font:700 .64rem/1 var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.day-d{display:block;font:800 1.25rem/1.2 var(--f-display);margin-top:5px;font-variant-numeric:tabular-nums}
+.day-m{display:block;font:600 .6rem/1 var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.times{display:grid;grid-template-columns:repeat(auto-fill,minmax(94px,1fr));gap:7px}
+.time{
+  cursor:pointer;background:var(--ink3);color:var(--chrome);border:1px solid transparent;
+  border-radius:11px;padding:12px 6px;font:700 .88rem/1 var(--f-body);
+  font-variant-numeric:tabular-nums;transition:.14s ease;
+}
+.time:hover{background:var(--ink4)}
+.time[aria-pressed="true"]{border-color:var(--pink);background:rgba(255,90,165,.14);color:var(--pink-soft)}
+.notice{
+  background:rgba(255,90,165,.08);border:1px solid rgba(255,90,165,.25);border-radius:12px;
+  padding:13px 15px;color:var(--pink-soft);font-size:.88rem;margin-top:4px;
+}
+
+/* form */
+.fields{display:grid;gap:12px}
+.field label{
+  display:block;font:700 .68rem/1 var(--f-display);letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:7px;
+}
+.field input,.field textarea{
+  width:100%;background:var(--ink3);border:1px solid var(--line);border-radius:12px;
+  padding:13px 15px;color:var(--chrome);font:500 .97rem var(--f-body);
+}
+.field textarea{resize:vertical;min-height:74px}
+.field input::placeholder,.field textarea::placeholder{color:#6f6878}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--pink);box-shadow:0 0 0 3px rgba(255,90,165,.16)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:460px){.two{grid-template-columns:1fr}}
+
+/* review */
+.receipt{
+  background:var(--ink3);border:1px dashed var(--line-2);border-radius:14px;padding:16px;margin-bottom:14px;
+}
+.rrow{display:flex;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px solid var(--line)}
+.rrow:last-child{border-bottom:0}
+.rk{font:700 .68rem/1.5 var(--f-display);letter-spacing:.13em;text-transform:uppercase;color:var(--muted);flex:0 0 auto}
+.rv{text-align:right;font-weight:600;font-size:.94rem;min-width:0;overflow-wrap:anywhere}
+.rv small{display:block;color:var(--muted);font-weight:500;font-size:.78rem}
+.addons{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 16px}
+.addon{
+  cursor:pointer;background:var(--ink3);border:1px solid var(--line);border-radius:999px;
+  padding:9px 13px;color:var(--chrome);font:600 .78rem/1 var(--f-body);transition:.14s ease;
+}
+.addon:hover{border-color:var(--line-2)}
+.addon[aria-pressed="true"]{background:rgba(255,90,165,.14);border-color:var(--pink);color:var(--pink-soft)}
+.addon span{color:var(--muted);font-weight:500}
+.addon[aria-pressed="true"] span{color:var(--pink)}
+.ack{display:flex;gap:11px;align-items:flex-start;margin:2px 0 16px;cursor:pointer}
+.ack input{margin:2px 0 0;width:19px;height:19px;accent-color:var(--pink);flex:0 0 auto}
+.ack span{font-size:.86rem;color:var(--muted);line-height:1.5}
+.ack b{color:var(--pink-soft)}
+.sends{display:grid;gap:9px}
+.nav{display:flex;gap:10px;align-items:center;margin-top:16px}
+.nav .btn{flex:1}
+.link-back{
+  background:none;border:0;cursor:pointer;color:var(--muted);font:700 .74rem/1 var(--f-display);
+  letter-spacing:.1em;text-transform:uppercase;padding:14px 4px;flex:0 0 auto!important;
+}
+.link-back:hover{color:var(--chrome)}
+.sent{text-align:center;padding:10px 0 4px}
+.sent-mark{
+  width:58px;height:58px;border-radius:50%;background:var(--tape);color:#160009;
+  display:grid;place-items:center;margin:0 auto 14px;font-size:1.7rem;font-weight:800;
+}
+.copy-out{
+  width:100%;background:var(--ink);border:1px solid var(--line);border-radius:12px;padding:12px;
+  color:var(--pink-soft);font:500 .82rem/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;
+  min-height:150px;resize:vertical;
+}
+.saved{
+  display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  background:rgba(95,227,161,.07);border:1px solid rgba(95,227,161,.28);border-radius:14px;
+  padding:13px 15px;margin:0 18px 14px;
+}
+.saved p{margin:0;font-size:.86rem;color:#bdf3da}
+.saved b{color:var(--ok)}
+.saved button{
+  background:none;border:0;cursor:pointer;color:var(--muted);font:700 .68rem/1 var(--f-display);
+  letter-spacing:.1em;text-transform:uppercase;padding:6px;
+}
+.saved button:hover{color:var(--chrome)}
+
+/* ---------- policies ---------- */
+.pol-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:24px}
+@media (max-width:640px){.pol-grid{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:380px){.pol-grid{grid-template-columns:1fr}}
+.pol{
+  background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:16px;padding:18px 16px;
+}
+.pol svg{width:30px;height:30px;display:block;margin-bottom:12px}
+.pol h3{
+  font:800 .74rem/1.3 var(--f-display);letter-spacing:.11em;text-transform:uppercase;
+  color:var(--pink);margin:0 0 6px;
+}
+.pol p{margin:0;font-size:.87rem;color:#cfc8d6;line-height:1.55}
+
+/* ---------- prep ---------- */
+.prep{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:24px}
+@media (max-width:560px){.prep{grid-template-columns:1fr}}
+.prep-bar{
+  background:var(--tape);color:#14000a;border-radius:6px;padding:14px 16px;
+  font:800 .78rem/1.35 var(--f-display);letter-spacing:.06em;text-transform:uppercase;
+  box-shadow:0 6px 18px rgba(0,0,0,.45);
+}
+.prep-bar small{display:block;font:600 .68rem/1.4 var(--f-body);text-transform:none;letter-spacing:0;opacity:.72;margin-top:4px}
+
+/* ---------- price menu ---------- */
+.menu{margin-top:22px;display:grid;gap:10px}
+details.grp{background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+details.grp summary{
+  cursor:pointer;list-style:none;padding:16px 18px;display:flex;justify-content:space-between;
+  align-items:center;gap:12px;
+  font:800 .9rem/1 var(--f-display);letter-spacing:.09em;text-transform:uppercase;
+}
+details.grp summary::-webkit-details-marker{display:none}
+details.grp summary::after{content:"+";color:var(--pink);font-size:1.3rem;line-height:1}
+details.grp[open] summary::after{content:"–"}
+details.grp summary span{color:var(--muted);font-size:.66rem;letter-spacing:.12em}
+.menu-list{list-style:none;margin:0;padding:0 18px 16px}
+.menu-list li{display:flex;align-items:baseline;gap:8px;padding:7px 0;font-size:.93rem}
+.menu-list .dots{flex:1;border-bottom:1px dotted rgba(255,255,255,.2);transform:translateY(-3px)}
+.menu-list .mp{color:var(--pink-soft);font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.menu-note{color:var(--muted);font-size:.84rem;margin:14px 0 0}
+
+/* ---------- about ---------- */
+.about{
+  background:linear-gradient(180deg,var(--ink2),#0c0a11);border:1px solid var(--line);
+  border-radius:20px;padding:26px 22px;margin-top:22px;
+}
+.about p{color:#cfc8d6;margin:0 0 14px}
+.about p:last-child{margin-bottom:0}
+.about .lead{font-size:1.06rem;color:var(--chrome)}
+.sig{font:400 2.1rem/1 var(--f-script);color:var(--pink);margin-top:18px;display:block}
+
+/* ---------- hours + socials ---------- */
+.hours{display:grid;gap:8px;margin-top:22px}
+.hrow{
+  display:flex;justify-content:space-between;gap:14px;padding:13px 16px;border-radius:12px;
+  background:rgba(255,255,255,.025);border:1px solid var(--line);
+}
+.hrow[data-closed="1"]{opacity:.5}
+.hrow .hd{font:700 .76rem/1 var(--f-display);letter-spacing:.12em;text-transform:uppercase}
+.hrow .ht{font-weight:700;color:var(--pink-soft);font-variant-numeric:tabular-nums}
+.hrow[data-closed="1"] .ht{color:var(--muted)}
+.socials{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+.social{
+  flex:1 1 150px;display:flex;align-items:center;gap:11px;text-decoration:none;
+  background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:14px;padding:14px 16px;
+  color:var(--chrome);transition:.15s ease;
+}
+.social:hover{border-color:var(--pink);background:rgba(255,90,165,.08);transform:translateY(-2px)}
+.social svg{width:21px;height:21px;flex:0 0 auto;color:var(--pink)}
+.social b{display:block;font:700 .84rem/1.2 var(--f-body)}
+.social small{color:var(--muted);font-size:.76rem}
+
+footer{padding:38px 0 120px;text-align:center;color:var(--muted);font-size:.8rem}
+footer .fm{font:400 2rem/1 var(--f-script);color:var(--chrome);display:block;margin-bottom:8px}
+
+/* ---------- sticky book bar ---------- */
+.bar{
+  position:fixed;left:0;right:0;bottom:0;z-index:40;
+  background:rgba(8,7,11,.92);backdrop-filter:blur(14px);border-top:1px solid var(--line);
+  padding:12px 20px calc(12px + env(safe-area-inset-bottom,0px));
+  display:flex;gap:12px;align-items:center;justify-content:center;
+  transform:translateY(120%);transition:transform .28s ease;
+}
+.bar[data-show="1"]{transform:translateY(0)}
+.bar .btn{flex:1;max-width:420px}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+</style>
+<!--ARTIFACT-SPLIT-->
+</head>
+<body>
+<!--ARTIFACT-RESUME-->
+
+<div class="wrap">
+  <div class="tape tape-top">Located · Downtown Atlanta</div>
+</div>
+
+<header class="wrap hero">
+  <span class="xoxo">xoxo</span>
+  <h1 class="wordmark"><span style="white-space:nowrap">Thehairrookiee<span class="heart">&nbsp;&#9829;</span></span></h1>
+  <p class="tagline">&mdash; &ldquo;your <b>favorite</b> hairstylist.&rdquo;</p>
+  <p class="hero-note">Cuts, styling and braids out of a private studio downtown. Pick your service, pick your time, send your deposit &mdash; that&rsquo;s the whole thing.</p>
+  <div class="hero-cta">
+    <a class="btn btn-pink" href="#book">Book an appointment</a>
+    <a class="btn btn-ghost" href="#prices">See full price list</a>
+  </div>
+  <div class="facts">
+    <span class="fact"><b>3+ yrs</b> behind the chair</span>
+    <span class="fact"><b>$10</b> deposit holds it</span>
+    <span class="fact">Open <b>Sun &amp; Mon&ndash;Thurs</b></span>
+  </div>
+</header>
+
+<!-- ================= BOOKING ================= -->
+<section class="sec wrap" id="book" style="padding-top:8px">
+  <p class="eyebrow">Choose your service below</p>
+  <h2>Book in <em>under two minutes</em></h2>
+  <p class="sec-sub">Four taps and you&rsquo;re done. Your exact address is sent the moment your deposit lands.</p>
+
+  <div class="book">
+    <div class="saved" id="savedBox" hidden>
+      <p id="savedTxt"></p>
+      <button type="button" id="savedClear">Clear</button>
+    </div>
+
+    <div class="book-top">
+      <ol class="steps" id="steps">
+        <li data-on="1">Service</li>
+        <li>Time</li>
+        <li>You</li>
+        <li>Send</li>
+      </ol>
+    </div>
+
+    <!-- step 1 -->
+    <div class="panel" id="p1">
+      <h3 class="panel-h">What are we doing today?</h3>
+      <p class="panel-p">Tap a service. Prices are a range &mdash; length, density and add-ons set the final number, confirmed before we start.</p>
+      <div class="cats" id="cats" role="group" aria-label="Service categories"></div>
+      <input class="search" id="svcSearch" type="search" aria-label="Search services" placeholder="Search &mdash; knotless, silk press, taper fade&hellip;" autocomplete="off" />
+      <div class="list" id="svcList"></div>
+    </div>
+
+    <!-- step 2 -->
+    <div class="panel" id="p2" hidden>
+      <h3 class="panel-h">When works for you?</h3>
+      <p class="panel-p" id="p2sub"></p>
+      <div class="days" id="days" role="group" aria-label="Pick a day"></div>
+      <div class="times" id="times" role="group" aria-label="Pick a time"></div>
+      <div class="notice" id="noTimes" hidden></div>
+      <div class="nav">
+        <button class="link-back" type="button" data-back="1">&larr; Service</button>
+      </div>
+    </div>
+
+    <!-- step 3 -->
+    <div class="panel" id="p3" hidden>
+      <h3 class="panel-h">Who am I expecting?</h3>
+      <p class="panel-p">Your number is how you get the address and any day-of updates.</p>
+      <div class="fields">
+        <div class="two">
+          <div class="field">
+            <label for="fName">Your name</label>
+            <input id="fName" type="text" autocomplete="name" placeholder="First and last" />
+          </div>
+          <div class="field">
+            <label for="fPhone">Phone</label>
+            <input id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(404) 555-0123" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="fIg">Instagram <span style="text-transform:none;letter-spacing:0">(optional)</span></label>
+          <input id="fIg" type="text" autocomplete="off" placeholder="@yourhandle" />
+        </div>
+        <div class="field">
+          <label for="fNotes">Anything I should know? <span style="text-transform:none;letter-spacing:0">(optional)</span></label>
+          <textarea id="fNotes" placeholder="Hair length, last service, inspo pic you&rsquo;re bringing, allergies&hellip;"></textarea>
+        </div>
+      </div>
+      <div class="nav">
+        <button class="link-back" type="button" data-back="2">&larr; Time</button>
+        <button class="btn btn-pink" type="button" id="toReview" disabled>Review</button>
+      </div>
+    </div>
+
+    <!-- step 4 -->
+    <div class="panel" id="p4" hidden>
+      <h3 class="panel-h">Look this over</h3>
+      <p class="panel-p">Add anything extra, then send it through.</p>
+      <div class="receipt" id="receipt"></div>
+      <p class="eyebrow" style="margin-bottom:8px">Add-ons &mdash; optional</p>
+      <div class="addons" id="addons"></div>
+      <label class="ack" for="ackBox">
+        <input type="checkbox" id="ackBox" />
+        <span>I&rsquo;ve read the policies. I&rsquo;m sending the <b>$10 non-refundable deposit</b> right after booking, I&rsquo;m coming <b>alone</b>, and I&rsquo;ll arrive <b>washed, blow dried and grease free</b>.</span>
+      </label>
+      <div class="sends" id="sends"></div>
+      <div class="nav">
+        <button class="link-back" type="button" data-back="3">&larr; Details</button>
+      </div>
+    </div>
+
+    <!-- step 5: sent -->
+    <div class="panel" id="p5" hidden>
+      <div class="sent">
+        <div class="sent-mark">&#10003;</div>
+        <h3 class="panel-h">Now send your deposit</h3>
+        <p class="panel-p">Your request is copied and ready to send. <b style="color:var(--pink-soft)">The slot isn&rsquo;t held until the $10 deposit lands</b> &mdash; your address comes back immediately after.</p>
+      </div>
+      <label class="eyebrow" for="copyOut" style="display:block;margin-bottom:8px">Your booking request</label>
+      <textarea class="copy-out" id="copyOut" readonly></textarea>
+      <div class="sends" id="sends2" style="margin-top:12px"></div>
+      <div class="nav">
+        <button class="link-back" type="button" data-back="restart">&larr; Book another</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= POLICIES ================= -->
+<section class="sec wrap" id="policies">
+  <p class="eyebrow">Read before you book</p>
+  <h2>The <em>rules</em></h2>
+  <p class="sec-sub">None of these are new and none of them bend. They&rsquo;re what keeps every appointment on time.</p>
+  <div class="pol-grid">
+    <div class="pol">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#ff5aa5" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 12h.01M18 12h.01"/></svg>
+      <h3>$10 deposit</h3>
+      <p>Non-refundable, sent to <b>$thehairrookiee</b> immediately after you book. No deposit, no appointment &mdash; it gets cancelled.</p>
+    </div>
+    <div class="pol">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#ff5aa5" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 19.5c0-3.3 2.9-5.5 6.5-5.5s6.5 2.2 6.5 5.5"/><circle cx="17.5" cy="9" r="2.4"/><path d="M17 14c2.8.2 4.5 2.1 4.5 4.6"/></svg>
+      <h3>No extra guests</h3>
+      <p>Absolutely none, no matter the circumstance. Showing up with someone cancels the appointment on the spot.</p>
+    </div>
+    <div class="pol">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#ff5aa5" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+      <h3>Address after deposit</h3>
+      <p>The studio location is texted to you the moment the deposit comes through. It isn&rsquo;t posted publicly.</p>
+    </div>
+    <div class="pol">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.2"/><path d="M8.6 8.6l6.8 6.8M15.4 8.6l-6.8 6.8"/></svg>
+      <h3>48-hour changes</h3>
+      <p>Cancel or reschedule any time up to 48 hours before your appointment. Inside 48 hours the deposit is gone.</p>
+    </div>
+    <div class="pol">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#ff5aa5" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.2"/><path d="M12 6.6V12l3.6 2.2"/></svg>
+      <h3>15-minute grace</h3>
+      <p>You get 15 minutes. After that the appointment is cancelled and the deposit stays with the slot you held.</p>
+    </div>
+    <div class="pol">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#ff5aa5" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16v10H4z"/><path d="M12 3v3M8.5 5.5L12 3l3.5 2.5"/><path d="M8 13h8"/></svg>
+      <h3>Business hours</h3>
+      <p>Sunday 10AM&ndash;8PM. Monday through Thursday 4PM&ndash;9PM. Friday and Saturday are closed.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PREP ================= -->
+<section class="sec wrap" id="prep">
+  <p class="eyebrow">Appt. prep</p>
+  <h2>Come <em>ready</em></h2>
+  <p class="sec-sub">Arriving prepped is the difference between finishing on time and getting turned away. All four apply to every service.</p>
+  <div class="prep">
+    <div class="prep-bar">Come fully washed and blow dried<small>Clean, dry, stretched &mdash; not damp.</small></div>
+    <div class="prep-bar">Oil and grease free<small>No heavy product, no greasy scalp.</small></div>
+    <div class="prep-bar">Hair free of any glues<small>Bonding glue and residue removed beforehand.</small></div>
+    <div class="prep-bar">4 inches of hair all around<small>Minimum length for braided styles to hold.</small></div>
+  </div>
+</section>
+
+<!-- ================= PRICES ================= -->
+<section class="sec wrap" id="prices">
+  <p class="eyebrow">Service menu</p>
+  <h2>Every service, <em>every price</em></h2>
+  <p class="sec-sub">Ranges reflect length, density and time in the chair. Your exact quote is confirmed at consultation before a single clip goes in.</p>
+  <div class="menu" id="menu"></div>
+  <p class="menu-note">Prices marked <b style="color:var(--pink-soft)">+</b> can run higher on very long or very dense hair. Add-on pricing is listed at the bottom of the menu.</p>
+</section>
+
+<!-- ================= ABOUT ================= -->
+<section class="sec wrap" id="about">
+  <p class="eyebrow">Meet the CEO</p>
+  <h2>Behind <em>the chair</em></h2>
+  <div class="about">
+    <p class="lead">As the CEO I&rsquo;ve dedicated my career to transforming hair and boosting confidence.</p>
+    <p>With over 3 years of experience, my passion lies in creating personalized looks that reflect each client&rsquo;s unique beauty. With THEHAIRROOKIEE, we believe great hair starts with a great experience.</p>
+    <span class="sig">Thehairrookiee &#9829;</span>
+  </div>
+</section>
+
+<!-- ================= HOURS + SOCIALS ================= -->
+<section class="sec wrap" id="contact">
+  <p class="eyebrow">Hours &amp; contact</p>
+  <h2>Come <em>see me</em></h2>
+  <div class="hours" id="hours"></div>
+  <div class="socials" id="socials"></div>
+</section>
+
+<footer class="wrap">
+  <span class="fm">xoxo</span>
+  <p>THEHAIRROOKIEE &middot; Downtown Atlanta &middot; By appointment only</p>
+</footer>
+
+<div class="bar" id="bar">
+  <a class="btn btn-pink" href="#book" id="barBtn">Book an appointment</a>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ------------------------------------------------------------------
+     EDIT ME — everything the site needs to know about the business.
+     Fill in `phone` to turn on one-tap text booking.
+  ------------------------------------------------------------------ */
+  var SALON = {
+    name: "THEHAIRROOKIEE",
+    city: "Downtown Atlanta",
+    cashapp: "thehairrookiee",   // cash.app/$thehairrookiee
+    instagram: "thehairrookiee", // instagram.com/thehairrookiee
+    tiktok: "",                  // handle without the @, or "" to hide
+    phone: "",                   // digits only, e.g. "4045550123"
+    deposit: 10
+  };
+
+  /* Business hours, by weekday (0 = Sunday). [openHour, closeHour], null = closed. */
+  var HOURS = { 0: [10, 20], 1: [16, 21], 2: [16, 21], 3: [16, 21], 4: [16, 21], 5: null, 6: null };
+  var DAYNAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  var CATS = [
+    { id: "w", label: "Women's Cuts", title: "Women's Haircuts" },
+    { id: "s", label: "Styling", title: "Styling" },
+    { id: "b", label: "Braids", title: "Braids" },
+    { id: "m", label: "Men's Cuts", title: "Men's Haircuts" }
+  ];
+
+  /* n = name, lo/hi = price range, p = "+" (can run higher), m = minutes in the chair,
+     t = currently trending for 2026 */
+  var SERVICES = [
+    { c: "w", n: "Basic Trim", lo: 25, hi: 35, m: 45 },
+    { c: "w", n: "Blunt Cut", lo: 35, hi: 50, m: 60 },
+    { c: "w", n: "Long Layers", lo: 45, hi: 65, m: 60, t: 1 },
+    { c: "w", n: "Face-Framing Layers", lo: 40, hi: 60, m: 45, t: 1 },
+    { c: "w", n: "Butterfly Cut", lo: 55, hi: 75, m: 75, t: 1 },
+    { c: "w", n: "Shag Cut", lo: 55, hi: 75, m: 75, t: 1 },
+    { c: "w", n: "Wolf Cut", lo: 55, hi: 75, m: 75 },
+    { c: "w", n: "Lob (Long Bob)", lo: 45, hi: 65, m: 60, t: 1 },
+    { c: "w", n: "Classic Bob", lo: 45, hi: 65, m: 60, t: 1 },
+    { c: "w", n: "Layered Bob", lo: 50, hi: 70, m: 60, t: 1 },
+    { c: "w", n: "Butterfly Bob", lo: 50, hi: 70, m: 60, t: 1 },
+    { c: "w", n: "Curved Bob", lo: 50, hi: 70, m: 60, t: 1 },
+    { c: "w", n: "Pixie Cut", lo: 45, hi: 65, m: 45 },
+    { c: "w", n: "Bixie Cut", lo: 50, hi: 70, m: 60 },
+    { c: "w", n: "Clavi Cut", lo: 50, hi: 70, m: 60 },
+    { c: "w", n: "Mullet", lo: 55, hi: 75, m: 75 },
+    { c: "w", n: "Curtain Bangs", lo: 20, hi: 30, m: 30 },
+    { c: "w", n: "Wispy Bangs", lo: 20, hi: 30, m: 30 },
+    { c: "w", n: "Blunt Bangs", lo: 20, hi: 30, m: 30 },
+    { c: "w", n: "Side-Swept Bangs", lo: 20, hi: 30, m: 30 },
+
+    { c: "s", n: "Basic Blowout", lo: 35, hi: 50, m: 45, t: 1 },
+    { c: "s", n: "Volume Blowout", lo: 45, hi: 60, m: 60, t: 1 },
+    { c: "s", n: "Silk Press", lo: 65, hi: 90, m: 120 },
+    { c: "s", n: "Straight Style", lo: 35, hi: 50, m: 45 },
+    { c: "s", n: "Beach Waves", lo: 45, hi: 65, m: 60 },
+    { c: "s", n: "Hollywood Waves", lo: 65, hi: 90, m: 90 },
+    { c: "s", n: "Loose Curls", lo: 45, hi: 65, m: 60 },
+    { c: "s", n: "Defined Curls", lo: 50, hi: 70, m: 75 },
+    { c: "s", n: "Half-Up / Half-Down", lo: 55, hi: 75, m: 60, t: 1 },
+    { c: "s", n: "Sleek Ponytail", lo: 45, hi: 65, m: 45 },
+    { c: "s", n: "High Ponytail", lo: 50, hi: 70, m: 60 },
+    { c: "s", n: "Low Ponytail", lo: 45, hi: 60, m: 45 },
+    { c: "s", n: "Messy Bun", lo: 45, hi: 60, m: 45 },
+    { c: "s", n: "Sleek Bun", lo: 50, hi: 70, m: 60 },
+    { c: "s", n: "Low Chignon", lo: 65, hi: 85, m: 75 },
+    { c: "s", n: "Special Occasion Updo", lo: 75, hi: 110, m: 90 },
+    { c: "s", n: "Bridal Updo", lo: 100, hi: 175, m: 120 },
+
+    { c: "b", n: "Single Braid", lo: 20, hi: 30, m: 20 },
+    { c: "b", n: "French Braids", lo: 35, hi: 50, m: 30 },
+    { c: "b", n: "Dutch Braids", lo: 35, hi: 50, m: 30 },
+    { c: "b", n: "Fishtail Braid", lo: 35, hi: 50, m: 30 },
+    { c: "b", n: "Halo Braid", lo: 50, hi: 70, m: 45 },
+    { c: "b", n: "Crown Braid", lo: 50, hi: 70, m: 45 },
+    { c: "b", n: "Feed-In Braids", lo: 80, hi: 150, p: 1, m: 150 },
+    { c: "b", n: "Knotless Braids", lo: 120, hi: 250, p: 1, m: 300 },
+    { c: "b", n: "Box Braids", lo: 100, hi: 250, p: 1, m: 300 },
+    { c: "b", n: "Boho Braids", lo: 150, hi: 300, p: 1, m: 330, t: 1 },
+    { c: "b", n: "Fulani Braids", lo: 120, hi: 250, p: 1, m: 270 },
+    { c: "b", n: "Goddess Braids", lo: 120, hi: 250, p: 1, m: 270 },
+    { c: "b", n: "Cornrows", lo: 60, hi: 150, p: 1, m: 120 },
+    { c: "b", n: "Stitch Braids", lo: 80, hi: 180, p: 1, m: 180 },
+    { c: "b", n: "Lemonade Braids", lo: 100, hi: 200, p: 1, m: 180 },
+
+    { c: "m", n: "Classic Men's Cut", lo: 30, hi: 45, m: 40 },
+    { c: "m", n: "Low Taper", lo: 35, hi: 50, m: 40, t: 1 },
+    { c: "m", n: "Mid Taper", lo: 35, hi: 50, m: 40, t: 1 },
+    { c: "m", n: "High Taper", lo: 35, hi: 50, m: 40, t: 1 },
+    { c: "m", n: "Low Taper Fade", lo: 40, hi: 55, m: 45, t: 1 },
+    { c: "m", n: "Mid Fade", lo: 40, hi: 55, m: 45, t: 1 },
+    { c: "m", n: "High Fade", lo: 40, hi: 55, m: 45, t: 1 },
+    { c: "m", n: "Skin Fade", lo: 45, hi: 60, m: 50 },
+    { c: "m", n: "Drop Fade", lo: 45, hi: 60, m: 45 },
+    { c: "m", n: "Burst Fade", lo: 45, hi: 60, m: 45 },
+    { c: "m", n: "Temple Fade", lo: 35, hi: 50, m: 40 },
+    { c: "m", n: "Textured Crop", lo: 40, hi: 55, m: 45, t: 1 },
+    { c: "m", n: "French Crop", lo: 40, hi: 55, m: 45 },
+    { c: "m", n: "Caesar Cut", lo: 30, hi: 45, m: 35 },
+    { c: "m", n: "Buzz Cut", lo: 25, hi: 40, m: 25 },
+    { c: "m", n: "Crew Cut", lo: 30, hi: 45, m: 35 },
+    { c: "m", n: "Ivy League", lo: 35, hi: 50, m: 40 },
+    { c: "m", n: "Side Part", lo: 35, hi: 50, m: 40 },
+    { c: "m", n: "Comb Over", lo: 35, hi: 50, m: 40 },
+    { c: "m", n: "Slick Back", lo: 40, hi: 55, m: 40 },
+    { c: "m", n: "Quiff", lo: 40, hi: 55, m: 45 },
+    { c: "m", n: "Pompadour", lo: 45, hi: 60, m: 50 },
+    { c: "m", n: "Modern Mullet", lo: 45, hi: 60, m: 50, t: 1 },
+    { c: "m", n: "Curly Taper", lo: 40, hi: 55, m: 45, t: 1 },
+    { c: "m", n: "Textured Curly Crop", lo: 40, hi: 55, m: 45 },
+    { c: "m", n: "Two-Block Cut", lo: 45, hi: 60, m: 50 },
+    { c: "m", n: "Long Flow", lo: 45, hi: 65, m: 50 },
+    { c: "m", n: "Edgar Cut", lo: 40, hi: 55, m: 45 }
+  ];
+
+  var ADDONS = [
+    { n: "Shampoo", lo: 10, hi: 15, m: 15 },
+    { n: "Deep Conditioning Treatment", lo: 15, hi: 25, m: 20 },
+    { n: "Scalp Treatment", lo: 20, hi: 35, m: 20 },
+    { n: "Hair Mask", lo: 20, hi: 30, m: 20 },
+    { n: "Detangling", lo: 15, hi: 40, p: 1, m: 30 },
+    { n: "Extra-Long / Thick Hair", lo: 15, hi: 30, m: 30 },
+    { n: "Hair Extensions Installation", lo: 75, hi: 200, p: 1, m: 90 },
+    { n: "Curls / Waves Add-On", lo: 15, hi: 25, m: 25 },
+    { n: "Braiding Add-On", lo: 20, hi: 50, m: 30 },
+    { n: "Hair Accessories", lo: 5, hi: 25, m: 5 }
+  ];
+
+  /* ---------------------------- helpers ---------------------------- */
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function price(s) { return "$" + s.lo + "–" + s.hi + (s.p ? "+" : ""); }
+  function dur(mins) {
+    var h = Math.floor(mins / 60), m = mins % 60;
+    if (h && m) return h + "h " + m + "m";
+    if (h) return h + "h";
+    return m + "m";
+  }
+  function clock(mins) {
+    var h = Math.floor(mins / 60), m = mins % 60;
+    var ap = h >= 12 ? "PM" : "AM";
+    var h12 = h % 12 === 0 ? 12 : h % 12;
+    return h12 + ":" + (m < 10 ? "0" + m : m) + " " + ap;
+  }
+  function ymd(d) {
+    return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+  }
+  function store(key, val) {
+    try {
+      if (val === undefined) return localStorage.getItem(key);
+      if (val === null) { localStorage.removeItem(key); return null; }
+      localStorage.setItem(key, val); return val;
+    } catch (e) { return null; }
+  }
+
+  /* ----------------------------- state ----------------------------- */
+  var state = { cat: "w", q: "", svc: null, date: null, time: null, addons: [], step: 1 };
+
+  /* --------------------------- price menu -------------------------- */
+  (function renderMenu() {
+    var host = $("menu"), html = "";
+    CATS.forEach(function (cat, i) {
+      var rows = SERVICES.filter(function (s) { return s.c === cat.id; });
+      html += '<details class="grp"' + (i === 0 ? " open" : "") + ">" +
+        "<summary>" + esc(cat.title) + "<span>" + rows.length + " services</span></summary>" +
+        '<ul class="menu-list">' +
+        rows.map(function (s) {
+          return "<li><span>" + esc(s.n) + (s.t ? '<span class="hot">Trending ’26</span>' : "") +
+            '</span><span class="dots"></span><span class="mp">' + price(s) + "</span></li>";
+        }).join("") + "</ul></details>";
+    });
+    html += '<details class="grp"><summary>Add-Ons<span>' + ADDONS.length + " extras</span></summary>" +
+      '<ul class="menu-list">' + ADDONS.map(function (a) {
+        return "<li><span>" + esc(a.n) + '</span><span class="dots"></span><span class="mp">+' + price(a).slice(1) + "</span></li>";
+      }).join("") + "</ul></details>";
+    host.innerHTML = html;
+  })();
+
+  /* ----------------------------- hours ----------------------------- */
+  (function renderHours() {
+    var out = "";
+    [0, 1, 2, 3, 4, 5, 6].forEach(function (d) {
+      var h = HOURS[d];
+      out += '<div class="hrow"' + (h ? "" : ' data-closed="1"') + '><span class="hd">' +
+        DAYNAMES[d] + '</span><span class="ht">' +
+        (h ? clock(h[0] * 60) + " – " + clock(h[1] * 60) : "Closed") + "</span></div>";
+    });
+    $("hours").innerHTML = out;
+  })();
+
+  /* ---------------------------- socials ---------------------------- */
+  (function renderSocials() {
+    var ig = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none"/></svg>';
+    var money = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3v18"/><path d="M16 7.5c-1-1.2-2.4-1.8-4-1.8-2.2 0-3.6 1.1-3.6 2.7 0 4 7.6 2.3 7.6 6.5 0 1.8-1.6 3-4 3-1.8 0-3.3-.7-4.3-2"/></svg>';
+    var tt = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M14 3v11.2a3.6 3.6 0 1 1-3-3.55"/><path d="M14 3c.4 2.6 2.1 4.2 4.8 4.4"/></svg>';
+    var ph = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3h3l1.6 4-2.1 1.4a12 12 0 0 0 5.6 5.6L16 11.9l4 1.6v3a2 2 0 0 1-2.2 2C10.6 18 6 13.4 4.5 5.2A2 2 0 0 1 6.5 3z"/></svg>';
+    var out = "";
+    if (SALON.instagram) {
+      out += '<a class="social" target="_blank" rel="noopener" href="https://instagram.com/' + SALON.instagram + '">' +
+        ig + "<span><b>Instagram</b><small>@" + SALON.instagram + "</small></span></a>";
+    }
+    if (SALON.cashapp) {
+      out += '<a class="social" target="_blank" rel="noopener" href="https://cash.app/$' + SALON.cashapp + '">' +
+        money + "<span><b>Cash App</b><small>$" + SALON.cashapp + " · deposits</small></span></a>";
+    }
+    if (SALON.tiktok) {
+      out += '<a class="social" target="_blank" rel="noopener" href="https://tiktok.com/@' + SALON.tiktok + '">' +
+        tt + "<span><b>TikTok</b><small>@" + SALON.tiktok + "</small></span></a>";
+    }
+    if (SALON.phone) {
+      out += '<a class="social" href="sms:+1' + SALON.phone + '">' + ph +
+        "<span><b>Text me</b><small>Bookings &amp; questions</small></span></a>";
+    }
+    $("socials").innerHTML = out;
+  })();
+
+  /* ------------------------ step 1: services ----------------------- */
+  (function renderCats() {
+    $("cats").innerHTML = CATS.map(function (c) {
+      return '<button class="cat" type="button" data-cat="' + c.id + '" aria-pressed="' +
+        (c.id === state.cat) + '">' + esc(c.label) + "</button>";
+    }).join("");
+  })();
+
+  function renderServices() {
+    var q = state.q.trim().toLowerCase();
+    var rows = SERVICES.filter(function (s) {
+      if (q) return s.n.toLowerCase().indexOf(q) > -1;
+      return s.c === state.cat;
+    });
+    var host = $("svcList");
+    if (!rows.length) {
+      host.innerHTML = '<p class="empty">Nothing matches &ldquo;' + esc(state.q) +
+        "&rdquo;. Try a shorter word &mdash; or just message me and describe it.</p>";
+      return;
+    }
+    host.innerHTML = rows.map(function (s) {
+      var i = SERVICES.indexOf(s);
+      return '<button class="item" type="button" data-svc="' + i + '" aria-pressed="' +
+        (state.svc === i) + '"><span class="item-main"><span class="item-n">' + esc(s.n) +
+        (s.t ? '<span class="hot">Trending ’26</span>' : "") +
+        '</span><span class="item-m">' + (q ? catLabel(s.c) + " · " : "") + "about " + dur(s.m) +
+        ' in the chair</span></span><span class="item-p">' + price(s) + "</span></button>";
+    }).join("");
+  }
+  function catLabel(id) {
+    for (var i = 0; i < CATS.length; i++) if (CATS[i].id === id) return CATS[i].label;
+    return "";
+  }
+
+  $("cats").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-cat]");
+    if (!b) return;
+    state.cat = b.getAttribute("data-cat");
+    state.q = "";
+    $("svcSearch").value = "";
+    Array.prototype.forEach.call(this.children, function (c) {
+      c.setAttribute("aria-pressed", String(c.getAttribute("data-cat") === state.cat));
+    });
+    renderServices();
+  });
+
+  $("svcSearch").addEventListener("input", function () {
+    state.q = this.value;
+    renderServices();
+  });
+
+  $("svcList").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-svc]");
+    if (!b) return;
+    state.svc = parseInt(b.getAttribute("data-svc"), 10);
+    state.date = null;
+    state.time = null;
+    renderServices();
+    renderDays();
+    go(2);
+  });
+
+  /* ------------------------ step 2: day & time --------------------- */
+  function slotsFor(date, minutes) {
+    var h = HOURS[date.getDay()];
+    if (!h) return [];
+    var open = h[0] * 60, close = h[1] * 60, out = [];
+    var now = new Date();
+    var isToday = ymd(date) === ymd(now);
+    var earliest = isToday ? now.getHours() * 60 + now.getMinutes() + 180 : 0;
+    for (var t = open; t + minutes <= close; t += 30) {
+      if (t >= earliest) out.push(t);
+    }
+    return out;
+  }
+
+  function renderDays() {
+    var svc = SERVICES[state.svc];
+    $("p2sub").innerHTML = esc(svc.n) + " runs about <b style=\"color:var(--pink-soft)\">" +
+      dur(svc.m) + "</b>, so these are the start times that fit.";
+    var host = $("days"), out = "", today = new Date();
+    for (var i = 0; i < 28; i++) {
+      var d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+      var open = !!HOURS[d.getDay()];
+      var free = open && slotsFor(d, svc.m).length > 0;
+      out += '<button class="day" type="button" data-day="' + i + '"' + (free ? "" : " disabled") +
+        ' aria-pressed="false"><span class="day-w">' + DAYNAMES[d.getDay()].slice(0, 3) +
+        '</span><span class="day-d">' + d.getDate() + '</span><span class="day-m">' +
+        MONTHS[d.getMonth()] + "</span></button>";
+    }
+    host.innerHTML = out;
+    $("times").innerHTML = "";
+    var n = $("noTimes");
+    n.hidden = false;
+    n.textContent = "Pick a day above to see open start times.";
+  }
+
+  $("days").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-day]");
+    if (!b || b.disabled) return;
+    var today = new Date();
+    var i = parseInt(b.getAttribute("data-day"), 10);
+    state.date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+    state.time = null;
+    Array.prototype.forEach.call(this.children, function (c) {
+      c.setAttribute("aria-pressed", String(c === b));
+    });
+    renderTimes();
+  });
+
+  function renderTimes() {
+    var svc = SERVICES[state.svc];
+    var slots = slotsFor(state.date, svc.m);
+    var n = $("noTimes");
+    if (!slots.length) {
+      $("times").innerHTML = "";
+      n.hidden = false;
+      n.textContent = svc.n + " needs about " + dur(svc.m) +
+        ", which doesn't fit in that day's hours. Sunday runs 10AM–8PM and has the most room.";
+      return;
+    }
+    n.hidden = true;
+    $("times").innerHTML = slots.map(function (t) {
+      return '<button class="time" type="button" data-time="' + t + '" aria-pressed="false">' +
+        clock(t) + "</button>";
+    }).join("");
+  }
+
+  $("times").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-time]");
+    if (!b) return;
+    state.time = parseInt(b.getAttribute("data-time"), 10);
+    Array.prototype.forEach.call(this.children, function (c) {
+      c.setAttribute("aria-pressed", String(c === b));
+    });
+    go(3);
+  });
+
+  /* -------------------------- step 3: you -------------------------- */
+  var fName = $("fName"), fPhone = $("fPhone"), fIg = $("fIg"), fNotes = $("fNotes");
+  function checkForm() {
+    var ok = fName.value.trim().length > 1 &&
+      fPhone.value.replace(/\D/g, "").length >= 10;
+    $("toReview").disabled = !ok;
+    return ok;
+  }
+  [fName, fPhone].forEach(function (el) { el.addEventListener("input", checkForm); });
+  $("toReview").addEventListener("click", function () {
+    if (checkForm()) { renderReview(); go(4); }
+  });
+
+  /* ------------------------ step 4: review ------------------------- */
+  (function renderAddons() {
+    $("addons").innerHTML = ADDONS.map(function (a, i) {
+      return '<button class="addon" type="button" data-add="' + i + '" aria-pressed="false">' +
+        esc(a.n) + " <span>+$" + a.lo + "–" + a.hi + (a.p ? "+" : "") + "</span></button>";
+    }).join("");
+  })();
+
+  $("addons").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-add]");
+    if (!b) return;
+    var i = parseInt(b.getAttribute("data-add"), 10);
+    var at = state.addons.indexOf(i);
+    if (at > -1) state.addons.splice(at, 1); else state.addons.push(i);
+    b.setAttribute("aria-pressed", String(at === -1));
+    renderReview();
+  });
+
+  function totals() {
+    var svc = SERVICES[state.svc];
+    var lo = svc.lo, hi = svc.hi, mins = svc.m, plus = !!svc.p;
+    state.addons.forEach(function (i) {
+      lo += ADDONS[i].lo; hi += ADDONS[i].hi; mins += ADDONS[i].m;
+      if (ADDONS[i].p) plus = true;
+    });
+    return { lo: lo, hi: hi, mins: mins, plus: plus };
+  }
+
+  function dateLine() {
+    var d = state.date;
+    return DAYNAMES[d.getDay()] + ", " + MONTHS_LONG[d.getMonth()] + " " + d.getDate() +
+      " at " + clock(state.time);
+  }
+
+  function renderReview() {
+    var svc = SERVICES[state.svc], t = totals();
+    var adds = state.addons.map(function (i) { return ADDONS[i].n; });
+    var rows = [
+      ["Service", esc(svc.n), price(svc)],
+      ["When", esc(dateLine()), "about " + dur(t.mins) + " in the chair"]
+    ];
+    if (adds.length) rows.push(["Add-ons", esc(adds.join(", ")), ""]);
+    rows.push(["Name", esc(fName.value.trim()), fIg.value.trim() ? esc(fIg.value.trim().replace(/^@?/, "@")) : ""]);
+    rows.push(["Phone", esc(fPhone.value.trim()), ""]);
+    if (fNotes.value.trim()) rows.push(["Notes", esc(fNotes.value.trim()), ""]);
+    rows.push(["Estimate", "$" + t.lo + "–" + t.hi + (t.plus ? "+" : ""), "$" + SALON.deposit + " deposit due now"]);
+
+    $("receipt").innerHTML = rows.map(function (r) {
+      return '<div class="rrow"><span class="rk">' + r[0] + '</span><span class="rv">' + r[1] +
+        (r[2] ? "<small>" + r[2] + "</small>" : "") + "</span></div>";
+    }).join("");
+    renderSends();
+  }
+
+  function summaryText() {
+    var svc = SERVICES[state.svc], t = totals();
+    var lines = [
+      "NEW BOOKING REQUEST — " + SALON.name,
+      "",
+      "Service: " + svc.n + "  (" + price(svc) + ")",
+      "When: " + dateLine(),
+      "Est. time: about " + dur(t.mins)
+    ];
+    if (state.addons.length) {
+      lines.push("Add-ons: " + state.addons.map(function (i) { return ADDONS[i].n; }).join(", "));
+    }
+    lines.push("Est. total: $" + t.lo + "–" + t.hi + (t.plus ? "+" : ""));
+    lines.push("");
+    lines.push("Name: " + fName.value.trim());
+    lines.push("Phone: " + fPhone.value.trim());
+    if (fIg.value.trim()) lines.push("Instagram: " + fIg.value.trim().replace(/^@?/, "@"));
+    if (fNotes.value.trim()) lines.push("Notes: " + fNotes.value.trim());
+    lines.push("");
+    lines.push("Sending the $" + SALON.deposit + " deposit to $" + SALON.cashapp + " now.");
+    return lines.join("\n");
+  }
+
+  function renderSends() {
+    var ok = $("ackBox").checked;
+    $("sends").innerHTML =
+      '<button class="btn btn-pink btn-wide" type="button" id="sendBtn"' + (ok ? "" : " disabled") +
+      ">Send booking request</button>" +
+      (ok ? "" : '<p class="menu-note" style="margin:0;text-align:center">Tick the box above to send.</p>');
+    var b = $("sendBtn");
+    if (b) b.addEventListener("click", send);
+  }
+  $("ackBox").addEventListener("change", renderSends);
+
+  /* ---------------------------- sending ---------------------------- */
+  function copy(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).catch(function () { return legacyCopy(text); });
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    } catch (e) { /* the textarea on the next screen is the fallback */ }
+  }
+
+  function send() {
+    var text = summaryText();
+    copy(text);
+    $("copyOut").value = text;
+    store("thr_booking", JSON.stringify({
+      svc: SERVICES[state.svc].n,
+      when: dateLine(),
+      at: Date.now()
+    }));
+    renderSends2();
+    go(5);
+  }
+
+  function renderSends2() {
+    var text = summaryText();
+    var out = "";
+    if (SALON.phone) {
+      out += '<a class="btn btn-ghost btn-wide" href="sms:+1' + SALON.phone + "?&body=" +
+        encodeURIComponent(text) + '">Text it to me</a>';
+    }
+    if (SALON.instagram) {
+      out += '<a class="btn btn-ghost btn-wide" target="_blank" rel="noopener" href="https://ig.me/m/' +
+        SALON.instagram + '">Send on Instagram &mdash; paste it in</a>';
+    }
+    out += '<button class="btn btn-ghost btn-wide" type="button" id="copyAgain">Copy again</button>';
+    out += '<a class="btn btn-pink btn-wide" target="_blank" rel="noopener" href="https://cash.app/$' +
+      SALON.cashapp + "/" + SALON.deposit + '">Send the $' + SALON.deposit + " deposit →</a>";
+    $("sends2").innerHTML = out;
+    var c = $("copyAgain");
+    if (c) c.addEventListener("click", function () {
+      var self = this;
+      copy(text);
+      self.textContent = "Copied";
+      setTimeout(function () { self.textContent = "Copy again"; }, 1800);
+    });
+  }
+
+  /* ------------------------- step machine -------------------------- */
+  function go(n) {
+    state.step = n;
+    [1, 2, 3, 4, 5].forEach(function (i) { $("p" + i).hidden = i !== n; });
+    if (n === 3) checkForm();
+    var marks = $("steps").children;
+    for (var i = 0; i < marks.length; i++) {
+      var s = i + 1, shown = Math.min(n, 4);
+      marks[i].setAttribute("data-on", s === shown ? "1" : "0");
+      marks[i].setAttribute("data-done", s < shown ? "1" : "0");
+    }
+    var card = document.querySelector(".book");
+    var top = card.getBoundingClientRect().top + window.pageYOffset - 16;
+    var calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (window.pageYOffset > top) window.scrollTo({ top: top, behavior: calm ? "auto" : "smooth" });
+  }
+
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-back]");
+    if (!b) return;
+    var to = b.getAttribute("data-back");
+    if (to === "restart") {
+      state.svc = null; state.date = null; state.time = null; state.addons = [];
+      $("ackBox").checked = false;
+      Array.prototype.forEach.call($("addons").children, function (c) { c.setAttribute("aria-pressed", "false"); });
+      renderServices();
+      go(1);
+      return;
+    }
+    go(parseInt(to, 10));
+  });
+
+  /* ------------------------ returning client ----------------------- */
+  (function savedBooking() {
+    var raw = store("thr_booking");
+    if (!raw) return;
+    try {
+      var b = JSON.parse(raw);
+      if (Date.now() - b.at > 1000 * 60 * 60 * 24 * 45) { store("thr_booking", null); return; }
+      $("savedTxt").innerHTML = "Your last request: <b>" + esc(b.svc) + "</b> — " + esc(b.when) +
+        ". Deposit sent? You're all set.";
+      $("savedBox").hidden = false;
+      $("savedClear").addEventListener("click", function () {
+        store("thr_booking", null);
+        $("savedBox").hidden = true;
+      });
+    } catch (e) { /* ignore a malformed entry */ }
+  })();
+
+  /* --------------------------- sticky bar -------------------------- */
+  (function stickyBar() {
+    var bar = $("bar"), book = $("book");
+    if (!("IntersectionObserver" in window)) return;
+    new IntersectionObserver(function (entries) {
+      bar.setAttribute("data-show", entries[0].isIntersecting ? "0" : "1");
+    }, { rootMargin: "-120px 0px 0px 0px" }).observe(book);
+  })();
+
+  renderServices();
+})();
+</script>
+<!--ARTIFACT-END-->
+</body>
+</html>
