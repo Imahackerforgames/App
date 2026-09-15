@@ -1107,6 +1107,48 @@ const Tag = ({ children }) => (
 // If the sandbox blocks the request we fall back to demo mode rather than
 // leaving the user staring at a dead button.
 
+/* GoTrue's error shape has changed across versions: older builds answer
+   { error, error_description }, newer ones { code, error_code, msg }. Read
+   every variant, then translate the codes worth translating — for these the
+   raw text is either jargon or actively misleading about whose problem it
+   is. "Error sending recovery email" in particular reads like the address
+   was wrong when it means the project's own mail sending is broken.
+
+   Anything unrecognised is passed through with its code or status attached,
+   so "it gives an error" is something that can be diagnosed rather than
+   guessed at. */
+const AUTH_ERRORS = {
+  over_email_send_rate_limit: "Too many emails just went out from this project. Wait a minute, then try again.",
+  email_send_failed: "Supabase couldn't send the email. That's the project's mail setup, not your address — check Authentication → Emails → SMTP Settings.",
+  same_password: "That's the password you already had. Pick a different one.",
+  weak_password: "Supabase rejected that password as too easy to guess. Try a different one.",
+  otp_expired: "That link or code has expired. Send yourself a new one.",
+  reauthentication_needed: "Supabase wants a fresh login before the password can change. Log in, then change it from Settings.",
+  user_not_found: "No account with that address.",
+};
+
+function authError(status, d, fallback) {
+  const code = String(d?.error_code || (typeof d?.code === "string" ? d.code : "") || "").toLowerCase();
+  const raw = d?.error_description || d?.msg || d?.message ||
+    (typeof d?.error === "string" ? d.error : "");
+  if (AUTH_ERRORS[code]) return AUTH_ERRORS[code];
+
+  /* Older GoTrue builds send the message with no code at all, so the text
+     is the only thing to go on. Matching on it is unlovely but it is what
+     those versions give us, and the alternative is showing raw server
+     prose for the cases we have already written plain answers to. */
+  if (status >= 500 && /mail|smtp|email/i.test(raw)) {
+    return `Supabase couldn't send the email${raw ? ` — ${raw}` : ""}. Check Authentication → Emails → SMTP Settings.`;
+  }
+  if (/should be different|same as the old/i.test(raw)) return AUTH_ERRORS.same_password;
+  if (/weak|easy to guess|pwned|breach/i.test(raw))      return AUTH_ERRORS.weak_password;
+  if (/expired|already been used/i.test(raw))            return AUTH_ERRORS.otp_expired;
+  if (/reauthentication/i.test(raw))                     return AUTH_ERRORS.reauthentication_needed;
+  if (/only request this after|rate limit/i.test(raw))   return AUTH_ERRORS.over_email_send_rate_limit;
+  const detail = raw || fallback;
+  return code ? `${detail} (${code})` : status ? `${detail} [${status}]` : detail;
+}
+
 async function supabaseAuth(path, body) {
   const res = await fetch(`${SUPABASE_URL}/auth/v1/${path}`, {
     method: "POST",
@@ -1114,9 +1156,7 @@ async function supabaseAuth(path, body) {
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error_description || data.msg || data.message || `Sign-in failed (${res.status}).`);
-  }
+  if (!res.ok) throw new Error(authError(res.status, data, "Sign-in failed."));
   return data;
 }
 
@@ -1151,11 +1191,8 @@ async function sendRecoveryEmail(email) {
       body: JSON.stringify({ email }),
     },
   );
-  if (res.status === 429) throw new Error("RATE_LIMIT");
   const d = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(d.error_description || d.msg || d.message || `Couldn't send the reset email (${res.status}).`);
-  }
+  if (!res.ok) throw new Error(authError(res.status, d, "Couldn't send the reset email."));
   return true;
 }
 
@@ -1175,9 +1212,7 @@ async function updatePassword(accessToken, password) {
     body: JSON.stringify({ password }),
   });
   const d = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(d.error_description || d.msg || d.message || `Couldn't update the password (${res.status}).`);
-  }
+  if (!res.ok) throw new Error(authError(res.status, d, "Couldn't update the password."));
   return d;
 }
 
@@ -1420,13 +1455,11 @@ function AuthScreen({ onDone, theme, recovery = null }) {
       await sendRecoveryEmail(resetEmail.trim());
       setResetSent(true);
     } catch (e) {
-      if (e.message === "RATE_LIMIT") {
-        setErr("That's a lot of reset emails. Wait a minute, then try again.");
-      } else if (/failed to fetch|networkerror|load failed/i.test(e.message)) {
-        // Worth naming plainly: unlike sign-in there is no demo path here,
-        // because the email has to be sent by a server that actually exists.
-        setErr("Can't reach Supabase from this preview. Password reset only works on the live site.");
-      } else setErr(e.message);
+      // Unlike sign-in there is no demo path here: the email has to be sent
+      // by a server that actually exists.
+      setErr(/failed to fetch|networkerror|load failed/i.test(e.message)
+        ? "Can't reach Supabase from this preview. Password reset only works on the live site."
+        : e.message);
     } finally { setBusy(false); }
   };
 
@@ -1491,12 +1524,10 @@ function AuthScreen({ onDone, theme, recovery = null }) {
       setLoginId(u.email || resetEmail.trim());
       setNote("Password changed. Log in with your new one.");
     } catch (e) {
-      if (/should be different|same.*password/i.test(e.message)) {
-        setErr("That's the password you already had. Pick a different one.");
-      } else if (/expired|invalid|jwt|401/i.test(e.message)) {
-        setErr("This reset link has expired — they're good for one hour. Send yourself a new one.");
-      } else if (/failed to fetch|networkerror|load failed/i.test(e.message)) {
+      if (/failed to fetch|networkerror|load failed/i.test(e.message)) {
         setErr("Can't reach Supabase. Check your connection and try again.");
+      } else if (/jwt|401|invalid token/i.test(e.message)) {
+        setErr("This reset link has expired — they're good for one hour. Send yourself a new one.");
       } else setErr(e.message);
     } finally { setBusy(false); }
   };
