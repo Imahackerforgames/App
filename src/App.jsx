@@ -1120,6 +1120,103 @@ async function supabaseAuth(path, body) {
   return data;
 }
 
+/* ═══════════ password reset ═══════════
+
+   Three separate moments, and they run in different browser sessions:
+
+     1. "Forgot?" on the login tab  -> POST /recover, Supabase emails a link
+     2. the link lands back here    -> a one-hour session arrives in the hash
+     3. that session authorises     -> PUT /user with the new password
+
+   Step 2 is the part that needs configuring outside this file: Supabase
+   only redirects to an address listed under Authentication -> URL
+   Configuration -> Redirect URLs. An address that isn't listed silently
+   falls back to the Site URL, which is why a reset link can appear to work
+   and still land somewhere else. */
+
+function resetRedirectUrl() {
+  return APP_URL || (window.location.origin + window.location.pathname);
+}
+
+/* GoTrue answers 200 whether or not that address has an account, and that
+   is deliberate: a different answer for a real address would turn this form
+   into an account-existence oracle. So the caller says the same thing
+   either way, and this never reports "no such user". */
+async function sendRecoveryEmail(email) {
+  const res = await fetch(
+    `${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(resetRedirectUrl())}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPABASE_PUBLISHABLE_KEY },
+      body: JSON.stringify({ email }),
+    },
+  );
+  if (res.status === 429) throw new Error("RATE_LIMIT");
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(d.error_description || d.msg || d.message || `Couldn't send the reset email (${res.status}).`);
+  }
+  return true;
+}
+
+/* Sets a new password using the short-lived session the recovery link
+   carried. That session is the whole authorisation — there is no old
+   password to supply, which is the point of the flow. It is not stored
+   anywhere until the change succeeds, so an abandoned reset leaves nothing
+   signed in behind it. */
+async function updatePassword(accessToken, password) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ password }),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(d.error_description || d.msg || d.message || `Couldn't update the password (${res.status}).`);
+  }
+  return d;
+}
+
+/* Reads a recovery landing off the address bar, and returns null for
+   anything that isn't one.
+
+   Both halves come through the hash: a working session when the link is
+   good, an error code when it has expired or has already been spent. The
+   expired case carries no type=recovery, so the error code has to be
+   recognised on its own — safe here because recovery is the only email
+   link this app sends with a redirect (sign-up confirms with a 6-digit
+   code, which never leaves the tab it was typed in). */
+function readRecoveryHash() {
+  try {
+    const raw = (window.location.hash || "").replace(/^#/, "");
+    if (!raw) return null;
+    const h = new URLSearchParams(raw);
+    const expired = h.get("error_code") === "otp_expired";
+    if (h.get("type") !== "recovery" && !expired) return null;
+    const err = h.get("error_description") || h.get("error");
+    if (err) return { error: err };
+    const token = h.get("access_token");
+    if (!token) return null;
+    return {
+      token,
+      refresh: h.get("refresh_token") || null,
+      expiresIn: Number(h.get("expires_in")) || 0,
+    };
+  } catch { return null; }
+}
+
+/* Takes the tokens back out of the address bar. A recovery session sitting
+   in browser history is worth as much as the password it can change. */
+function clearAuthHash() {
+  try {
+    window.history.replaceState({}, "", window.location.pathname + window.location.search);
+  } catch {}
+}
+
 const AUTH_ICONS = [Footprints, Watch, Gem, Shirt, ShoppingBag, Droplets, Package, TrendingUp, Bookmark, Sparkles];
 
 /* Brand mark. A price tag with a rising arrow inside — the item, and what
@@ -1169,9 +1266,12 @@ function passwordStrength(pw) {
   return { met, n, level, ok: n === PW_RULES.length };
 }
 
-function AuthScreen({ onDone, theme }) {
+function AuthScreen({ onDone, theme, recovery = null }) {
   const [mode, setMode]   = useState("login");   // login | signup
-  const [phase, setPhase] = useState("form");    // form | verify
+  /* A recovery link opens straight onto the reset screen. Nothing else on
+     this page applies at that point — the person is holding a one-hour
+     session and one job. */
+  const [phase, setPhase] = useState(recovery ? "reset" : "form"); // form | verify | forgot | reset
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [loginWith, setLoginWith] = useState("email"); // email | username
@@ -1181,6 +1281,10 @@ function AuthScreen({ onDone, theme }) {
   const [busy, setBusy]   = useState(false);
   const [err, setErr]     = useState(null);
   const [note, setNote]   = useState(null);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent]   = useState(false);
+  const [newPw, setNewPw]   = useState("");
+  const [newPw2, setNewPw2] = useState("");
 
   const t = THEMES[theme] || THEMES.heat;
   const strength = passwordStrength(pw);
@@ -1276,6 +1380,75 @@ function AuthScreen({ onDone, theme }) {
       setNote(`New code sent to ${email}.`);
     } catch (e) {
       setErr(e.message);
+    } finally { setBusy(false); }
+  };
+
+  const resetStrength = passwordStrength(newPw);
+  const resetMatches  = newPw.length > 0 && newPw === newPw2;
+  const resetOk       = resetStrength.ok && resetMatches;
+  const resetEmailOk  = /\S+@\S+\.\S+/.test(resetEmail.trim());
+
+  const openForgot = () => {
+    setErr(null); setNote(null); setResetSent(false);
+    /* Carry over whatever is already typed, but only when it is an address.
+       The login field also takes a username, and GoTrue has no way to mail
+       one of those. */
+    setResetEmail(/\S+@\S+\.\S+/.test(loginId.trim()) ? loginId.trim() : "");
+    setPhase("forgot");
+  };
+
+  const backToLogin = () => {
+    setErr(null); setNote(null); setResetSent(false);
+    setNewPw(""); setNewPw2("");
+    setMode("login"); setPhase("form");
+  };
+
+  const sendReset = async () => {
+    if (!resetEmailOk || busy) return;
+    setBusy(true); setErr(null); setNote(null);
+    try {
+      await sendRecoveryEmail(resetEmail.trim());
+      setResetSent(true);
+    } catch (e) {
+      if (e.message === "RATE_LIMIT") {
+        setErr("That's a lot of reset emails. Wait a minute, then try again.");
+      } else if (/failed to fetch|networkerror|load failed/i.test(e.message)) {
+        // Worth naming plainly: unlike sign-in there is no demo path here,
+        // because the email has to be sent by a server that actually exists.
+        setErr("Can't reach Supabase from this preview. Password reset only works on the live site.");
+      } else setErr(e.message);
+    } finally { setBusy(false); }
+  };
+
+  /* Spends the recovery session on a new password. On success the same
+     session becomes the signed-in one, so a reset ends in the app rather
+     than back at a login form asking for the password just set. */
+  const applyReset = async () => {
+    if (busy || !recovery?.token) return;
+    if (!resetStrength.ok) {
+      const missing = resetStrength.met.filter((r) => !r.ok).map((r) => r.label.toLowerCase());
+      setErr(`Password is too weak. Still needs ${missing.join(", ")}.`);
+      return;
+    }
+    if (!resetMatches) { setErr("The two passwords don't match."); return; }
+    setBusy(true); setErr(null); setNote(null);
+    try {
+      const u = await updatePassword(recovery.token, newPw);
+      clearAuthHash();
+      onDone({
+        email: u.email || "", provider: "email", id: u.id,
+        token: recovery.token,
+        refresh: recovery.refresh || null,
+        expiresAt: recovery.expiresIn ? Math.floor(Date.now() / 1000) + recovery.expiresIn : null,
+      });
+    } catch (e) {
+      if (/should be different|same.*password/i.test(e.message)) {
+        setErr("That's the password you already had. Pick a different one.");
+      } else if (/expired|invalid|jwt|401/i.test(e.message)) {
+        setErr("This reset link has expired — they're good for one hour. Send yourself a new one.");
+      } else if (/failed to fetch|networkerror|load failed/i.test(e.message)) {
+        setErr("Can't reach Supabase. Check your connection and try again.");
+      } else setErr(e.message);
     } finally { setBusy(false); }
   };
 
@@ -1461,7 +1634,10 @@ function AuthScreen({ onDone, theme }) {
               RESELLING<span style={{ color: t.accent }}>.</span>
             </div>
             <div style={{ fontSize: 12.5, color: t.dim, marginTop: 8, letterSpacing: "0.02em" }}>
-              {mode === "login" ? "Welcome back" : "Start tracking what actually sells"}
+              {phase === "reset" ? "Let's get you back in"
+                : phase === "forgot" ? "It happens"
+                : mode === "login" ? "Welcome back"
+                : "Start tracking what actually sells"}
             </div>
           </div>
 
@@ -1511,6 +1687,185 @@ function AuthScreen({ onDone, theme }) {
                     style={{ background: "none", border: "none", padding: 0, cursor: "pointer",
                       fontFamily: SANS, fontSize: 12, fontWeight: 600, color: t.dim }}>
                     Use a different email
+                  </button>
+                </div>
+              </div>
+            ) : phase === "forgot" ? (
+              /* Ask for the address, then stop. Like the code screen, this
+                 replaces the card rather than sitting under it. */
+              <div>
+                <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 8 }}>
+                  {resetSent ? "Check your email" : "Reset your password"}
+                </div>
+
+                {resetSent ? (
+                  <>
+                    {/* Deliberately hedged. Confirming that an address has an
+                        account would let anyone test addresses from this form. */}
+                    <p style={{ fontSize: 13, color: t.dim, lineHeight: 1.55, margin: "0 0 20px" }}>
+                      If an account exists for <span style={{ color: t.bone, fontWeight: 700 }}>{resetEmail.trim()}</span>,
+                      a reset link is on its way. Open it on this device — it's good for one hour,
+                      and it only works once.
+                    </p>
+                    <p style={{ fontSize: 12, color: t.dead, lineHeight: 1.55, margin: "0 0 20px" }}>
+                      Nothing after a couple of minutes? Check the spam folder, then try again.
+                    </p>
+                    <button onClick={() => { setResetSent(false); setErr(null); }} className="auth-alt"
+                      style={{ width: "100%", padding: "14px", borderRadius: 14, cursor: "pointer",
+                        background: "transparent", color: t.bone, border: `1px solid ${t.line}`,
+                        fontFamily: SANS, fontSize: 14, fontWeight: 600 }}>
+                      Send it again
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ fontSize: 13, color: t.dim, lineHeight: 1.55, margin: "0 0 20px" }}>
+                      Type the email address on your account and we'll send you a link
+                      that lets you set a new password.
+                    </p>
+
+                    <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim, marginBottom: 8 }}>Email</div>
+                    <div className="auth-in" style={{ display: "flex", alignItems: "center", background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px", marginBottom: 16 }}>
+                      <input type="email" value={resetEmail} autoFocus
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && sendReset()}
+                        placeholder="you@email.com" autoComplete="email" aria-label="Email address"
+                        style={{ flex: 1, background: "none", border: "none", outline: "none", color: t.bone, fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
+                    </div>
+
+                    {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accent, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
+                    {note && <div style={{ fontSize: 12.5, color: t.dim, marginBottom: 12, lineHeight: 1.5 }}>{note}</div>}
+
+                    <button onClick={sendReset} disabled={!resetEmailOk || busy} className="auth-cta"
+                      style={{ width: "100%", padding: "15px", borderRadius: 14, border: "none",
+                        cursor: resetEmailOk && !busy ? "pointer" : "not-allowed",
+                        fontFamily: SANS, fontSize: 15, fontWeight: 800,
+                        background: resetEmailOk ? t.accent : t.raised,
+                        color: resetEmailOk ? "#fff" : t.dead }}>
+                      {busy ? "Sending…" : "Send reset link"}
+                    </button>
+                  </>
+                )}
+
+                <div style={{ textAlign: "center", marginTop: 14 }}>
+                  <button onClick={backToLogin} className="auth-link"
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer",
+                      fontFamily: SANS, fontSize: 12, fontWeight: 600, color: t.dim }}>
+                    Back to log in
+                  </button>
+                </div>
+              </div>
+            ) : phase === "reset" ? (
+              /* Landed from the emailed link. Either a live one-hour session
+                 arrived in the hash, or the link was stale and all we have is
+                 the reason why. */
+              <div>
+                {recovery?.error ? (
+                  <>
+                    <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 8 }}>
+                      This link has expired
+                    </div>
+                    <p style={{ fontSize: 13, color: t.dim, lineHeight: 1.55, margin: "0 0 20px" }}>
+                      Reset links last one hour and work once. Send yourself a fresh one
+                      and open it straight away.
+                    </p>
+                    <button onClick={() => { clearAuthHash(); openForgot(); }} className="auth-cta"
+                      style={{ width: "100%", padding: "15px", borderRadius: 14, border: "none", cursor: "pointer",
+                        fontFamily: SANS, fontSize: 15, fontWeight: 800, background: t.accent, color: "#fff" }}>
+                      Send a new link
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 8 }}>
+                      Set a new password
+                    </div>
+                    <p style={{ fontSize: 13, color: t.dim, lineHeight: 1.55, margin: "0 0 20px" }}>
+                      Pick something you haven't used here before. You'll be signed in
+                      as soon as it's saved.
+                    </p>
+
+                    <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim, marginBottom: 8 }}>New password</div>
+                    <div className="auth-in" style={{ display: "flex", alignItems: "center", background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px", marginBottom: 14 }}>
+                      <input type="password" value={newPw} autoFocus autoComplete="new-password"
+                        onChange={(e) => setNewPw(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && applyReset()}
+                        placeholder="Make it a strong one" aria-label="New password"
+                        style={{ flex: 1, background: "none", border: "none", outline: "none", color: t.bone, fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
+                    </div>
+
+                    <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim, marginBottom: 8 }}>Confirm password</div>
+                    <div className="auth-in" style={{ display: "flex", alignItems: "center", background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px", marginBottom: 14 }}>
+                      <input type="password" value={newPw2} autoComplete="new-password"
+                        onChange={(e) => setNewPw2(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && applyReset()}
+                        placeholder="Type it once more" aria-label="Confirm new password"
+                        style={{ flex: 1, background: "none", border: "none", outline: "none", color: t.bone, fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
+                    </div>
+
+                    {/* Same rules and the same meter as sign-up, on purpose —
+                        a reset must not be a way around the password policy. */}
+                    {newPw.length > 0 && (
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
+                          <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: t.dim }}>
+                            Strength
+                          </span>
+                          <span style={{ fontSize: 11.5, fontWeight: 800, color: PW_TONE[resetStrength.level].color }}>
+                            {PW_TONE[resetStrength.level].label}
+                          </span>
+                        </div>
+                        <div role="progressbar" aria-valuenow={resetStrength.n} aria-valuemin={0} aria-valuemax={PW_RULES.length}
+                          aria-label="Password strength"
+                          style={{ height: 6, borderRadius: 999, background: t.raised, overflow: "hidden" }}>
+                          <div style={{
+                            height: "100%", width: `${PW_TONE[resetStrength.level].pct}%`,
+                            background: PW_TONE[resetStrength.level].color, borderRadius: 999,
+                            transition: "width .3s cubic-bezier(.2,.7,.3,1), background .3s",
+                          }} />
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                          {resetStrength.met.map((r) => (
+                            <span key={r.label} className="pw-req" style={{
+                              fontSize: 10.5, fontWeight: 600, padding: "4px 9px", borderRadius: 999,
+                              border: `1px solid ${r.ok ? PW_TONE.strong.color : t.line}`,
+                              color: r.ok ? PW_TONE.strong.color : t.dead,
+                              display: "inline-flex", alignItems: "center", gap: 5,
+                            }}>
+                              {r.ok ? <Check size={11} strokeWidth={3} /> : <Minus size={11} strokeWidth={3} />}
+                              {r.label}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Reserved line, so the button doesn't jump when the
+                        mismatch appears mid-typing. */}
+                    <div style={{ height: 16, fontSize: 11, marginBottom: 6,
+                      color: newPw2.length > 0 && !resetMatches ? t.accent : "transparent" }}>
+                      Both passwords have to match
+                    </div>
+
+                    {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accent, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
+                    {note && <div style={{ fontSize: 12.5, color: t.dim, marginBottom: 12, lineHeight: 1.5 }}>{note}</div>}
+
+                    <button onClick={applyReset} disabled={!resetOk || busy} className="auth-cta"
+                      style={{ width: "100%", padding: "15px", borderRadius: 14, border: "none",
+                        cursor: resetOk && !busy ? "pointer" : "not-allowed",
+                        fontFamily: SANS, fontSize: 15, fontWeight: 800,
+                        background: resetOk ? t.accent : t.raised,
+                        color: resetOk ? "#fff" : t.dead }}>
+                      {busy ? "Saving…" : "Save password and sign in"}
+                    </button>
+                  </>
+                )}
+
+                <div style={{ textAlign: "center", marginTop: 14 }}>
+                  <button onClick={() => { clearAuthHash(); backToLogin(); }} className="auth-link"
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer",
+                      fontFamily: SANS, fontSize: 12, fontWeight: 600, color: t.dim }}>
+                    Back to log in
                   </button>
                 </div>
               </div>
@@ -1587,7 +1942,18 @@ function AuthScreen({ onDone, theme }) {
             </div>
 
             <div style={{ marginBottom: mode === "signup" ? 14 : 6 }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim, marginBottom: 8 }}>Password</div>
+              {/* The label row carries the way out. Same type size on both
+                  sides, so adding the link doesn't move the field below it. */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
+                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim }}>Password</span>
+                {mode === "login" && (
+                  <button type="button" onClick={openForgot} className="auth-link"
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SANS,
+                      fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dead }}>
+                    Forgot?
+                  </button>
+                )}
+              </div>
               <div className="auth-in" style={{ display: "flex", alignItems: "center", background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px" }}>
                 <input type="password" value={pw} onChange={(e) => setPw(e.target.value)}
                   placeholder={mode === "signup" ? "Make it a strong one" : "Your password"}
@@ -1731,6 +2097,14 @@ export default function ResellOS() {
  const [tab, setTab] = useState("home");
  const [jump, setJump] = useState(null);
  const [user, setUser] = useState(null);
+ /* Set when the address bar says we arrived from a reset email. It outranks
+    a stored session: someone who can't remember their password is not helped
+    by being silently signed in as whoever used this browser last.
+
+    Read here rather than in the effect below so the token is captured before
+    anything else can look at the hash — the effect then wipes the address bar
+    immediately, and this state is the only copy that survives. */
+ const [recovery, setRecovery] = useState(() => readRecoveryHash());
  /* Starts free and stays free until the server says otherwise. Nothing in
     the browser can change this to "pro" — it is only ever the answer that
     came back from the entitlements table. */
@@ -1752,6 +2126,18 @@ export default function ResellOS() {
 
  useEffect(() => {
  (async () => {
+   /* Back from a reset email? That hash also carries an access_token, so it
+      has to be handled before the Google branch below claims it — that
+      branch would sign the person straight in and skip the reset entirely.
+      Returning here leaves any stored session unread, which is what puts
+      the reset screen in front of everything else.
+
+      The hash goes now, not after the password is saved. A recovery session
+      left in the address bar is worth as much as the password it can change,
+      and it would otherwise survive in history, in a shared screen, or in
+      whatever the next thing to read location.hash happens to be. */
+   if (recovery) { clearAuthHash(); setStage("auth"); return; }
+
    // Coming back from Google? The implicit flow puts tokens in the hash.
    try {
      const h = window.location.hash || "";
@@ -1783,6 +2169,28 @@ export default function ResellOS() {
    } catch { /* fall through to the stored session */ }
    try { const a = await window.storage.get("ros:session"); if (a) { setUser(JSON.parse(a.value)); setStage("app"); } } catch {}
  })();
+ }, []);
+
+ /* The effect above only runs on a page load, and a reset link doesn't
+    always arrive as one: pasting it into the tab that already has the app
+    open changes nothing but the hash, which the browser treats as a
+    same-document navigation. Without this, that link would appear to do
+    nothing at all.
+
+    Dropping the user is intentional. Whoever is signed in here is not
+    necessarily the account the link belongs to, and a password reset should
+    never be applied to a session that happens to be lying around. */
+ useEffect(() => {
+   const onHashChange = () => {
+     const rec = readRecoveryHash();
+     if (!rec) return;
+     clearAuthHash();
+     setRecovery(rec);
+     setUser(null);
+     setStage("auth");
+   };
+   window.addEventListener("hashchange", onHashChange);
+   return () => window.removeEventListener("hashchange", onHashChange);
  }, []);
 
  const go = (t, payload = null) => { setJump(payload); setTab(t); };
@@ -1820,7 +2228,8 @@ export default function ResellOS() {
  // `|| !user` is a backstop: everything below this line reads user.email, so
  // a null user must never reach it, however the state got that way.
  if (stage === "auth" || !user) return (
- <AuthScreen theme={theme} onDone={async (p) => {
+ <AuthScreen key={recovery ? "recovery" : "auth"} theme={theme} recovery={recovery} onDone={async (p) => {
+ setRecovery(null);
  setUser(p); try { await window.storage.set("ros:session", JSON.stringify(p)); } catch {}
  setStage("app");
  }} />
