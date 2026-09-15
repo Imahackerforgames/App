@@ -50,22 +50,41 @@ const { out: dataWithImages, embedded, missing } = embedImages(data);
 const dataInline = dataWithImages.replace(/^export\s+const\s/gm, 'const ');
 const appInline  = app.replace(/^import\s*\{[\s\S]*?\}\s*from\s*'\.\/data\.js';\s*/m, '');
 
-const out = `<title>Queen K Beauty Etc</title>
+const inlineScript = `<script type="module">
+${dataInline}
+${appInline}
+<\/script>`;
+
+/* ---------------------------------------------------------------
+   Two outputs, from the same source.
+
+   dist/index.html  — a complete web page for hosting anywhere.
+   dist/queen-k.html — body-only, for a host that supplies its own
+                       document shell.
+   --------------------------------------------------------------- */
+
+/* Full page: take the real index.html and swap its two external
+   references for the inlined content, so nothing else can drift. */
+const standalone = html
+  .replace('<link rel="stylesheet" href="styles.css" />', `<style>\n${css}\n</style>`)
+  .replace(/<script type="module"[^>]*><\/script>/, inlineScript);
+
+/* Body-only: the document shell comes from the host instead. */
+const fragment = `<title>Queen K Beauty Etc</title>
 <meta name="description" content="Quick weaves, sew ins, ponytails, wig installs, locs, natural hair and colour in Savannah, GA. Book your appointment online." />
 ${fontLinks}
 <style>
 ${css}
 </style>
 ${body}
-<script type="module">
-${dataInline}
-${appInline}
-</script>
+${inlineScript}
 `;
 
 mkdirSync(join(here, 'dist'), { recursive: true });
-writeFileSync(join(here, 'dist', 'queen-k.html'), out);
-console.log(`dist/queen-k.html written — ${(out.length / 1024).toFixed(1)} KB`);
+writeFileSync(join(here, 'dist', 'index.html'), standalone);
+writeFileSync(join(here, 'dist', 'queen-k.html'), fragment);
+console.log(`dist/index.html   written — ${(standalone.length / 1024).toFixed(1)} KB  (host this)`);
+console.log(`dist/queen-k.html written — ${(fragment.length / 1024).toFixed(1)} KB  (body only)`);
 console.log(`photos embedded: ${embedded}`);
 if (missing.length) {
   console.log(`photos still missing (placeholder shown for each):`);

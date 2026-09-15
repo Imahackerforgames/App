@@ -177,13 +177,35 @@ whether Sundays are bookable).
 | The four client photos | Save them and drop them into `assets/reviews/` — see the README in that folder. |
 | Written reviews | Her flyer has review photos but no quotes. Ask a few clients for a sentence each, put them in `reviews`, set `sample: false`. |
 
-## Deploy
+## Put it on your own web address
 
-It's a static folder — drag it into Netlify, or point any host at it:
+`node build.mjs` writes two files:
 
-```bash
-netlify deploy --dir=queenk-site --prod
-```
+| File | For |
+|---|---|
+| `dist/index.html` | **A complete web page. This is the one to host.** Everything is inside it — styles, photos, code. One file, no other assets needed. |
+| `dist/queen-k.html` | Body only, for a host that supplies its own document shell. |
+
+### The quickest way (free, no card)
+
+1. Go to **https://app.netlify.com/drop**
+2. Drag the **`dist` folder** onto the page
+3. It goes live in seconds at something like `sunny-frost-a1b2c3.netlify.app`
+4. **Site settings → Change site name** to make it e.g. `queenkbeautyetc.netlify.app`
+
+### Your own domain
+
+Buy `queenkbeautyetc.com` (about $12 a year at Namecheap, Cloudflare or
+Google Domains), then in Netlify: **Domain settings → Add a domain** and
+follow the prompts. HTTPS is set up automatically and free.
+
+Same idea on Vercel or Cloudflare Pages if you prefer either.
+
+### Why hosting matters beyond the address
+
+The embedded booking scheduler **only works on a real domain** — browsers
+refuse to embed another site inside a sandboxed preview. Putting this on a
+proper address is what switches the real booking and payment flow on.
 
 ## Files
 

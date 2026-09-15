@@ -44,7 +44,7 @@ export const business = {
      around it, so nothing about her setup has to change.
 
      IMPORTANT: browsers only allow this embed on a real domain. The
-     claude.ai preview link blocks third-party embeds, so there it falls
+     a sandboxed preview link blocks third-party embeds, so there it falls
      back to the built-in picker automatically (see app.js). Deploy the
      site to a host and the real scheduler takes over. */
   embedSrc: "https://queenkbeautyetc.as.me/schedule/e8feb61a?ref=embedded_csp",
