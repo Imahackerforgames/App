@@ -66,6 +66,34 @@ Note that in `"acuity"` mode this choice belongs to her Acuity account
 rather than to this site — whether a service takes a deposit or the full
 amount is configured per appointment type there.
 
+### What the client fills in
+
+Name, phone and the card fields are required; email is optional. Nothing is
+announced up front — a field is marked only when someone tries to continue
+without it, and the mark clears as they type. Submitting is blocked until
+the required fields are there.
+
+### Getting bookings into Google Calendar
+
+The confirmation offers **Add to Google Calendar**, a ready-made event
+carrying the service, length, date and time, the client's name and phone
+(and email if given), the total, what was paid and any balance due. It
+needs no backend — the whole event travels in the link.
+
+The catch is that a link has to be *clicked*. For every booking to land in
+her calendar **on its own**, use the sync that already exists:
+
+> Acuity → **Integrations** → **Google Calendar** → connect the account.
+
+Every appointment booked through her scheduler then appears in her Google
+Calendar automatically, including ones made while she is asleep. That is
+the real answer to "keep track every time someone pays", it is part of the
+account she already has, and it needs no code here.
+
+A site like this one cannot write to her calendar by itself: doing that
+means holding a Google credential, which needs a backend. The sync above
+does it properly and for free.
+
 ### When you wire up a real processor
 
 Do **not** collect card numbers in this page's own inputs. Use

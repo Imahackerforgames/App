@@ -50,6 +50,9 @@ export const business = {
   embedSrc: "https://queenkbeautyetc.as.me/schedule/e8feb61a?ref=embedded_csp",
   embedTimeoutMs: 9000,
   timezone:   "Eastern Time (GMT-04:00)",
+  /* Used to build the Google Calendar event so the time lands correctly
+     whatever timezone the person adding it is in. */
+  calendarTz: "America/New_York",
   deposit:    25          // $25 deposit due upon booking
 };
 

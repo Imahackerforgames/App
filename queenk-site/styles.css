@@ -721,6 +721,14 @@ details.faq-item p { margin: 0; padding: 0 22px 20px; color: var(--grey); font-s
 }
 .pay-field input::placeholder { color: var(--grey-2); }
 .pay-field input:focus { outline: none; border-color: var(--white); box-shadow: var(--glow); }
+.pay-field span i {
+  font-style: normal; letter-spacing: .06em; color: var(--grey-2); opacity: .75;
+}
+/* Marked only after someone tries to continue without it. */
+.pay-field input.is-missing {
+  border-color: var(--draft);
+  box-shadow: 0 0 0 1px rgba(224,86,74,.35);
+}
 .pay-submit { width: 100%; margin-top: 4px; }
 .pay-foot { margin: 0; font-size: .74rem; color: var(--grey-2); text-align: center; line-height: 1.5; }
 
@@ -732,6 +740,11 @@ details.faq-item p { margin: 0; padding: 0 22px 20px; color: var(--grey); font-s
 }
 .pay-done h3 { font-family: var(--display); font-size: 1.25rem; letter-spacing: .06em; margin: 0 0 10px; }
 .pay-done p { margin: 0 auto 18px; max-width: 46ch; font-size: .86rem; color: var(--grey); line-height: 1.6; }
+.pay-done-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.pay-cal-note {
+  margin: 16px auto 0 !important; max-width: 44ch;
+  font-size: .72rem !important; color: var(--grey-2) !important; line-height: 1.5;
+}
 .pay-done code {
   background: var(--black); border: 1px solid var(--line);
   padding: 1px 6px; border-radius: 5px; font-size: .9em; color: var(--white);

@@ -139,7 +139,58 @@ $('addonList').innerHTML = addOns.map((a) => `
 
 /* Every bookable service, flattened for the dropdown. */
 const allServices = categories.flatMap((c) =>
-  c.services.map((s) => ({ label: `${c.name} — ${s.name}`, price: s.price })));
+  c.services.map((s) => ({
+    label: `${c.name} — ${s.name}`, price: s.price, duration: s.duration
+  })));
+
+/* "1 hr 30 min", "45 min", "2 hrs" -> minutes. Falls back to an hour. */
+function durationMinutes(text) {
+  if (!text) return 60;
+  const hrs = /(\d+)\s*hr/.exec(text);
+  const mins = /(\d+)\s*min/.exec(text);
+  const total = (hrs ? +hrs[1] * 60 : 0) + (mins ? +mins[1] : 0);
+  return total || 60;
+}
+
+/* Google Calendar's event template link. No backend needed: the link
+   carries the whole event, and opening it drops it straight into the
+   calendar of whoever clicks. */
+function calendarLink({ name, phone, email, paid }) {
+  const svc = allServices.find((x) => x.label === state.service);
+  const q = quote();
+
+  const start = new Date(state.date);
+  start.setHours(Math.floor(state.time / 60), state.time % 60, 0, 0);
+  const end = new Date(start.getTime() + durationMinutes(svc && svc.duration) * 60000);
+  const stamp = (d) =>
+    d.getFullYear() +
+    String(d.getMonth() + 1).padStart(2, '0') +
+    String(d.getDate()).padStart(2, '0') + 'T' +
+    String(d.getHours()).padStart(2, '0') +
+    String(d.getMinutes()).padStart(2, '0') + '00';
+
+  const details = [
+    `Service: ${state.service}`,
+    svc && svc.duration ? `Length: ${svc.duration}` : '',
+    `Client: ${name}`,
+    `Phone: ${phone}`,
+    email ? `Email: ${email}` : '',
+    q.feeLabels.length ? `Fees: ${q.feeLabels.join(' + ')}` : '',
+    q.priced ? `Total: ${money(q.total)}` : '',
+    `Paid now: ${money(paid)}`,
+    q.priced && paid < q.total ? `Balance on the day: ${money(q.total - paid)}` : 'Paid in full',
+  ].filter(Boolean).join('\n');
+
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: `${state.service} — ${business.fullName}`,
+    dates: `${stamp(start)}/${stamp(end)}`,
+    details,
+    location: business.location,
+    ctz: business.calendarTz
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
 
 $('svcSelect').innerHTML =
   `<option value="">Choose a style…</option>` +
@@ -573,9 +624,21 @@ function renderPaymentDemo() {
 
     <form class="pay-form" id="payForm" novalidate autocomplete="off">
       <label class="pay-field">
-        <span>Name on card</span>
+        <span>Your name</span>
         <input id="payName" type="text" autocomplete="off" placeholder="Jane Doe" />
       </label>
+      <div class="pay-row">
+        <label class="pay-field">
+          <span>Phone number</span>
+          <input id="payPhone" type="tel" inputmode="tel" autocomplete="off"
+                 placeholder="(912) 555-0123" />
+        </label>
+        <label class="pay-field">
+          <span>Email <i>optional</i></span>
+          <input id="payEmail" type="email" inputmode="email" autocomplete="off"
+                 placeholder="you@email.com" />
+        </label>
+      </div>
       <label class="pay-field">
         <span>Card number</span>
         <input id="payCard" type="text" inputmode="numeric" autocomplete="off"
@@ -602,8 +665,9 @@ function renderPaymentDemo() {
         Pay ${money(q.dueNow)} &mdash; demo
       </button>
       <p class="pay-foot">
-        The finished version charges the card through ${esc(business.owner.split(' ')[0])}'s
-        own booking account, so the payment lands with her.
+        Testing? Any made-up card works here &mdash; try <b>4242 4242 4242 4242</b>,
+        <b>12 / 30</b>, <b>123</b>. The finished version charges the card through
+        ${esc(business.owner.split(' ')[0])}'s own booking account, so the payment lands with her.
       </p>
     </form>`;
 
@@ -626,8 +690,44 @@ function renderPaymentDemo() {
     });
   }
 
+  /* Required: name, phone and the card fields. Email is optional. Nothing
+     is announced up front — a field is only marked once someone tries to
+     go on without it, and the mark clears as soon as they type. */
+  const required = ['payName', 'payPhone', 'payCard', 'payExp', 'payCvc'];
+  for (const id of required) {
+    $(id).addEventListener('input', () => $(id).classList.remove('is-missing'));
+  }
+
+  function firstMissing() {
+    for (const id of required) {
+      const el = $(id);
+      const min = id === 'payCard' ? 15 : id === 'payExp' ? 5 : id === 'payCvc' ? 3 : 2;
+      if (el.value.trim().length < min) return el;
+    }
+    const email = $('payEmail');
+    if (email.value.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value.trim())) return email;
+    return null;
+  }
+
   $('payForm').addEventListener('submit', (e) => {
     e.preventDefault();                       // goes nowhere, by design
+
+    const missing = firstMissing();
+    if (missing) {
+      for (const id of required) {
+        const el = $(id);
+        const min = id === 'payCard' ? 15 : id === 'payExp' ? 5 : id === 'payCvc' ? 3 : 2;
+        el.classList.toggle('is-missing', el.value.trim().length < min);
+      }
+      missing.classList.add('is-missing');
+      missing.focus();
+      return;                                 // they stay put until it is filled
+    }
+
+    const name = $('payName').value.trim();
+    const phone = $('payPhone').value.trim();
+    const email = $('payEmail').value.trim();
+    const gcal = calendarLink({ name, phone, email, paid: q.dueNow });
     $('payDemo').innerHTML = `
       <p class="pay-warn"><b>Nothing was charged.</b> This is a demo screen with no
         payment processor behind it.</p>
@@ -639,7 +739,17 @@ function renderPaymentDemo() {
            slot is held${state.payChoice === 'full' ? '' : `, leaving ${money(q.balance)} for the day`}.
            To switch that on, set <code>payments.mode</code> to
            <code>"acuity"</code> in <code>data.js</code>.</p>
-        <button class="btn btn-outline btn-sm" type="button" id="payAgain">Back</button>
+        <div class="pay-done-actions">
+          <a class="btn btn-white btn-sm" href="${esc(gcal)}" target="_blank" rel="noopener">
+            Add to Google Calendar
+          </a>
+          <button class="btn btn-outline btn-sm" type="button" id="payAgain">Back</button>
+        </div>
+        <p class="pay-cal-note">
+          Opens a ready-made event with ${esc(name)}'s name, phone${email ? ', email' : ''},
+          the service and the amount. For every real booking to land in the calendar on its
+          own, switch on Google Calendar sync inside the booking account — see the README.
+        </p>
       </div>`;
     $('payAgain').addEventListener('click', renderPaymentDemo);
   });
