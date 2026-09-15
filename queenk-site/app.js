@@ -54,8 +54,10 @@ $('heroBadges').innerHTML = [
 
 /* ---------- styles & prices ---------- */
 const ALL = 'All';
+const priced = categories.filter((c) => c.services.length);
+const unpriced = categories.filter((c) => !c.services.length);
 
-$('filters').innerHTML = [ALL, ...categories.map((c) => c.name)]
+$('filters').innerHTML = [ALL, ...priced.map((c) => c.name)]
   .map((name, i) => `<button class="chip" type="button" data-cat="${esc(name)}"
         aria-pressed="${i === 0 ? 'true' : 'false'}">${esc(name)}</button>`)
   .join('');
@@ -89,14 +91,18 @@ $('catGrid').innerHTML = categories.map((c) => `
       ${c.featured ? `<span class="tag-featured">Most booked</span>` : ''}
     </div>
     <p>${esc(c.blurb)}</p>
-    ${c.services.length
-      ? `<ul class="svc-list">${c.services.map((s) => svcRow(c, s)).join('')}</ul>`
-      : `<div class="cat-empty">
-           <span>Pricing for this one is on the booking page.</span>
-           <a class="btn btn-outline btn-sm" href="${esc(bookHref)}"
-              target="_blank" rel="noopener">See times &amp; prices</a>
-         </div>`}
+    <ul class="svc-list">${c.services.map((s) => svcRow(c, s)).join('')}</ul>
   </article>`).join('');
+
+/* The categories without published prices collapse to a single line rather
+   than four near-empty cards. */
+if (unpriced.length) {
+  $('moreStyles').innerHTML =
+    `<b>Also available:</b> ${unpriced.map((c) => esc(c.name)).join(' · ')} — ` +
+    `<button class="link-btn" type="button" data-open-book>pick a time and see pricing</button>`;
+} else {
+  $('moreStyles').hidden = true;
+}
 
 $('filters').addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
@@ -125,7 +131,7 @@ if (sampleCount) {
 /* ---------- add-ons ---------- */
 $('addonList').innerHTML = addOns.map((a) => `
   <div class="addon">
-    <span><b>${esc(a.name)}</b><br><i>${esc(a.duration)}</i></span>
+    <span class="addon-name">${esc(a.name)} <i>${esc(a.duration)}</i></span>
     <span class="amt">${money(a.price)}</span>
   </div>`).join('');
 
@@ -302,10 +308,7 @@ $('svcSelect').addEventListener('change', (e) => {
 $('catGrid').addEventListener('click', (e) => {
   const btn = e.target.closest('.svc-book');
   if (!btn) return;
-  state.service = btn.dataset.book;
-  $('svcSelect').value = state.service;
-  updateSummary();
-  $('book').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  openBooker(btn.dataset.book);
 });
 
 /* ---------- summary ---------- */
@@ -408,19 +411,13 @@ if (reviews.some((r) => r.sample)) {
 }
 
 /* ---------- policies ---------- */
-const polCard = (p) => `
-  <article class="pol">
-    <div class="pol-icon">${svg(p.icon)}</div>
-    <h3>${esc(p.title)}</h3>
-    <p>${esc(p.text)}</p>
-  </article>`;
+const polRow = (p) => `<dt>${esc(p.title)}</dt><dd>${esc(p.text)}</dd>`;
 
-$('bookingPolGrid').innerHTML = bookingPolicies.map(polCard).join('');
-$('salonPolGrid').innerHTML = salonPolicies.map(polCard).join('');
+$('bookingPolList').innerHTML = bookingPolicies.map(polRow).join('');
+$('salonPolList').innerHTML = salonPolicies.map(polRow).join('');
 
 /* ---------- checklist ---------- */
-$('checkGrid').innerHTML = checklist
-  .map((c) => `<div class="check-item">${esc(c)}</div>`).join('');
+$('checkLine').textContent = checklist.join(' · ');
 
 /* ---------- contact & hours ---------- */
 const contact = [];
@@ -438,13 +435,6 @@ $('feeList').innerHTML = hours.fees.map((f) => `
 
 $('addr').innerHTML = `${svg('pin')} ${esc(business.location)}`;
 
-/* ---------- FAQ ---------- */
-$('faqList').innerHTML = faq.map((f) => `
-  <details class="faq-item">
-    <summary>${esc(f.q)}</summary>
-    <p>${esc(f.a)}</p>
-  </details>`).join('');
-
 /* ---------- CTA + footer ---------- */
 $('ctaTag').textContent =
   `Your feedback and review are important. Tag ${business.igHandle} in your selfie — ${business.owner}.`;
@@ -459,6 +449,43 @@ $('footLinks').innerHTML = [
   `<a href="mailto:${esc(business.email)}">${esc(business.email)}</a>`,
   `<a href="${esc(business.instagram)}" target="_blank" rel="noopener">${esc(business.igHandle)}</a>`
 ].join('');
+
+/* ============================================================
+   BOOKING POPUP
+   The booking step no longer sits in the page — it opens over it,
+   so a visitor goes straight from a price to picking a time.
+   ============================================================ */
+const dlg = $('bookDlg');
+
+function openBooker(service) {
+  if (service) {
+    state.service = service;
+    $('svcSelect').value = service;
+  }
+  updateSummary();
+  if (typeof dlg.showModal === 'function') {
+    if (!dlg.open) dlg.showModal();
+  } else {
+    dlg.setAttribute('open', '');       // very old browsers
+  }
+  document.body.style.overflow = 'hidden';
+}
+
+function closeBooker() {
+  if (typeof dlg.close === 'function') dlg.close();
+  else dlg.removeAttribute('open');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-open-book]')) openBooker();
+});
+$('bookDlgClose').addEventListener('click', closeBooker);
+
+/* Click the backdrop (outside the panel) to dismiss. */
+dlg.addEventListener('click', (e) => { if (e.target === dlg) closeBooker(); });
+/* Escape fires dialog's own close event — keep body scroll in sync. */
+dlg.addEventListener('close', () => { document.body.style.overflow = ''; });
 
 /* ---------- mobile nav ---------- */
 const nav = $('nav'), toggle = $('navToggle');

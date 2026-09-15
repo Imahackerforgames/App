@@ -81,6 +81,12 @@ button { font: inherit; }
 .nav { display: flex; align-items: center; gap: 24px; }
 .nav a { font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; text-decoration: none; color: var(--grey); transition: color .18s; }
 .nav a:hover { color: var(--white); }
+.nav-book {
+  background: none; border: none; cursor: pointer; padding: 0;
+  font-size: .8rem; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--grey); transition: color .18s; font-family: inherit;
+}
+.nav-book:hover { color: var(--white); }
 .nav-toggle { display: none; }
 
 /* ---------- buttons (bubbles) ---------- */
@@ -113,13 +119,13 @@ button { font: inherit; }
     linear-gradient(90deg, #4a4a4a, #d8d8d8, #4a4a4a);
   opacity: .5;
 }
-.hero .wrap { padding-block: clamp(54px, 9vw, 96px); position: relative; }
+.hero .wrap { padding-block: clamp(38px, 6vw, 68px); position: relative; }
 .hero-inner { text-align: center; max-width: 780px; margin-inline: auto; }
 .hero .crown-lg { width: 54px; height: 54px; margin: 0 auto 14px; opacity: .95; }
 .hero h1 { margin: 0 0 6px; }
 .hero h1 .script { display: block; font-size: clamp(3.4rem, 11vw, 6.2rem); }
 .hero h1 .display { display: block; font-size: clamp(2rem, 6.4vw, 3.4rem); letter-spacing: .12em; margin-top: -.15em; }
-.hero-sub { color: var(--grey); font-size: 1.02rem; max-width: 60ch; margin: 18px auto 30px; }
+.hero-sub { color: var(--grey); font-size: .98rem; max-width: 58ch; margin: 14px auto 24px; }
 .hero-cta { display: flex; flex-wrap: wrap; gap: 13px; justify-content: center; margin-bottom: 30px; }
 .hero-badges { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .badge {
@@ -134,8 +140,8 @@ button { font: inherit; }
 .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #5ad18a; flex: none; box-shadow: 0 0 8px #5ad18a; }
 
 /* ---------- sections ---------- */
-.section { padding-block: clamp(56px, 9vw, 96px); }
-.section-head { text-align: center; max-width: 64ch; margin: 0 auto clamp(30px, 4vw, 48px); }
+.section { padding-block: clamp(34px, 5vw, 60px); }
+.section-head { text-align: center; max-width: 64ch; margin: 0 auto clamp(20px, 2.6vw, 30px); }
 .section-head .script { font-size: clamp(2.6rem, 7vw, 4rem); display: block; }
 .section-head .display { font-size: clamp(1.4rem, 3.4vw, 2rem); letter-spacing: .16em; display: block; margin-top: -.1em; }
 .section-head p { color: var(--grey); margin: 14px auto 0; font-size: 1rem; }
@@ -162,11 +168,11 @@ button { font: inherit; }
 
 /* align-items:start lets each card hug its own content; stretching left
    large dead space under the shorter categories. */
-.cats { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 20px; align-items: start; }
+.cats { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 14px; align-items: start; }
 .cat {
   position: relative; background: var(--surface);
   border: 1px solid var(--line); border-radius: var(--r-lg);
-  padding: 28px 26px; display: flex; flex-direction: column; gap: 14px;
+  padding: 20px 18px; display: flex; flex-direction: column; gap: 11px;
   transition: transform .25s cubic-bezier(.2,.8,.3,1), box-shadow .25s, border-color .25s, background .25s;
 }
 .cat:hover { transform: translateY(-6px); border-color: var(--line-2); background: var(--surface-2); box-shadow: var(--glow-lg); }
@@ -178,7 +184,7 @@ button { font: inherit; }
   font-size: .58rem; letter-spacing: .14em; text-transform: uppercase;
   padding: 5px 12px; border-radius: var(--pill); font-weight: 600; white-space: nowrap;
 }
-.svc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.svc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 
 /* Shown for a category whose prices live on the booking page. */
 .cat-empty {
@@ -190,7 +196,7 @@ button { font: inherit; }
 .svc {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: var(--r); padding: 10px 8px 10px 17px;
+  border-radius: var(--r); padding: 7px 7px 7px 14px;
   transition: all .2s cubic-bezier(.2,.8,.3,1);
 }
 /* min-width:0 lets a long style name wrap instead of forcing the row wider
@@ -225,17 +231,29 @@ button { font: inherit; }
 }
 
 /* ---------- add-ons ---------- */
-.addons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-.addon {
-  display: inline-flex; align-items: center; gap: 11px;
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--pill); padding: 11px 11px 11px 20px;
-  transition: all .22s cubic-bezier(.2,.8,.3,1);
+/* A dense two-column price list reads faster than ten large pills. */
+.addons {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(228px, 100%), 1fr));
+  gap: 2px 30px; max-width: 980px; margin-inline: auto;
 }
-.addon:hover { transform: translateY(-4px); border-color: var(--white); background: var(--surface-2); box-shadow: var(--glow); }
-.addon b { font-weight: 500; font-size: .87rem; }
-.addon i { font-style: normal; font-size: .68rem; color: var(--grey-2); letter-spacing: .06em; text-transform: uppercase; }
-.addon .amt { font-family: var(--display); font-size: 1.05rem; background: var(--white); color: var(--black); border-radius: var(--pill); padding: 3px 13px; letter-spacing: .04em; }
+.addon {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 8px 2px; border-bottom: 1px solid var(--line);
+}
+.addon-name { font-size: .87rem; min-width: 0; }
+.addon i { font-style: normal; font-size: .66rem; color: var(--grey-2); letter-spacing: .06em; text-transform: uppercase; }
+.addon .amt { font-family: var(--display); font-size: 1.02rem; letter-spacing: .04em; flex: none; }
+
+.more-styles {
+  max-width: 800px; margin: 22px auto 0; text-align: center;
+  font-size: .86rem; color: var(--grey); line-height: 1.6;
+}
+.more-styles b { color: var(--white); font-weight: 600; }
+.link-btn {
+  background: none; border: none; padding: 0; cursor: pointer; font: inherit;
+  color: var(--white); text-decoration: underline; text-underline-offset: 3px;
+}
+.link-btn:hover { opacity: .75; }
 
 /* ---------- BOOKING (calendar + slots) ---------- */
 .booker {
@@ -344,34 +362,30 @@ button { font: inherit; }
 .summary-sub b { color: var(--white); font-weight: 500; }
 .summary-note { font-size: .74rem; color: var(--grey-2); margin-top: 4px; }
 
-/* ---------- policies ---------- */
-.pol-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(235px, 100%), 1fr)); gap: 18px; }
-.pol {
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
-  padding: 28px 24px; text-align: center;
-  display: flex; flex-direction: column; align-items: center; gap: 13px;
-  transition: all .25s cubic-bezier(.2,.8,.3,1);
+/* ---------- policies: plain readable text, two columns ---------- */
+.pol-text {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: 18px 44px; max-width: 900px; margin-inline: auto;
 }
-.pol:hover { transform: translateY(-6px); border-color: var(--white); background: var(--surface-2); box-shadow: var(--glow-lg); }
-.pol-icon {
-  width: 52px; height: 52px; border-radius: 50%; flex: none;
-  background: var(--white); color: var(--black); display: grid; place-items: center;
-  transition: transform .25s cubic-bezier(.2,.8,.3,1);
+.pol-col h3 {
+  font-family: var(--display); font-size: .92rem; letter-spacing: .24em;
+  text-transform: uppercase; color: var(--gold, var(--grey));
+  margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
 }
-.pol:hover .pol-icon { transform: scale(1.12) rotate(-6deg); }
-.pol-icon svg { width: 25px; height: 25px; }
-.pol h3 { font-family: var(--display); font-size: 1.12rem; letter-spacing: .16em; margin: 0; }
-.pol p { margin: 0; font-size: .85rem; color: var(--grey); line-height: 1.6; }
-
-/* ---------- checklist ---------- */
-.checklist { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(255px, 100%), 1fr)); gap: 12px; }
-.check-item {
-  border: 1px solid var(--line-2); border-radius: var(--pill);
-  padding: 15px 24px; text-align: center;
-  font-size: .82rem; letter-spacing: .13em; text-transform: uppercase;
-  transition: all .22s cubic-bezier(.2,.8,.3,1);
+.pol-col dl { margin: 0; display: grid; gap: 9px; }
+.pol-col dt {
+  font-size: .82rem; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--white);
 }
-.check-item:hover { background: var(--white); color: var(--black); transform: translateY(-4px); box-shadow: var(--glow); border-color: var(--white); }
+.pol-col dd {
+  margin: 2px 0 0; font-size: .85rem; line-height: 1.5; color: var(--grey);
+}
+.checklist-line {
+  max-width: 900px; margin: 26px auto 0; padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: .82rem; color: var(--grey); line-height: 1.6; text-align: center;
+}
+.checklist-line b { color: var(--white); font-weight: 600; letter-spacing: .04em; }
 
 /* ---------- client photos (polaroids) ---------- */
 .polaroids { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
@@ -425,7 +439,7 @@ button { font: inherit; }
 
 /* ---------- contact ---------- */
 .contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 30px 28px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 22px 20px; }
 .panel h3 { margin: 0 0 20px; }
 .panel h3 .script { font-size: 2.3rem; display: block; }
 .contact-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 13px; }
@@ -476,7 +490,7 @@ details.faq-item p { margin: 0; padding: 0 22px 20px; color: var(--grey); font-s
   background: radial-gradient(60% 60% at 50% 100%, rgba(255,255,255,.12), transparent 70%);
   pointer-events: none;
 }
-.cta .wrap { padding-block: clamp(56px, 8vw, 92px); position: relative; }
+.cta .wrap { padding-block: clamp(38px, 5.5vw, 62px); position: relative; }
 .cta .script { font-size: clamp(3rem, 8vw, 4.6rem); display: block; }
 .cta .display { font-size: clamp(1.5rem, 4vw, 2.2rem); letter-spacing: .16em; display: block; margin-top: -.1em; }
 .cta p { color: var(--grey); max-width: 50ch; margin: 16px auto 28px; }
@@ -535,4 +549,51 @@ details.faq-item p { margin: 0; padding: 0 22px 20px; color: var(--grey); font-s
   .contact-list li a, .contact-list li span { font-size: .85rem; gap: 10px; }
   .c-icon { width: 32px; height: 32px; }
   .wrap { padding-inline: 18px; }
+}
+
+/* ---------- booking popup ---------- */
+.book-dlg {
+  border: none; padding: 0; margin: auto;
+  width: min(980px, calc(100vw - 32px));
+  max-width: min(980px, calc(100vw - 32px));
+  max-height: min(92vh, 900px);
+  background: var(--surface); color: var(--white);
+  border-radius: var(--r-lg); box-shadow: var(--glow-lg);
+  overflow: hidden;
+}
+.book-dlg::backdrop { background: rgba(0, 0, 0, .74); backdrop-filter: blur(5px); }
+.book-dlg:not([open]) { display: none; }
+
+.dlg-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 18px clamp(18px, 3vw, 30px);
+  border-bottom: 1px solid var(--line);
+}
+.dlg-head h2 { margin: 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.dlg-head .script { font-size: 1.9rem; }
+.dlg-head .display { font-size: 1rem; letter-spacing: .18em; color: var(--grey); }
+.dlg-close {
+  flex: none; width: 38px; height: 38px; border-radius: 50%;
+  background: transparent; border: 1px solid var(--line-2); color: var(--white);
+  font-size: 1.35rem; line-height: 1; cursor: pointer; transition: all .2s;
+}
+.dlg-close:hover { background: var(--white); color: var(--black); transform: rotate(90deg); }
+
+/* Inside the popup the booker fills it and scrolls on its own. */
+.book-dlg .booker {
+  border: none; border-radius: 0; background: transparent;
+  max-height: calc(min(92vh, 900px) - 78px); overflow-y: auto;
+}
+.book-dlg .slots { max-height: 260px; }
+
+@media (max-width: 720px) {
+  .book-dlg {
+    width: 100vw; max-width: 100vw; max-height: 100vh; height: 100vh;
+    border-radius: 0;
+  }
+  .book-dlg .booker { max-height: calc(100vh - 74px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dlg-close:hover { transform: none; }
 }
