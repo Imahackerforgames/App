@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- Reamp. The price tag is the item; the arrow inside is what it gains.
+       Drawn heavier than the in-app mark because this is read at 16px in a
+       browser tab, where the app's 3.1 stroke disappears. -->
+  <rect width="48" height="48" rx="11" fill="#141314"/>
+  <path d="M22 9 H33 A6 6 0 0 1 39 15 V33 A6 6 0 0 1 33 39 H17 A6 6 0 0 1 11 33 V20 Z"
+    fill="none" stroke="#F4F1EE" stroke-width="3.6" stroke-linejoin="round"/>
+  <circle cx="20.5" cy="18.5" r="2.9" fill="#E5142B"/>
+  <path d="M19 32 L31 20 M26.5 20 H31 V24.5"
+    fill="none" stroke="#E5142B" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

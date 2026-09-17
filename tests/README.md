@@ -8,6 +8,7 @@ Playwright, run against a production build with Supabase mocked. Three files:
 | `reset.mjs` | Every route and edge: the link, the code, expired links, a stored session not hijacking a reset, the link pasted into an open tab, and ordinary sign-in still working. |
 | `premium.mjs` | What a free account can and cannot reach, and that a premium account reaches all of it. Walks every tab on both plans. |
 | `checkout.mjs` | That all four "Upgrade to premium" buttons open the current checkout link and not a stale one. |
+| `brand.mjs` | The name and the mark: the tab title, the wordmark on every tab, the favicon resolving, and no trace of the old name left. |
 | `errs.mjs` | Every Supabase error shape, using the real response bodies — broken SMTP, rate limiting, a reused password, a breached password, a dead session, reauthentication. |
 
 ## Running them
@@ -21,6 +22,7 @@ node tests/reset.mjs
 node tests/errs.mjs
 node tests/premium.mjs
 node tests/checkout.mjs
+node tests/brand.mjs
 ```
 
 Playwright is not in package.json — it is a development tool, not something

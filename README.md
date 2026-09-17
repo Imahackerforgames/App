@@ -1,4 +1,4 @@
-# Reselling App
+# Reamp
 
 A real project, not a chat artifact. Everything here runs on your machine.
 

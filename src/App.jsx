@@ -1256,12 +1256,12 @@ const AUTH_ICONS = [Footprints, Watch, Gem, Shirt, ShoppingBag, Droplets, Packag
 
 /* Brand mark. A price tag with a rising arrow inside — the item, and what
    it gains. The tag's hole is the same accent dot as the period in
-   "RESELLING.", so the mark and the wordmark share one idea.
+   "REAMP.", so the mark and the wordmark share one idea.
 
    The outline takes `currentColor`, so it inherits whatever it sits on,
    and the dot and arrow take the accent. That keeps it correct in all
    five themes without the component knowing any colour. */
-function Logo({ size = 46, accent = C.accent, title = "Reselling" }) {
+function Logo({ size = 46, accent = C.accent, title = "Reamp" }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none"
       role="img" aria-label={title} style={{ display: "block" }}>
@@ -1711,7 +1711,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
               <Logo size={46} accent={t.accent} />
             </div>
             <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.045em" }}>
-              RESELLING<span style={{ color: t.accent }}>.</span>
+              REAMP<span style={{ color: t.accent }}>.</span>
             </div>
             <div style={{ fontSize: 12.5, color: t.dim, marginTop: 8, letterSpacing: "0.02em" }}>
               {phase === "reset" ? "Let's get you back in"
@@ -2380,8 +2380,14 @@ export default function ResellOS() {
      up from the bottom edge; this leaves a margin on top of that. */}
  <div className="shell" style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px calc(132px + env(safe-area-inset-bottom, 0px))" }}>
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 18, paddingBottom: 14 }}>
+ {/* The mark sits with the wordmark rather than anywhere else: this row is
+     the one piece of chrome present on every tab, so it is the only place
+     a logo is always seen and never in the way. */}
+ <span style={{ display: "flex", alignItems: "center", gap: 9, color: C.bone }}>
+ <Logo size={22} accent={C.accent} title="Reamp" />
  <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.03em" }}>
- RESELLING<span style={{ color: C.accent }}>.</span>
+ REAMP<span style={{ color: C.accent }}>.</span>
+ </span>
  </span>
  <button onClick={signOut} className="fx fx-chip" title={`Signed in as ${who} — tap to sign out`}
  style={{ display: "flex", alignItems: "center", gap: 8, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 999, padding: "5px 13px 5px 5px", cursor: "pointer", fontFamily: SANS, fontSize: 12, color: C.dim }}>
