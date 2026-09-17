@@ -102,7 +102,7 @@ const stripPrices = (t) => (t || "").replace(/\$\s?[\d,]+(\.\d{1,2})?/g, "").rep
 /* Where "Upgrade to premium" sends people. A Commas checkout link — paste
    yours here. Leaving it empty is safe: the button explains itself and does
    nothing rather than opening a broken tab. */
-const COMMAS_CHECKOUT_URL = "https://commas.com/checkout/nV7MEEMTavBrZNM";
+const COMMAS_CHECKOUT_URL = "https://commas.com/checkout/Kk21xLu7i0siFBoV";
 
 /* Whether this account has paid, read from the entitlements table.
 
