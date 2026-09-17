@@ -123,10 +123,10 @@ const COMMAS_CHECKOUT_URL = "https://commas.com/checkout/Kk21xLu7i0siFBoV";
    sign-in and the grant happens afterwards, so someone who has been signed
    in a while asks with a credential the gateway refuses — and a refused
    request is not a free account. */
-async function fetchEntitlement() {
+async function fetchEntitlement({ force = false } = {}) {
   const free = (error = null) => ({ plan: "free", expiresAt: null, error });
   try {
-    const token = await sessionToken();
+    const token = await sessionToken(force);
     if (!token) return free("You're signed out. Sign in again, then check.");
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/entitlements?select=plan,expires_at&limit=1`,
@@ -173,7 +173,15 @@ const AI_FN = `${SUPABASE_URL}/functions/v1/ai-assistant`;
    in-flight refresh, shared. */
 let refreshInFlight = null;
 
-async function sessionToken() {
+/* `force` renews the token even when the stored one has not expired.
+
+   Worth having for one case in particular: a plan granted by hand after
+   someone signed in. Their token is older than the grant, and if it has
+   drifted out of date the gateway refuses the request — which the app then
+   has to report as "sign out and back in". Renewing first turns that into
+   no problem at all, and costs one request on a button that is pressed
+   rarely and deliberately. */
+async function sessionToken(force = false) {
  try {
    const a = await window.storage.get("ros:session");
    if (!a) return null;
@@ -181,7 +189,7 @@ async function sessionToken() {
    if (!sess.token) return null;
 
    const stillFresh = sess.expiresAt && sess.expiresAt * 1000 > Date.now() + 60_000;
-   if (stillFresh) return sess.token;
+   if (stillFresh && !force) return sess.token;
    /* A session saved before this app knew to keep refresh tokens has
       nothing to renew with. Hand back what we have; the caller will get a
       401 and the app says so plainly rather than pretending. */
@@ -2375,7 +2383,10 @@ export default function ResellOS() {
  const refreshEntitlement = async () => {
    setEntLoading(true); setEntNote(null);
    try {
-     const e = await fetchEntitlement();
+     /* Renew the token first. This button exists precisely because a plan
+        was changed on the server after this browser signed in, so the
+        stored token is the one thing most likely to be out of date. */
+     const e = await fetchEntitlement({ force: true });
      setEnt(e);
      setEntNote(
        e.error ? e.error
