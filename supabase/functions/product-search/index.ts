@@ -136,39 +136,86 @@ Deno.serve(async (req: Request) => {
        separate them — the wording is what does. */
     const searchQuery = sold ? `${query.trim()} sold completed listing` : query.trim();
 
-    const res = await fetch("https://api.tavily.com/search", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        /* Sent in the body as well as the header. Tavily has accepted the
-           key both ways across API versions, and sending both removes an
-           auth-format mismatch as a possible cause of a 401. */
-        api_key: key,
-        query: searchQuery,
-        search_depth: "basic",
-        include_domains: domains,
-        max_results: Math.min(Number(maxResults) || 10, 20),
-        include_images: true,
-        include_answer: false,
-      }),
-    });
+    /* One search per marketplace, run in parallel, rather than one search
+       across all of them at once.
 
-    if (!res.ok) {
-      const detail = await res.text();
-      console.error(`product-search: Tavily returned ${res.status}. Tavily said: ${detail.slice(0, 500)}`);
-      if (res.status === 401 || res.status === 403) {
+       A single Tavily call with five include_domains comes back as one
+       ranked list, and ranking concentrates: eBay outranks the others for
+       very nearly every query. Ten results therefore arrived as eight eBay
+       listings and two of everything else — and on a narrow query, ten eBay
+       listings and nothing else at all. That is why "All" stopped looking
+       like all, and why the totals got thin. Asking each marketplace its own
+       question is what makes the filter mean what it says.
+
+       The cost is one Tavily credit per marketplace per search instead of
+       one per search. That is a real trade, and it is why perDomain is
+       derived from what the caller actually asked for rather than being set
+       as high as it will go. */
+    const wanted = Math.min(Math.max(Number(maxResults) || 10, 5), 40);
+    const perDomain = Math.max(3, Math.min(10, Math.ceil(wanted / domains.length) + 2));
+
+    const askTavily = async (domain: string) => {
+      const res = await fetch("https://api.tavily.com/search", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          /* Sent in the body as well as the header. Tavily has accepted the
+             key both ways across API versions, and sending both removes an
+             auth-format mismatch as a possible cause of a 401. */
+          api_key: key,
+          query: searchQuery,
+          search_depth: "basic",
+          include_domains: [domain],
+          max_results: perDomain,
+          include_images: true,
+          include_answer: false,
+        }),
+      });
+      if (!res.ok) {
+        const err: any = new Error(`Tavily returned ${res.status}`);
+        err.status = res.status;
+        err.detail = await res.text();
+        throw err;
+      }
+      return await res.json();
+    };
+
+    const settled = await Promise.allSettled(domains.map(askTavily));
+    const failures = settled
+      .filter((r) => r.status === "rejected")
+      .map((r: any) => r.reason);
+
+    /* Every marketplace failing is a fault worth reporting — a bad key, a
+       spent quota, Tavily down. Some of them failing is not: four
+       marketplaces' worth of listings is a better answer than an error. */
+    if (failures.length === domains.length) {
+      const first: any = failures[0] ?? {};
+      const status = Number(first.status) || 502;
+      const detail = String(first.detail ?? first.message ?? "");
+      console.error(`product-search: all ${domains.length} marketplaces failed. Tavily said: ${detail.slice(0, 500)}`);
+      if (status === 401 || status === 403) {
         console.error("product-search: Tavily rejected the credential. The key is reaching this function but Tavily does not accept it — regenerate it at tavily.com and re-save the secret, and check the Tavily account's email is verified.");
       }
-      if (res.status === 429) {
+      if (status === 429) {
         console.error("product-search: Tavily rate limit or monthly quota reached.");
       }
-      return json({ error: `Tavily returned ${res.status}`, detail }, 502);
+      return json({ error: `Tavily returned ${status}`, detail }, 502);
+    }
+    if (failures.length) {
+      console.warn(`product-search: ${failures.length} of ${domains.length} marketplaces failed; returning the rest.`);
     }
 
-    const data = await res.json();
+    const hits: any[] = [];
+    const images: any[] = [];
+    for (const r of settled) {
+      if (r.status !== "fulfilled") continue;
+      const d: any = r.value;
+      hits.push(...(d.results ?? []));
+      images.push(...(d.images ?? []));
+    }
 
     const marketOf = (url: string) => {
       const u = url.toLowerCase();
@@ -183,7 +230,7 @@ Deno.serve(async (req: Request) => {
     };
 
     const seen = new Set<string>();
-    const results = (data.results ?? [])
+    const kept = hits
       .filter((r: any) => {
         if (!r?.url || !r?.title) return false;
         const k = r.url.split("?")[0];
@@ -196,14 +243,36 @@ Deno.serve(async (req: Request) => {
         url: String(r.url),
         market: marketOf(String(r.url)),
         snippet: stripPrices(String(r.content ?? "")).slice(0, 180),
-        image: (data.images ?? []).find((i: any) =>
+        image: images.find((i: any) =>
           typeof i === "string" ? false : i?.url
         )?.url ?? null,
       }))
       .filter((r: any) => r.market);
 
+    /* Deal them out one marketplace at a time, so the first screenful shows
+       every board that answered rather than everything from whichever one
+       ranked best. Without this the merge would still be sorted by
+       marketplace and the page would look exactly as lopsided as before. */
+    const lanes = new Map<string, any[]>();
+    for (const r of kept) {
+      if (!lanes.has(r.market)) lanes.set(r.market, []);
+      lanes.get(r.market)!.push(r);
+    }
+    const results: any[] = [];
+    let dealt = true;
+    while (dealt && results.length < wanted) {
+      dealt = false;
+      for (const lane of lanes.values()) {
+        const next = lane.shift();
+        if (!next) continue;
+        results.push(next);
+        dealt = true;
+        if (results.length >= wanted) break;
+      }
+    }
+
     const markets = [...new Set(results.map((r: any) => r.market))];
-    console.log(`product-search: ok — "${query}" (${mode}${sold ? ", sold" : ""}) over [${domains.join(", ")}] → ${results.length} of ${(data.results ?? []).length} raw results kept across ${markets.length} marketplaces.`);
+    console.log(`product-search: ok — "${query}" (${mode}${sold ? ", sold" : ""}) over ${domains.length} marketplace(s) [${domains.join(", ")}], ${perDomain} each → ${results.length} of ${hits.length} raw kept across ${markets.length} marketplaces.`);
 
     return json({
       query,

@@ -373,7 +373,12 @@ const SearchProvider = {
          /* marketplaces is what the filter chips select. It used to be
             computed in ProductSearch and then dropped here, so picking
             "eBay" searched all five online boards exactly like "All". */
-         body: JSON.stringify({ query, mode, marketplaces, maxResults: 10 }),
+         /* Asked for across all the selected marketplaces, not from each.
+            The function divides this between them and deals the answers out
+            one board at a time. Ten was the old figure from when a single
+            search covered every board at once, and it was the other half of
+            why results got thin. */
+         body: JSON.stringify({ query, mode, marketplaces, maxResults: 24 }),
        });
        if (!res.ok) {
          /* The function reports its own faults precisely — a missing
