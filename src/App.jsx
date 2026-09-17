@@ -2401,11 +2401,7 @@ export default function ResellOS() {
  {TABS.map(([k, name, Icon]) => {
  const on = tab === k;
  return (
- /* Locked tabs do not navigate. Moving someone to a tab they cannot use
-    and explaining it there would strand them somewhere useless; this way
-    they stay on the page they were reading. */
- <button key={k} onClick={() => { if (k === "discover" && !requirePro("discover")) return; go(k); }}
-   className="topnav-link"
+ <button key={k} onClick={() => go(k)} className="topnav-link"
    aria-current={on ? "page" : undefined}
    style={{ display: "flex", alignItems: "center", gap: 7 }}>
  {/* The icon follows the word — currentColor means one rule drives both. */}
@@ -2418,7 +2414,7 @@ export default function ResellOS() {
 
  <div key={tab}>
  {tab === "home" && <HomeScreen db={db} put={put} biz={biz} range={range} setRange={setRange} go={go} user={user} />}
- {tab === "discover" && <Discover db={db} put={put} jump={jump} go={go} isPro={isPro} />}
+ {tab === "discover" && <Discover db={db} put={put} jump={jump} go={go} isPro={isPro} requirePro={requirePro} />}
  {tab === "saturation" && <Saturation db={db} go={go} />}
  {tab === "business" && <Business db={db} biz={biz} put={put} range={range} setRange={setRange} jump={jump} requirePro={requirePro} isPro={isPro} />}
  {tab === "settings" && <SettingsPage db={db} put={put} reset={reset} user={user} signOut={signOut}
@@ -2803,9 +2799,9 @@ function NotificationCenter({ db, put, onClose, go }) {
    spread through the components so the list is auditable in one place —
    what is locked, and what each lock says. */
 const LOCKED = {
-  discover: {
-    title: "Discover is premium",
-    blurb: "Find products that are selling right now across every marketplace, each one measured for demand, competition and saturation — then search any product and get the same read on it.",
+  ai: {
+    title: "AI Discover is premium",
+    blurb: "Premium surfaces products that are selling right now across every marketplace, each one measured for demand, competition and saturation. Product Search stays free — search any product yourself and you still get the full read on it.",
   },
   listing: {
     title: "The listing writer is premium",
@@ -2913,16 +2909,22 @@ function openCheckout() {
   window.open(COMMAS_CHECKOUT_URL, "_blank", "noopener,noreferrer");
 }
 
-function Discover({ db, put, jump, go, isPro }) {
- const [sub, setSub] = useState(jump?.sub || "ai");
+function Discover({ db, put, jump, go, isPro, requirePro }) {
+ /* Free accounts open on Product Search rather than on a locked chip — the
+    first thing you see should be something you can actually use. */
+ const allowed = (k) => (k === "ai" && !isPro ? "search" : k);
+ const [sub, setSub] = useState(allowed(jump?.sub || (isPro ? "ai" : "search")));
  const [detail, setDetail] = useState(jump?.item || null);
- useEffect(() => { if (jump?.sub) setSub(jump.sub); if (jump?.item) setDetail(jump.item); }, [jump]);
+ useEffect(() => { if (jump?.sub) setSub(allowed(jump.sub)); if (jump?.item) setDetail(jump.item); }, [jump]);
+ /* AI Discover is the only locked chip here. Product Search and Saved are
+    free, so the tab itself stays open to everyone. */
+ const pick = (k) => { if (k === "ai" && !requirePro("ai")) return; setSub(k); };
 
  return (
  <div style={{ paddingTop: 4 }}>
  <div style={{ display: "flex", gap: 7, marginBottom: 18 }}>
  {[["ai", "AI Discover", Sparkles], ["search", "Product Search", SearchIcon], ["saved", "Saved", Bookmark]].map(([k, n, Icon]) => (
- <button key={k} onClick={() => setSub(k)} className="fx fx-chip"
+ <button key={k} onClick={() => pick(k)} className="fx fx-chip"
  style={{ ...pillBtn(sub === k), display: "flex", alignItems: "center", gap: 7, fontSize: 12.5 }}>
  <Icon size={14} /> {n}
  </button>
