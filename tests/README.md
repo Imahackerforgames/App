@@ -9,6 +9,8 @@ Playwright, run against a production build with Supabase mocked. Three files:
 | `premium.mjs` | What a free account can and cannot reach, and that a premium account reaches all of it. Walks every tab on both plans. |
 | `checkout.mjs` | That all four "Upgrade to premium" buttons open the current checkout link and not a stale one. |
 | `brand.mjs` | The name and the mark: the tab title, the wordmark on every tab, the favicon resolving, and no trace of the old name left. |
+| `zoomcheck.mjs` | That no field is small enough to make iOS zoom on tap, that no page scrolls sideways at 320px or 390px, and that desktop sizing is untouched. |
+| `zoomaudit.mjs` | Prints every form control and its size on a phone viewport — the diagnostic behind zoomcheck, for when a new one is added. |
 | `errs.mjs` | Every Supabase error shape, using the real response bodies — broken SMTP, rate limiting, a reused password, a breached password, a dead session, reauthentication. |
 
 ## Running them
@@ -23,6 +25,7 @@ node tests/errs.mjs
 node tests/premium.mjs
 node tests/checkout.mjs
 node tests/brand.mjs
+node tests/zoomcheck.mjs
 ```
 
 Playwright is not in package.json — it is a development tool, not something

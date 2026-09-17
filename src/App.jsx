@@ -914,6 +914,28 @@ function Styles({ theme }) {
  }
  * { box-sizing: border-box; }
  input::placeholder, textarea::placeholder { color: ${C.dead}; }
+
+ /* Stops iOS Safari zooming the page when a field is tapped.
+
+    Safari does that to any input whose computed font-size is under 16px,
+    and it does not zoom back out afterwards — which is the "it zooms in on
+    certain parts" you get wandering around the app on a phone. Sixteen
+    pixels is the threshold, not a preference, so the fields are raised to
+    exactly that on touch devices and left at their designed size on
+    desktop, where the behaviour does not exist.
+
+    Everything is raised and then the two deliberately-large cases are put
+    back, rather than listing every small field: that way a field added
+    later is covered without anyone having to remember this. The important
+    flags are needed because these sizes are set inline. */
+ @media (pointer: coarse) {
+   input, select, textarea { font-size: 16px !important; }
+   .otp-in { font-size: 24px !important; }
+   .fld-big { font-size: 20px !important; }
+ }
+
+ /* And stops Safari inflating body text of its own accord on rotation. */
+ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
  @keyframes rise { from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:none;} }
  .rise { opacity:0; animation: rise .5s cubic-bezier(.2,.7,.3,1) forwards; }
  @keyframes sweep { 0%{transform:translateX(-100%)} 100%{transform:translateX(360%)} }
@@ -4681,7 +4703,7 @@ function Field({ label: l, value, onChange, type = "text", prefix, placeholder, 
  <div style={{ display: "flex", alignItems: "center", gap: 6, background: C.raised, border: `1px solid ${C.line}`, borderRadius: 999, padding: "0 16px" }}>
  {prefix && <span style={{ fontFamily: MONO, fontSize: big ? 20 : 14, color: C.dim }}>{prefix}</span>}
  <input type={type} value={value} placeholder={placeholder} inputMode={type === "number" ? "decimal" : undefined}
- onChange={(e) => onChange(e.target.value)}
+ onChange={(e) => onChange(e.target.value)} className={big ? "fld fld-big" : "fld"}
  style={{ flex: 1, background: "none", border: "none", color: C.bone, outline: "none", fontFamily: type === "number" ? MONO : SANS, fontSize: big ? 20 : 14.5, fontWeight: big ? 600 : 400, padding: big ? "15px 0" : "13px 0", width: "100%" }} />
  </div>
  </div>
