@@ -44,7 +44,11 @@ ok("broken SMTP is named as the project's problem", /SMTP Settings/i.test(t), t)
 ok("...and does not blame the address", !/address is wrong|no account/i.test(t), t);
 
 t = await recoverSays(429, { code: 429, error_code: "over_email_send_rate_limit", msg: "For security purposes, you can only request this after 51 seconds." });
-ok("rate limit says to wait", /wait a minute/i.test(t), t);
+ok("a countdown is passed on exactly", /51 seconds/.test(t), t);
+
+t = await recoverSays(429, { code: 429, error_code: "over_email_send_rate_limit", msg: "email rate limit exceeded" });
+ok("a limit with no countdown does not promise a time",
+   /try again a little later/i.test(t) && !/minute|second/i.test(t), t);
 
 t = await recoverSays(500, { msg: "Error sending recovery email" });
 ok("older shape with no code still reaches SMTP advice", /SMTP Settings/i.test(t), t);

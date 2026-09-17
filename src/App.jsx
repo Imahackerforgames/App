@@ -1145,7 +1145,14 @@ const Tag = ({ children }) => (
    so "it gives an error" is something that can be diagnosed rather than
    guessed at. */
 const AUTH_ERRORS = {
-  over_email_send_rate_limit: "Too many emails just went out from this project. Wait a minute, then try again.",
+  /* Deliberately vague about how long. GoTrue enforces two separate limits
+     here — a short per-address cooldown measured in seconds, and a
+     project-wide hourly cap that is only a couple of messages on the
+     built-in mailer — and the response does not say which one was hit.
+     Promising "a minute" when the real wait is an hour is worse than not
+     saying, so the exact figure is only named when GoTrue supplies it (see
+     authError below). */
+  over_email_send_rate_limit: "This site has sent as many emails as it's allowed to for now. Try again a little later.",
   email_send_failed: "Supabase couldn't send the email. That's the project's mail setup, not your address — check Authentication → Emails → SMTP Settings.",
   same_password: "That's the password you already had. Pick a different one.",
   weak_password: "Supabase rejected that password as too easy to guess. Try a different one.",
@@ -1158,6 +1165,12 @@ function authError(status, d, fallback) {
   const code = String(d?.error_code || (typeof d?.code === "string" ? d.code : "") || "").toLowerCase();
   const raw = d?.error_description || d?.msg || d?.message ||
     (typeof d?.error === "string" ? d.error : "");
+  /* Before the code lookup, not after: GoTrue sends the countdown in the
+     message while also setting error_code, so checking the code first would
+     return the vague answer and throw away the exact one. */
+  const secs = raw.match(/after (\d+) seconds?/i);
+  if (secs) return `Just a moment — you can ask for another email in ${secs[1]} seconds.`;
+
   if (AUTH_ERRORS[code]) return AUTH_ERRORS[code];
 
   /* Older GoTrue builds send the message with no code at all, so the text
@@ -1171,7 +1184,7 @@ function authError(status, d, fallback) {
   if (/weak|easy to guess|pwned|breach/i.test(raw))      return AUTH_ERRORS.weak_password;
   if (/expired|already been used/i.test(raw))            return AUTH_ERRORS.otp_expired;
   if (/reauthentication/i.test(raw))                     return AUTH_ERRORS.reauthentication_needed;
-  if (/only request this after|rate limit/i.test(raw))   return AUTH_ERRORS.over_email_send_rate_limit;
+  if (/only request this after|rate limit/i.test(raw)) return AUTH_ERRORS.over_email_send_rate_limit;
   const detail = raw || fallback;
   return code ? `${detail} (${code})` : status ? `${detail} [${status}]` : detail;
 }
