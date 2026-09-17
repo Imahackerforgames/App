@@ -2231,6 +2231,20 @@ export default function ResellOS() {
    try { setEnt(await fetchEntitlement()); } finally { setEntLoading(false); }
  };
 
+ /* Which locked feature was just reached for, or null. One piece of state
+    for all three, because only one dialog can be on screen anyway. */
+ const [locked, setLocked] = useState(null);
+
+ /* The single question every locked thing asks. Returns true to proceed,
+    or opens the dialog and returns false — so the caller reads as
+    "if (!requirePro('x')) return;" and the decision lives in one place
+    rather than three copies of the same conditional. */
+ const requirePro = (feature) => {
+   if (isPro) return true;
+   setLocked(feature);
+   return false;
+ };
+
  const [aiOpen, setAiOpen] = useState(false);
  const [range, setRange] = useState("30");
  const biz = useBusiness(db, range);
@@ -2387,7 +2401,11 @@ export default function ResellOS() {
  {TABS.map(([k, name, Icon]) => {
  const on = tab === k;
  return (
- <button key={k} onClick={() => go(k)} className="topnav-link"
+ /* Locked tabs do not navigate. Moving someone to a tab they cannot use
+    and explaining it there would strand them somewhere useless; this way
+    they stay on the page they were reading. */
+ <button key={k} onClick={() => { if (k === "discover" && !requirePro("discover")) return; go(k); }}
+   className="topnav-link"
    aria-current={on ? "page" : undefined}
    style={{ display: "flex", alignItems: "center", gap: 7 }}>
  {/* The icon follows the word — currentColor means one rule drives both. */}
@@ -2402,7 +2420,7 @@ export default function ResellOS() {
  {tab === "home" && <HomeScreen db={db} put={put} biz={biz} range={range} setRange={setRange} go={go} user={user} />}
  {tab === "discover" && <Discover db={db} put={put} jump={jump} go={go} isPro={isPro} />}
  {tab === "saturation" && <Saturation db={db} go={go} />}
- {tab === "business" && <Business db={db} biz={biz} put={put} range={range} setRange={setRange} jump={jump} />}
+ {tab === "business" && <Business db={db} biz={biz} put={put} range={range} setRange={setRange} jump={jump} requirePro={requirePro} isPro={isPro} />}
  {tab === "settings" && <SettingsPage db={db} put={put} reset={reset} user={user} signOut={signOut}
    isPro={isPro} ent={ent} refreshEntitlement={refreshEntitlement} entLoading={entLoading} />}
  </div>
@@ -2413,7 +2431,9 @@ export default function ResellOS() {
      means one place to look for it instead of two, and nothing overlaying
      the content. */}
 
- <FloatingAI db={db} biz={biz} page={tab} focus={jump} user={user} isPro={isPro} />
+ <FloatingAI db={db} biz={biz} page={tab} focus={jump} user={user} isPro={isPro} requirePro={requirePro} />
+
+ {locked && <PremiumModal feature={locked} onClose={() => setLocked(null)} />}
  </div>
  );
 }
@@ -2779,6 +2799,87 @@ function NotificationCenter({ db, put, onClose, go }) {
    It states the price of admission and gets out of the way. No countdown, no
    nagging — the feature is simply not here, and the button that opens the
    checkout is the same one as in Settings. */
+/* The three things a free account cannot reach. Kept as data rather than
+   spread through the components so the list is auditable in one place —
+   what is locked, and what each lock says. */
+const LOCKED = {
+  discover: {
+    title: "Discover is premium",
+    blurb: "Find products that are selling right now across every marketplace, each one measured for demand, competition and saturation — then search any product and get the same read on it.",
+  },
+  listing: {
+    title: "The listing writer is premium",
+    blurb: "Turn a product and its condition into a finished title, description and keyword set, written for the marketplace you're posting to.",
+  },
+  assistant: {
+    title: "The assistant is premium",
+    blurb: "Ask anything about your inventory, your numbers or the resale market, and get an answer that already knows your business.",
+  },
+};
+
+/* The upsell as a dialog rather than a page. The difference matters: a free
+   account taps Discover and stays where it was, with an explanation on top,
+   instead of being moved to a tab it cannot use and left there. */
+function PremiumModal({ feature, onClose }) {
+  const copy = LOCKED[feature];
+
+  /* Escape closes it. Without this the only ways out are the two buttons and
+     the backdrop, none of which a keyboard reaches first. */
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  if (!copy) return null;
+
+  return (
+    <div onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.74)", zIndex: 80,
+        display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={copy.title}
+        className="rise"
+        style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 24,
+          width: "100%", maxWidth: 400, padding: "28px 24px 24px", textAlign: "center",
+          boxShadow: "0 28px 70px -28px rgba(0,0,0,.8)" }}>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -12, marginRight: -8 }}>
+          <button onClick={onClose} aria-label="Close" className="fx"
+            style={{ background: C.raised, border: "none", borderRadius: 999, width: 30, height: 30,
+              cursor: "pointer", color: C.dim, display: "grid", placeItems: "center" }}>
+            <X size={15} />
+          </button>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "center", margin: "2px 0 14px", color: C.accent }}>
+          <Sparkles size={30} />
+        </div>
+
+        <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em" }}>{copy.title}</div>
+        <p style={{ fontSize: 13.5, color: C.dim, margin: "10px 0 22px", lineHeight: 1.6 }}>
+          {copy.blurb}
+        </p>
+
+        <button onClick={openCheckout} className="fx fx-accent"
+          style={{ width: "100%", background: C.accent, color: "#fff", border: "none", borderRadius: 999,
+            padding: "14px", cursor: "pointer", fontSize: 14, fontWeight: 800 }}>
+          Upgrade to premium
+        </button>
+
+        <button onClick={onClose} className="fx"
+          style={{ width: "100%", background: "none", border: "none", marginTop: 10, padding: "10px",
+            cursor: "pointer", fontFamily: SANS, fontSize: 13, fontWeight: 600, color: C.dim }}>
+          Maybe later
+        </button>
+
+        <p style={{ fontSize: 11, color: C.dead, margin: "10px 0 0", lineHeight: 1.55 }}>
+          Already paid? Open Settings and press “I've paid — check again”.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function PremiumGate({ title, blurb, onUpgrade }) {
   return (
     <div className="rise" style={{ ...card, borderRadius: 20, textAlign: "center", padding: "30px 20px" }}>
@@ -3777,16 +3878,23 @@ function SatRow({ item, idx, onAlt, onMore, altOpen, altList, compact }) {
  );
 }
 
-function Business({ db, biz, put, range, setRange, jump }) {
- const [sub, setSub] = useState(jump?.sub || "inventory");
- useEffect(() => { if (jump?.sub) setSub(jump.sub); }, [jump]);
+function Business({ db, biz, put, range, setRange, jump, requirePro, isPro }) {
+ /* Same rule as the tab row above: a locked chip explains itself and
+    leaves you on the one you were already reading. */
+ const pick = (k) => { if (k === "listing" && !requirePro("listing")) return; setSub(k); };
+ const allowed = (k) => (k === "listing" && !isPro ? "inventory" : k);
+ const [sub, setSub] = useState(allowed(jump?.sub || "inventory"));
+ /* A jump arrives from elsewhere in the app rather than from a click, so it
+    has to pass the same check — otherwise any future deep link into Listing
+    would be a way around the chip. */
+ useEffect(() => { if (jump?.sub) setSub(allowed(jump.sub)); }, [jump]);
  return (
  <div style={{ paddingTop: 4 }}>
  <div style={{ display: "flex", gap: 7, marginBottom: 18, overflowX: "auto" }}>
  {[["inventory", "Inventory", Package], ["sales", "Sales", TrendingUp],
  ["calc", "Calculator", CalcIcon], ["listing", "Listing", FileText],
  ["essentials", "Essentials", Wrench]].map(([k, n, Icon]) => (
- <button key={k} onClick={() => setSub(k)} className="fx fx-chip"
+ <button key={k} onClick={() => pick(k)} className="fx fx-chip"
  style={{ ...pillBtn(sub === k), display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, whiteSpace: "nowrap" }}>
  <Icon size={14} /> {n}
  </button>
@@ -4389,7 +4497,7 @@ const PAGE_STARTERS = {
  settings: [["❓", "How do themes work?"], ["🔐", "Is my data private?"]],
 };
 
-function FloatingAI({ db, biz, page, focus, user, isPro }) {
+function FloatingAI({ db, biz, page, focus, user, isPro, requirePro }) {
  const [open, setOpen] = useState(false);
 
  // Everything the assistant knows about this user's business. Sent to the
@@ -4429,39 +4537,15 @@ RULES FOR THIS APPLICATION:
 
  const starters = PAGE_STARTERS[page] || PAGE_STARTERS.home;
 
- /* A free account still gets the button — the feature should be visible, or
-    nobody knows it exists — but the sheet holds the upgrade panel rather than
-    the chat. The server refuses free accounts as well, so this is the
-    courteous half of the gate, not the whole of it. */
- if (!isPro) return (
- <>
- <button onClick={() => setOpen(true)} aria-label="Open AI assistant" className="fx fx-accent fab"
- style={{ position: "fixed", bottom: "calc(26px + env(safe-area-inset-bottom, 0px))", right: 18, width: 52, height: 52, borderRadius: 999, background: C.accent, border: "none", cursor: "pointer", zIndex: 45, boxShadow: "0 10px 28px -8px rgba(0,0,0,.5)", display: open ? "none" : "grid", placeItems: "center" }}>
- <Sparkles size={21} color="#fff" />
- </button>
- {open && (
- <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.6)", zIndex: 55, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
- <div onClick={(e) => e.stopPropagation()} className="rise"
- style={{ background: C.panel, width: "100%", maxWidth: 560, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTop: `1px solid ${C.line}`, padding: "22px 20px 30px" }}>
- <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
- <button onClick={() => setOpen(false)} aria-label="Close" className="fx"
- style={{ background: C.raised, border: "none", borderRadius: 999, width: 30, height: 30, cursor: "pointer", color: C.dim, display: "grid", placeItems: "center" }}>
- <X size={15} />
- </button>
- </div>
- <PremiumGate
-   title="The assistant is premium"
-   blurb="Ask anything about your inventory, your numbers or the resale market, and get an answer that knows your business. Premium unlocks it."
-   onUpgrade={openCheckout} />
- </div>
- </div>
- )}
- </>
- );
+ /* A free account still gets the button — a feature nobody can see is a
+    feature nobody buys — but tapping it raises the upgrade dialog instead
+    of the chat. The Edge Function refuses free accounts as well, so this
+    is the courteous half of the gate and not the whole of it. */
 
  return (
  <>
- <button onClick={() => setOpen(true)} aria-label="Open AI assistant" className="fx fx-accent fab"
+ <button onClick={() => { if (!requirePro("assistant")) return; setOpen(true); }}
+ aria-label="Open AI assistant" className="fx fx-accent fab"
  style={{ position: "fixed", bottom: "calc(26px + env(safe-area-inset-bottom, 0px))", right: 18, width: 52, height: 52, borderRadius: 999, background: C.accent, border: "none", cursor: "pointer", zIndex: 45, boxShadow: "0 10px 28px -8px rgba(0,0,0,.5)", display: open ? "none" : "grid", placeItems: "center" }}>
  <Sparkles size={21} color="#fff" />
  </button>

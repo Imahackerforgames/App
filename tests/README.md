@@ -6,6 +6,7 @@ Playwright, run against a production build with Supabase mocked. Three files:
 |---|---|
 | `codeonly.mjs` | The whole journey with the 6-digit code and no link: request, wrong code, real code, reusing the old password, changing it, the old password ceasing to work, the new one signing in, and a used code being refused a second time. |
 | `reset.mjs` | Every route and edge: the link, the code, expired links, a stored session not hijacking a reset, the link pasted into an open tab, and ordinary sign-in still working. |
+| `premium.mjs` | What a free account can and cannot reach, and that a premium account reaches all of it. Walks every tab on both plans. |
 | `errs.mjs` | Every Supabase error shape, using the real response bodies — broken SMTP, rate limiting, a reused password, a breached password, a dead session, reauthentication. |
 
 ## Running them
@@ -17,6 +18,7 @@ npx vite preview --port 4173 --strictPort &   # tests expect this port
 node tests/codeonly.mjs
 node tests/reset.mjs
 node tests/errs.mjs
+node tests/premium.mjs
 ```
 
 Playwright is not in package.json — it is a development tool, not something
