@@ -1439,6 +1439,15 @@ function Wordmark({ size = 16, accent = C.accent, title = "Reamp" }) {
 /* Password rules. Every one must pass before an account can be created —
    the strength bar is the visible half of exactly this list, so the meter
    and the gate can never disagree with each other. */
+/* Supabase's one-time codes are six digits by default, but the length is a
+   project setting that goes up to ten — and the app was refusing anything
+   that was not exactly six, so raising that setting would silently break
+   sign-up and password reset with no way to tell why from the screen.
+   Accept the whole documented range instead of hard-coding today's value. */
+const OTP_MIN = 6;
+const OTP_MAX = 10;
+const otpOk = (v) => v.length >= OTP_MIN && v.length <= OTP_MAX;
+
 const PW_RULES = [
   ["8+ characters",     (p) => p.length >= 8],
   ["Lowercase letter",  (p) => /[a-z]/.test(p)],
@@ -1558,7 +1567,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
      new account in, in one step. */
   const verifyCode = async () => {
     const token = code.replace(/\D/g, "");
-    if (token.length !== 6 || busy) return;
+    if (!otpOk(token) || busy) return;
     setBusy(true); setErr(null); setNote(null);
     try {
       const d = await supabaseAuth("verify", { type: "signup", email, token });
@@ -1633,7 +1642,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
      in the Reset Password email template. */
   const verifyResetCode = async () => {
     const token = rcode.replace(/\D/g, "");
-    if (token.length !== 6 || busy) return;
+    if (!otpOk(token) || busy) return;
     setBusy(true); setErr(null); setNote(null);
     try {
       const d = await supabaseAuth("verify", { type: "recovery", email: resetEmail.trim(), token });
@@ -1898,8 +1907,8 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                 </p>
 
                 <div className="auth-in" style={{ background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px", marginBottom: 14 }}>
-                  <input value={code} inputMode="numeric" autoComplete="one-time-code" maxLength={6}
-                    onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  <input value={code} inputMode="numeric" autoComplete="one-time-code" maxLength={OTP_MAX}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, OTP_MAX))}
                     onKeyDown={(e) => e.key === "Enter" && verifyCode()}
                     placeholder="000000" aria-label="6-digit verification code" className="otp-in"
                     style={{ width: "100%", background: "none", border: "none", outline: "none",
@@ -1910,12 +1919,12 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                 {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accent, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
                 {note && <div style={{ fontSize: 12.5, color: t.dim, marginBottom: 12, lineHeight: 1.5 }}>{note}</div>}
 
-                <button onClick={verifyCode} disabled={code.length !== 6 || busy} className="auth-cta"
+                <button onClick={verifyCode} disabled={!otpOk(code) || busy} className="auth-cta"
                   style={{ width: "100%", padding: "15px", borderRadius: 14, border: "none",
-                    cursor: code.length === 6 && !busy ? "pointer" : "not-allowed",
+                    cursor: otpOk(code) && !busy ? "pointer" : "not-allowed",
                     fontFamily: SANS, fontSize: 15, fontWeight: 800,
-                    background: code.length === 6 ? t.accent : t.raised,
-                    color: code.length === 6 ? "#fff" : t.dead }}>
+                    background: otpOk(code) ? t.accent : t.raised,
+                    color: otpOk(code) ? "#fff" : t.dead }}>
                   {busy ? "Checking…" : "Verify and continue"}
                 </button>
 
@@ -1946,7 +1955,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                         account would let anyone test addresses from this form. */}
                     <p style={{ fontSize: 13, color: t.dim, lineHeight: 1.55, margin: "0 0 20px" }}>
                       If an account exists for <span style={{ color: t.bone, fontWeight: 700 }}>{resetEmail.trim()}</span>,
-                      a reset email is on its way. Follow the link, or type the 6-digit code
+                      a reset email is on its way. Follow the link, or type the code
                       below. Either one is good for an hour and works once.
                     </p>
                     <p style={{ fontSize: 12, color: t.dead, lineHeight: 1.55, margin: "0 0 20px" }}>
@@ -1962,10 +1971,10 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                       Or type the code from the email
                     </div>
                     <div className="auth-in" style={{ background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px", marginBottom: 12 }}>
-                      <input value={rcode} inputMode="numeric" autoComplete="one-time-code" maxLength={6}
-                        onChange={(e) => setRcode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      <input value={rcode} inputMode="numeric" autoComplete="one-time-code" maxLength={OTP_MAX}
+                        onChange={(e) => setRcode(e.target.value.replace(/\D/g, "").slice(0, OTP_MAX))}
                         onKeyDown={(e) => e.key === "Enter" && verifyResetCode()}
-                        placeholder="000000" aria-label="6-digit reset code" className="otp-in"
+                        placeholder="000000" aria-label="Reset code from the email" className="otp-in"
                         style={{ width: "100%", background: "none", border: "none", outline: "none",
                           color: t.bone, fontFamily: MONO, fontSize: 24, fontWeight: 700,
                           letterSpacing: "0.34em", textAlign: "center", padding: "14px 0" }} />
@@ -1974,12 +1983,12 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                     {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accent, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
                     {note && <div style={{ fontSize: 12.5, color: t.dim, marginBottom: 12, lineHeight: 1.5 }}>{note}</div>}
 
-                    <button onClick={verifyResetCode} disabled={rcode.length !== 6 || busy} className="auth-cta"
+                    <button onClick={verifyResetCode} disabled={!otpOk(rcode) || busy} className="auth-cta"
                       style={{ width: "100%", padding: "15px", borderRadius: 14, border: "none",
-                        cursor: rcode.length === 6 && !busy ? "pointer" : "not-allowed",
+                        cursor: otpOk(rcode) && !busy ? "pointer" : "not-allowed",
                         fontFamily: SANS, fontSize: 15, fontWeight: 800, marginBottom: 12,
-                        background: rcode.length === 6 ? t.accent : t.raised,
-                        color: rcode.length === 6 ? "#fff" : t.dead }}>
+                        background: otpOk(rcode) ? t.accent : t.raised,
+                        color: otpOk(rcode) ? "#fff" : t.dead }}>
                       {busy ? "Checking…" : "Continue with code"}
                     </button>
 

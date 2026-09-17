@@ -25,7 +25,9 @@ await page.route("**://*.supabase.co/**", (r) => r.abort());
 
 await page.route(/\/auth\/v1\/recover/, async (r) => {
   // Real GoTrue mints a fresh 6-digit token and mails it.
-  inbox = String(Math.floor(100000 + Math.random() * 900000));
+  // Eight digits on purpose: Supabase's OTP length is a project setting that
+  // runs to ten, and the app used to reject anything but six.
+  inbox = String(Math.floor(10000000 + Math.random() * 90000000));
   console.log(`     [inbox] code emailed: ${inbox}`);
   return r.fulfill({ status: 200, contentType: "application/json", body: "{}" });
 });
