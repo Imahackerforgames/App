@@ -1331,8 +1331,10 @@ function Wordmark({ size = 16, accent = C.accent, title = "Reamp" }) {
   const overshoot = (h - cap) / 2;
   return (
     <span role="img" aria-label={title}
+      /* Lowercase wants less negative tracking than caps do — at -0.03em the
+         round letters started touching. */
       style={{ display: "inline-flex", alignItems: "baseline", whiteSpace: "nowrap",
-        fontSize: size, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1 }}>
+        fontSize: size, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1 }}>
       <svg aria-hidden="true" height={h} width={h * R_RATIO} fill="currentColor"
         viewBox={`${R_BOX.x} ${R_BOX.y} ${R_BOX.w} ${R_BOX.h}`}
         style={{ display: "inline-block", verticalAlign: "baseline",
@@ -1345,7 +1347,7 @@ function Wordmark({ size = 16, accent = C.accent, title = "Reamp" }) {
           marginRight: size * 0.05 }}>
         {R_MARK.map((d) => <path key={d} d={d} />)}
       </svg>
-      <span aria-hidden="true">EAMP<span style={{ color: accent }}>.</span></span>
+      <span aria-hidden="true">eamp<span style={{ color: accent }}>.</span></span>
     </span>
   );
 }
@@ -1787,7 +1789,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
               <Logo size={46} />
             </div>
             <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.045em" }}>
-              REAMP<span style={{ color: t.accent }}>.</span>
+              Reamp<span style={{ color: t.accent }}>.</span>
             </div>
             <div style={{ fontSize: 12.5, color: t.dim, marginTop: 8, letterSpacing: "0.02em" }}>
               {phase === "reset" ? "Let's get you back in"
