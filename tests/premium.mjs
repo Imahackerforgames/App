@@ -52,35 +52,41 @@ const onTab = async (page, name) =>
 
   ok("starts on Home", await onTab(page, "Home"));
 
-  // The Discover tab itself is open; only AI Discover inside it is locked.
+  // The Discover tab opens; AI Discover and Product Search inside it are locked.
   await page.getByRole("button", { name: /^Discover$/ }).click();
   await page.waitForTimeout(400);
   ok("the Discover tab opens for free accounts", await onTab(page, "Discover"));
   ok("no dialog on arrival", !(await modalUp(page)));
-  ok("it opens on Product Search, not a locked chip",
-     (await page.getByPlaceholder(/Search a product/i).count()) > 0 ||
-     /Product Search/i.test(await page.locator("body").innerText()));
+  ok("it lands on Saved, the one free chip",
+     (await page.getByRole("button", { name: /^Saved$/ }).count()) > 0 &&
+     (await page.getByPlaceholder(/Jordan 4 Black Cat, PS5/i).count()) === 0);
 
   await page.getByRole("button", { name: /AI Discover/ }).click();
   await page.waitForTimeout(350);
   ok("tapping AI Discover raises the dialog", await modalUp(page));
   ok("the dialog explains AI Discover", /AI Discover is premium/.test(await upgradeDialog(page).innerText()));
-  ok("and says Product Search stays free", /Product Search stays free/i.test(await upgradeDialog(page).innerText()));
+  await page.getByRole("button", { name: /Maybe later/ }).click();
+  await page.waitForTimeout(250);
+
+  await page.getByRole("button", { name: /Product Search/ }).click();
+  await page.waitForTimeout(350);
+  ok("tapping Product Search raises the dialog", await modalUp(page));
+  ok("the dialog explains Product Search",
+     /Product Search is premium/.test(await upgradeDialog(page).innerText()));
 
   await page.getByRole("button", { name: /Maybe later/ }).click();
   await page.waitForTimeout(250);
   ok("Maybe later closes it", !(await modalUp(page)));
-  ok("still on Product Search afterwards",
-     !/Find products worth flipping/i.test(await page.locator("body").innerText()) ||
-     (await page.getByRole("button", { name: /Find products/i }).count()) === 0);
+  ok("the search box is never reachable",
+     (await page.getByPlaceholder(/Jordan 4 Black Cat, PS5/i).count()) === 0);
 
-  await page.getByRole("button", { name: /AI Discover/ }).click();
+  await page.getByRole("button", { name: /Product Search/ }).click();
   await page.waitForTimeout(250);
   await page.keyboard.press("Escape");
   await page.waitForTimeout(250);
   ok("Escape closes it", !(await modalUp(page)));
 
-  // Saved is free too
+  // Saved is the free one
   await page.getByRole("button", { name: /^Saved$/ }).click();
   await page.waitForTimeout(300);
   ok("Saved stays free", !(await modalUp(page)));
@@ -148,8 +154,10 @@ const onTab = async (page, name) =>
   await page.waitForTimeout(400);
   ok("AI Discover opens for premium", !(await modalUp(page)));
   await page.getByRole("button", { name: /Product Search/ }).click();
-  await page.waitForTimeout(300);
-  ok("Product Search opens for premium too", !(await modalUp(page)));
+  await page.waitForTimeout(350);
+  ok("Product Search opens for premium", !(await modalUp(page)));
+  ok("and its search box is there for premium",
+     (await page.getByPlaceholder(/Jordan 4 Black Cat, PS5/i).count()) > 0);
 
   await page.getByRole("button", { name: /^Business$/ }).click();
   await page.waitForTimeout(300);

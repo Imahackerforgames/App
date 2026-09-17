@@ -2801,7 +2801,11 @@ function NotificationCenter({ db, put, onClose, go }) {
 const LOCKED = {
   ai: {
     title: "AI Discover is premium",
-    blurb: "Premium surfaces products that are selling right now across every marketplace, each one measured for demand, competition and saturation. Product Search stays free — search any product yourself and you still get the full read on it.",
+    blurb: "Premium surfaces products that are selling right now across every marketplace, each one measured for demand, competition and saturation — so you find the next thing to flip without going looking for it.",
+  },
+  search: {
+    title: "Product Search is premium",
+    blurb: "Search any product and get back real, purchasable listings from across the marketplaces, with demand, competition and saturation measured from what is actually selling rather than guessed at.",
   },
   listing: {
     title: "The listing writer is premium",
@@ -2910,15 +2914,15 @@ function openCheckout() {
 }
 
 function Discover({ db, put, jump, go, isPro, requirePro }) {
- /* Free accounts open on Product Search rather than on a locked chip — the
-    first thing you see should be something you can actually use. */
- const allowed = (k) => (k === "ai" && !isPro ? "search" : k);
- const [sub, setSub] = useState(allowed(jump?.sub || (isPro ? "ai" : "search")));
+ /* Both AI Discover and Product Search are premium. Saved is not — it is
+    the person's own watchlist — so a free account lands there rather than
+    on a locked chip. */
+ const LOCKED_SUBS = ["ai", "search"];
+ const allowed = (k) => (LOCKED_SUBS.includes(k) && !isPro ? "saved" : k);
+ const [sub, setSub] = useState(allowed(jump?.sub || (isPro ? "ai" : "saved")));
  const [detail, setDetail] = useState(jump?.item || null);
  useEffect(() => { if (jump?.sub) setSub(allowed(jump.sub)); if (jump?.item) setDetail(jump.item); }, [jump]);
- /* AI Discover is the only locked chip here. Product Search and Saved are
-    free, so the tab itself stays open to everyone. */
- const pick = (k) => { if (k === "ai" && !requirePro("ai")) return; setSub(k); };
+ const pick = (k) => { if (LOCKED_SUBS.includes(k) && !requirePro(k)) return; setSub(k); };
 
  return (
  <div style={{ paddingTop: 4 }}>
@@ -2936,7 +2940,7 @@ function Discover({ db, put, jump, go, isPro, requirePro }) {
        title="AI Discover is premium"
        blurb="Premium finds products that are selling right now, across every marketplace, and measures each one for demand, competition and saturation. Product Search stays free."
        onUpgrade={openCheckout} />)}
- {sub === "search" && <ProductSearch db={db} onAnalyze={(r) => {
+ {sub === "search" && isPro && <ProductSearch db={db} onAnalyze={(r) => {
  const known = CATALOG.find((c) => c.title.toLowerCase() === r.title.toLowerCase());
  setDetail(known || { title: r.title, cat: "Other", source: "ebay", comp: null,
  vel: null, sellers: null, comps90: null, trend: "flat" });
