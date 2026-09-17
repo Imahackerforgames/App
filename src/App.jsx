@@ -1303,18 +1303,46 @@ function Logo({ size = 46, title = "Reamp" }) {
    present at full size and the name is still read in one go.
 
    Alignment is done by the text engine rather than by nudging: the svg is
-   cropped to the glyph, sized to the cap height, and laid out on the
-   baseline, so it sits on the same line as the letters beside it at any
-   size and in any face. */
+   cropped to the glyph, so its height is its cap height and its bottom edge
+   is its baseline, and it is laid out inline on that baseline. It therefore
+   sits correctly at any size, not just the one it was eyeballed at. */
+
+/* Archivo's capitals measure 0.765em at weight 800 — measured on a canvas
+   rather than assumed, because the usual 0.7 guess left the mark a
+   half-pixel short of the caps beside it. */
+const CAP_RATIO = 0.765;
+
+/* Two corrections, both optical rather than geometric.
+
+   Sized dead level with the caps, the mark still read as floating above the
+   line. That is because it comes to points at the bottom — the stem's
+   chisel and the leg's corner — while E A M P sit flat on it. A pointed
+   shape needs to cross the line to look like it is standing on it, which is
+   the same reason O and V overshoot in any decent typeface.
+
+   So the mark is set a touch larger than cap height and the extra is split
+   evenly above and below, giving it presence without making it look like it
+   is riding up out of the word. */
+const MARK_SCALE = 1.045;
+
 function Wordmark({ size = 16, accent = C.accent, title = "Reamp" }) {
-  const cap = size * 0.73;
+  const cap = size * CAP_RATIO;
+  const h = cap * MARK_SCALE;
+  const overshoot = (h - cap) / 2;
   return (
     <span role="img" aria-label={title}
       style={{ display: "inline-flex", alignItems: "baseline", whiteSpace: "nowrap",
         fontSize: size, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1 }}>
-      <svg aria-hidden="true" height={cap} width={cap * R_RATIO} fill="currentColor"
+      <svg aria-hidden="true" height={h} width={h * R_RATIO} fill="currentColor"
         viewBox={`${R_BOX.x} ${R_BOX.y} ${R_BOX.w} ${R_BOX.h}`}
-        style={{ display: "inline-block", verticalAlign: "baseline", marginRight: size * 0.055 }}>
+        style={{ display: "inline-block", verticalAlign: "baseline",
+          /* Moved with a transform rather than a negative bottom margin:
+             Chrome synthesises a flex item's baseline from its border box,
+             so the margin was silently ignored here and the glyph stayed
+             pinned to the line. A transform shifts the paint without
+             touching layout, which is exactly what an optical nudge is. */
+          transform: `translateY(${overshoot}px)`,
+          marginRight: size * 0.05 }}>
         {R_MARK.map((d) => <path key={d} d={d} />)}
       </svg>
       <span aria-hidden="true">EAMP<span style={{ color: accent }}>.</span></span>
