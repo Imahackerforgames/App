@@ -37,14 +37,22 @@ if (await page.getByText("Where are you located?").count()) {
   await page.getByRole("button", { name: /Show me opportunities/ }).click();
   await page.waitForTimeout(600);
 }
+/* The header wordmark sets the mark as the letter R, so the visible text is
+   only "EAMP." — the R is drawn. The accessible name has to say Reamp
+   regardless, or a screen reader announces the app as "EAMP". */
+const wordmark = page.locator('[role="img"][aria-label="Reamp"]');
 for (const t of ["Home", "Discover", "Saturation", "Business", "Settings"]) {
   await page.getByRole("button", { name: new RegExp(`^${t}$`) }).click();
   await page.waitForTimeout(300);
-  const marks = await page.locator('svg[aria-label="Reamp"]').count();
-  const txt = await page.locator("body").innerText();
-  ok(`${t}: mark in the header and wordmark reads REAMP`, marks > 0 && /REAMP/.test(txt),
-     `marks=${marks}`);
+  const n = await wordmark.count();
+  ok(`${t}: the wordmark is in the header`, n > 0, `found=${n}`);
+  const txt = (await wordmark.first().innerText()).replace(/\s+/g, "");
+  ok(`${t}: the letters beside the mark read EAMP.`, txt === "EAMP.", txt);
+  ok(`${t}: the drawn R is there, hidden from screen readers`,
+     (await wordmark.first().locator('svg[aria-hidden="true"]').count()) === 1);
 }
+ok("the header wordmark is announced as Reamp, not EAMP",
+   (await wordmark.first().getAttribute("aria-label")) === "Reamp");
 ok("no RESELLING anywhere in the app", !/RESELLING/i.test(await page.locator("body").innerText()));
 await page.getByRole("button", { name: /^Home$/ }).click();
 await page.waitForTimeout(400);

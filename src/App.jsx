@@ -1259,39 +1259,66 @@ const AUTH_ICONS = [Footprints, Watch, Gem, Shirt, ShoppingBag, Droplets, Packag
 
    Drawn as vector rather than placed as the supplied image. That artwork is
    a glossy black render on white: black is invisible on this app's ground,
-   and the gloss turns to mud at 22px in a header or 16px in a browser tab,
-   which is where this is actually looked at. One 48px viewBox stays sharp
-   in a tab, on a retina header and on a phone home screen, where a raster
-   needs a separate export for each.
+   and the gloss turns to mud at the sizes this is actually looked at. One
+   48px viewBox stays sharp in a browser tab, on a retina header and on a
+   phone home screen, where a raster needs an export for each.
 
-   Three pieces, filled rather than stroked, because the letter's character
-   is in its changing weight — the bar thins to a point, the stem tapers —
-   and a stroke has one width everywhere.
+   Filled rather than stroked, because the character is in the changing
+   weight — the bar thins to a point, the stem tapers — and a stroke has one
+   width everywhere. The counter is open on the left rather than enclosed,
+   which is what makes it this R and not an ordinary one. */
+const R_MARK = [
+  /* bar and bowl, one hook */
+  "M7.2 9.8 L29.8 9.8 C35.4 9.8 38.8 13.1 38.8 17.7 C38.8 22.3 35.4 25.6 29.8 25.6 L21.3 25.6 L24.6 22.0 L29.2 22.0 C31.3 22.0 32.5 20.3 32.5 17.7 C32.5 15.1 31.3 15.7 29.2 15.7 L10.7 15.7 Z",
+  /* the stem: wide at the shoulder, chiselled to a point */
+  "M14.2 17.1 L21.5 17.1 L17.1 34.2 L9.7 38.9 Z",
+  /* the leg */
+  "M23.4 23.8 L31.0 23.8 L40.3 38.9 L34.1 38.9 Z",
+];
 
-   The counter is open on the left rather than enclosed, which is what makes
-   this an R with a blade through it instead of an ordinary R.
+/* The letter's own bounds inside that 48 box. Cropping to them is what lets
+   the mark be set as a letter rather than placed as a picture: the box edges
+   become the glyph edges, so its height is its cap height and its bottom is
+   its baseline. */
+const R_BOX = { x: 7.2, y: 9.8, w: 33.1, h: 29.1 };
+const R_RATIO = R_BOX.w / R_BOX.h;
 
-   Monochrome, taking `currentColor`, so it inherits whatever it sits on and
-   is correct in all five themes without knowing any colour. */
+/* Monochrome, on currentColor, so it inherits whatever it sits on and is
+   correct in all five themes without knowing any colour. */
 function Logo({ size = 46, title = "Reamp" }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none"
       role="img" aria-label={title} style={{ display: "block" }}>
       <g fill="currentColor">
-        {/* bar and bowl, one hook */}
-        <path d="M7.2 9.8 L29.8 9.8
-                 C35.4 9.8 38.8 13.1 38.8 17.7
-                 C38.8 22.3 35.4 25.6 29.8 25.6
-                 L21.3 25.6 L24.6 22.0 L29.2 22.0
-                 C31.3 22.0 32.5 20.3 32.5 17.7
-                 C32.5 15.1 31.3 15.7 29.2 15.7
-                 L10.7 15.7 Z" />
-        {/* the stem: wide at the shoulder, chiselled to a point */}
-        <path d="M14.2 17.1 L21.5 17.1 L17.1 34.2 L9.7 38.9 Z" />
-        {/* the leg */}
-        <path d="M23.4 23.8 L31.0 23.8 L40.3 38.9 L34.1 38.9 Z" />
+        {R_MARK.map((d) => <path key={d} d={d} />)}
       </g>
     </svg>
+  );
+}
+
+/* The wordmark, with the mark standing in for the letter it already is.
+
+   Setting the mark beside the word spelt the R twice — once drawn, once
+   typed — which is a lot of R for a five-letter name. This way the logo is
+   present at full size and the name is still read in one go.
+
+   Alignment is done by the text engine rather than by nudging: the svg is
+   cropped to the glyph, sized to the cap height, and laid out on the
+   baseline, so it sits on the same line as the letters beside it at any
+   size and in any face. */
+function Wordmark({ size = 16, accent = C.accent, title = "Reamp" }) {
+  const cap = size * 0.73;
+  return (
+    <span role="img" aria-label={title}
+      style={{ display: "inline-flex", alignItems: "baseline", whiteSpace: "nowrap",
+        fontSize: size, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1 }}>
+      <svg aria-hidden="true" height={cap} width={cap * R_RATIO} fill="currentColor"
+        viewBox={`${R_BOX.x} ${R_BOX.y} ${R_BOX.w} ${R_BOX.h}`}
+        style={{ display: "inline-block", verticalAlign: "baseline", marginRight: size * 0.055 }}>
+        {R_MARK.map((d) => <path key={d} d={d} />)}
+      </svg>
+      <span aria-hidden="true">EAMP<span style={{ color: accent }}>.</span></span>
+    </span>
   );
 }
 
@@ -2401,14 +2428,10 @@ export default function ResellOS() {
      up from the bottom edge; this leaves a margin on top of that. */}
  <div className="shell" style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px calc(132px + env(safe-area-inset-bottom, 0px))" }}>
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 18, paddingBottom: 14 }}>
- {/* The mark sits with the wordmark rather than anywhere else: this row is
-     the one piece of chrome present on every tab, so it is the only place
-     a logo is always seen and never in the way. */}
- <span style={{ display: "flex", alignItems: "center", gap: 9, color: C.bone }}>
- <Logo size={22} title="Reamp" />
- <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.03em" }}>
- REAMP<span style={{ color: C.accent }}>.</span>
- </span>
+ {/* This row is the one piece of chrome on every tab, so it is where the
+     logo is always seen and never in the way of anything. */}
+ <span style={{ color: C.bone, display: "flex" }}>
+ <Wordmark size={17} accent={C.accent} />
  </span>
  <button onClick={signOut} className="fx fx-chip" title={`Signed in as ${who} — tap to sign out`}
  style={{ display: "flex", alignItems: "center", gap: 8, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 999, padding: "5px 13px 5px 5px", cursor: "pointer", fontFamily: SANS, fontSize: 12, color: C.dim }}>
