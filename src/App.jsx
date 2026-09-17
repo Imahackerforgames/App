@@ -111,22 +111,47 @@ const COMMAS_CHECKOUT_URL = "https://commas.com/checkout/Kk21xLu7i0siFBoV";
    only way to be premium is for a row to exist saying so, and only the
    service role can write one. Clicking the upgrade button grants nothing,
    and neither does anything a browser can do to this app. */
+/* Reads the plan the server says this account has.
+
+   Every failure used to come back as "free", which made a broken check look
+   exactly like a genuine free account — so "I've paid, check again" could
+   fail and appear simply to do nothing. A reason now comes back alongside
+   the plan: the answer is still free, because nothing here may promote an
+   account on its own, but the caller can say why rather than shrug.
+
+   An expired session is the likeliest cause by far. The token is minted at
+   sign-in and the grant happens afterwards, so someone who has been signed
+   in a while asks with a credential the gateway refuses — and a refused
+   request is not a free account. */
 async function fetchEntitlement() {
-  const free = { plan: "free", expiresAt: null };
+  const free = (error = null) => ({ plan: "free", expiresAt: null, error });
   try {
     const token = await sessionToken();
-    if (!token) return free;
+    if (!token) return free("You're signed out. Sign in again, then check.");
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/entitlements?select=plan,expires_at&limit=1`,
       { headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${token}` } },
     );
-    if (!res.ok) return free;
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      const said = d.message || d.msg || d.error_description || `the server said ${res.status}`;
+      return free(res.status === 401
+        ? "Your session has expired. Sign out and back in, then check again."
+        : `Couldn't check your plan — ${said}.`);
+    }
     const rows = await res.json();
     const row = Array.isArray(rows) ? rows[0] : null;
-    if (!row || row.plan !== "pro") return free;
-    if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return free;
-    return { plan: "pro", expiresAt: row.expires_at || null };
-  } catch { return free; }
+    if (!row || row.plan !== "pro") return free();
+    if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) {
+      return free("Your premium has expired.");
+    }
+    return { plan: "pro", expiresAt: row.expires_at || null, error: null };
+  } catch (e) {
+    const msg = String(e?.message || e);
+    return free(/failed to fetch|networkerror|load failed/i.test(msg)
+      ? "Couldn't reach the server. Check your connection and try again."
+      : `Couldn't check your plan — ${msg}`);
+  }
 }
 
 const AI_FN = `${SUPABASE_URL}/functions/v1/ai-assistant`;
@@ -2339,14 +2364,25 @@ export default function ResellOS() {
     came back from the entitlements table. */
  const [ent, setEnt] = useState({ plan: "free", expiresAt: null });
  const [entLoading, setEntLoading] = useState(false);
+ /* What the last check actually found, in words. Without it the button has
+    no way to report anything and looks broken when it is working. */
+ const [entNote, setEntNote] = useState(null);
  const isPro = ent.plan === "pro";
 
  /* Re-read the plan. Called after sign-in, and by the "I've paid" button in
     Settings so someone who has just been activated does not have to guess
     when to reload. */
  const refreshEntitlement = async () => {
-   setEntLoading(true);
-   try { setEnt(await fetchEntitlement()); } finally { setEntLoading(false); }
+   setEntLoading(true); setEntNote(null);
+   try {
+     const e = await fetchEntitlement();
+     setEnt(e);
+     setEntNote(
+       e.error ? e.error
+       : e.plan === "pro" ? "Premium is active on this account."
+       : "This account is still on the free plan. If you have just been upgraded, sign out and back in, then check again."
+     );
+   } finally { setEntLoading(false); }
  };
 
  /* Which locked feature was just reached for, or null. One piece of state
@@ -2538,7 +2574,7 @@ export default function ResellOS() {
  {tab === "saturation" && <Saturation db={db} go={go} />}
  {tab === "business" && <Business db={db} biz={biz} put={put} range={range} setRange={setRange} jump={jump} requirePro={requirePro} isPro={isPro} />}
  {tab === "settings" && <SettingsPage db={db} put={put} reset={reset} user={user} signOut={signOut}
-   isPro={isPro} ent={ent} refreshEntitlement={refreshEntitlement} entLoading={entLoading} />}
+   isPro={isPro} ent={ent} refreshEntitlement={refreshEntitlement} entLoading={entLoading} entNote={entNote} />}
  </div>
  </div>
 
@@ -4463,7 +4499,7 @@ function Essentials() {
  );
 }
 
-function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitlement, entLoading }) {
+function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitlement, entLoading, entNote }) {
  return (
  <div style={{ paddingTop: 4 }}>
  <Group title="Account">
@@ -4586,6 +4622,15 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
    cursor: entLoading ? "wait" : "pointer" }}>
  {entLoading ? "Checking…" : isPro ? "Re-check my plan" : "I've paid — check again"}
  </button>
+
+ {/* What the check found. A button that can only ever leave the screen
+     unchanged is indistinguishable from a broken one. */}
+ {entNote && (
+ <p role="status" style={{ fontSize: 12, marginTop: 10, lineHeight: 1.6,
+   color: isPro ? C.dim : C.accent }}>
+ {entNote}
+ </p>
+ )}
 
  <Field label="Starting balance" value={db.settings.startingBalance} type="number" prefix="$"
  onChange={(v) => put("settings", { ...db.settings, startingBalance: +v || 0 })} />
