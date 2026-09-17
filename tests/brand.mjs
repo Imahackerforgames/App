@@ -13,7 +13,11 @@ await page.goto("http://localhost:4173/", { waitUntil: "networkidle" });
 await page.waitForTimeout(500);
 ok("tab title is Reamp", (await page.title()) === "Reamp", await page.title());
 const body = await page.locator("body").innerText();
-ok("login wordmark says Reamp", /Reamp/.test(body), body.slice(0, 60));
+// The login screen shows the mark alone now, so the name is not typed
+// anywhere on it — it has to come from the mark's own label instead.
+ok("the name is not spelt out on the login screen", !/Reamp/.test(body), body.slice(0, 80));
+ok("the mark still carries the name for screen readers",
+   (await page.locator('svg[aria-label="Reamp"]').getAttribute("aria-label")) === "Reamp");
 ok("no RESELLING left anywhere on the login screen", !/RESELLING/i.test(body));
 ok("the mark is on the login screen", (await page.locator('svg[aria-label="Reamp"]').count()) > 0);
 await page.screenshot({ path: "shot-brand-login.png" });

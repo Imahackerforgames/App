@@ -1807,13 +1807,13 @@ function AuthScreen({ onDone, theme, recovery = null }) {
         <div className="auth-card" style={{ width: "100%", maxWidth: 400 }}>
 
           <div style={{ textAlign: "center", marginBottom: 30 }}>
-            <div className="auth-logo" style={{ display: "flex", justifyContent: "center", marginBottom: 15, color: t.bone }}>
-              <Logo size={46} />
+            {/* The mark alone. It still carries the name for anything that
+                reads the page aloud — Logo sets aria-label — so dropping the
+                typed word costs nothing but the second telling of it. */}
+            <div className="auth-logo" style={{ display: "flex", justifyContent: "center", marginBottom: 16, color: t.bone }}>
+              <Logo size={52} />
             </div>
-            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.045em" }}>
-              Reamp<span style={{ color: t.accent }}>.</span>
-            </div>
-            <div style={{ fontSize: 12.5, color: t.dim, marginTop: 8, letterSpacing: "0.02em" }}>
+            <div style={{ fontSize: 12.5, color: t.dim, letterSpacing: "0.02em" }}>
               {phase === "reset" ? "Let's get you back in"
                 : phase === "forgot" ? "It happens"
                 : mode === "login" ? "Welcome back"
