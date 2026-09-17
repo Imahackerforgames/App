@@ -1254,22 +1254,39 @@ function clearAuthHash() {
 
 const AUTH_ICONS = [Footprints, Watch, Gem, Shirt, ShoppingBag, Droplets, Package, TrendingUp, Bookmark, Sparkles];
 
-/* Brand mark. A price tag with a rising arrow inside — the item, and what
-   it gains. The tag's hole is the same accent dot as the period in
-   "REAMP.", so the mark and the wordmark share one idea.
+/* Brand mark. The R inside a ring broken in three places.
 
-   The outline takes `currentColor`, so it inherits whatever it sits on,
-   and the dot and arrow take the accent. That keeps it correct in all
-   five themes without the component knowing any colour. */
+   Drawn rather than dropped in as an image, for two reasons. The supplied
+   artwork is a glossy black render on white — black on this app's ground is
+   invisible, and the gloss is noise at the sizes it actually appears at.
+   And a 48px viewBox stays crisp in a browser tab, on a retina header and
+   on a phone home screen from one file.
+
+   The ring takes the accent and the letter takes `currentColor`, so the
+   mark inherits whatever it sits on and stays correct in all five themes
+   without knowing any colour itself.
+
+   The three gaps are deliberate and uneven — one long arc over the top,
+   two short ones below — which is what keeps it from reading as a plain
+   circle with a letter in it. */
 function Logo({ size = 46, accent = C.accent, title = "Reamp" }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none"
       role="img" aria-label={title} style={{ display: "block" }}>
-      <path d="M22 8 H34 A6 6 0 0 1 40 14 V34 A6 6 0 0 1 34 40 H16 A6 6 0 0 1 10 34 V20 Z"
-        stroke="currentColor" strokeWidth="3.1" strokeLinejoin="round" />
-      <circle cx="20.5" cy="18.5" r="2.6" fill={accent} />
-      <path d="M19 33 L32 20 M27 20 H32 V25"
-        stroke={accent} strokeWidth="3.1" strokeLinecap="round" strokeLinejoin="round" />
+      {/* the long arc: ten o'clock, over the top, round to five */}
+      <path d="M4.68 18.82 A20 20 0 1 1 36.86 39.32"
+        stroke={accent} strokeWidth="3.2" strokeLinecap="round" />
+      {/* the short arc under the foot */}
+      <path d="M30.84 42.79 A20 20 0 0 1 15.55 42.13"
+        stroke={accent} strokeWidth="3.2" strokeLinecap="round" />
+      {/* and the one up the left side */}
+      <path d="M9.86 38.14 A20 20 0 0 1 4.08 25.74"
+        stroke={accent} strokeWidth="3.2" strokeLinecap="round" />
+      {/* the R: stem, bowl, leg */}
+      <path d="M16 34 V14 H25.5 a5.75 5.75 0 0 1 0 11.5 H16"
+        stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M24.6 25.5 L32.6 34"
+        stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" />
     </svg>
   );
 }
