@@ -25,6 +25,17 @@ const RESEARCH_FN = `${SUPABASE_URL}/functions/v1/market-research`;
 // Leave blank to use whatever origin the app is currently served from.
 const APP_URL = "";
 
+/* Google sign-in is hidden until the provider is configured in Supabase and
+   the OAuth consent screen is set up. The button worked in testing only
+   because it was never the path anyone took; on a public site an unconfigured
+   provider fails for every person who tries it, and "sign in with Google"
+   failing is the kind of thing people do not come back from.
+
+   The flow itself is left intact rather than deleted — flip this to true once
+   Authentication -> Providers -> Google is on and the redirect URLs match the
+   live domain, and the button returns exactly as it was. */
+const GOOGLE_SIGN_IN = false;
+
 // Google OAuth needs THREE things lined up or it fails:
 //   1. Google enabled in Supabase → Authentication → Providers
 //   2. Your domain listed in Supabase → Authentication → URL Configuration → Redirect URLs
@@ -2278,6 +2289,8 @@ function AuthScreen({ onDone, theme, recovery = null }) {
               {busy ? "One moment…" : mode === "login" ? "Log in" : "Create account"}
             </button>
 
+            {GOOGLE_SIGN_IN && (
+            <>
             <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
               <div style={{ flex: 1, height: 1, background: t.line }} />
               <span style={{ fontSize: 10.5, color: t.dead, letterSpacing: "0.1em" }}>OR</span>
@@ -2298,12 +2311,15 @@ function AuthScreen({ onDone, theme, recovery = null }) {
             </p>
             </>
             )}
+            </>
+            )}
           </div>
 
+          {GOOGLE_SIGN_IN && (
           <p style={{ fontSize: 11, color: t.dead, textAlign: "center", marginTop: 18, lineHeight: 1.6 }}>
-            Email sign-up writes to your real Supabase project.<br />
             Google needs your deployed domain to redirect back.
           </p>
+          )}
         </div>
       </div>
     </div>
