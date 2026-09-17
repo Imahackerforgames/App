@@ -1254,39 +1254,43 @@ function clearAuthHash() {
 
 const AUTH_ICONS = [Footprints, Watch, Gem, Shirt, ShoppingBag, Droplets, Package, TrendingUp, Bookmark, Sparkles];
 
-/* Brand mark. The R inside a ring broken in three places.
+/* Brand mark. The R on its own — a chiselled bar, a blade for a stem, and
+   a leg cut on the diagonal.
 
-   Drawn rather than dropped in as an image, for two reasons. The supplied
-   artwork is a glossy black render on white — black on this app's ground is
-   invisible, and the gloss is noise at the sizes it actually appears at.
-   And a 48px viewBox stays crisp in a browser tab, on a retina header and
-   on a phone home screen from one file.
+   Drawn as vector rather than placed as the supplied image. That artwork is
+   a glossy black render on white: black is invisible on this app's ground,
+   and the gloss turns to mud at 22px in a header or 16px in a browser tab,
+   which is where this is actually looked at. One 48px viewBox stays sharp
+   in a tab, on a retina header and on a phone home screen, where a raster
+   needs a separate export for each.
 
-   The ring takes the accent and the letter takes `currentColor`, so the
-   mark inherits whatever it sits on and stays correct in all five themes
-   without knowing any colour itself.
+   Three pieces, filled rather than stroked, because the letter's character
+   is in its changing weight — the bar thins to a point, the stem tapers —
+   and a stroke has one width everywhere.
 
-   The three gaps are deliberate and uneven — one long arc over the top,
-   two short ones below — which is what keeps it from reading as a plain
-   circle with a letter in it. */
-function Logo({ size = 46, accent = C.accent, title = "Reamp" }) {
+   The counter is open on the left rather than enclosed, which is what makes
+   this an R with a blade through it instead of an ordinary R.
+
+   Monochrome, taking `currentColor`, so it inherits whatever it sits on and
+   is correct in all five themes without knowing any colour. */
+function Logo({ size = 46, title = "Reamp" }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none"
       role="img" aria-label={title} style={{ display: "block" }}>
-      {/* the long arc: ten o'clock, over the top, round to five */}
-      <path d="M4.68 18.82 A20 20 0 1 1 36.86 39.32"
-        stroke={accent} strokeWidth="3.2" strokeLinecap="round" />
-      {/* the short arc under the foot */}
-      <path d="M30.84 42.79 A20 20 0 0 1 15.55 42.13"
-        stroke={accent} strokeWidth="3.2" strokeLinecap="round" />
-      {/* and the one up the left side */}
-      <path d="M9.86 38.14 A20 20 0 0 1 4.08 25.74"
-        stroke={accent} strokeWidth="3.2" strokeLinecap="round" />
-      {/* the R: stem, bowl, leg */}
-      <path d="M16 34 V14 H25.5 a5.75 5.75 0 0 1 0 11.5 H16"
-        stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M24.6 25.5 L32.6 34"
-        stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" />
+      <g fill="currentColor">
+        {/* bar and bowl, one hook */}
+        <path d="M7.2 9.8 L29.8 9.8
+                 C35.4 9.8 38.8 13.1 38.8 17.7
+                 C38.8 22.3 35.4 25.6 29.8 25.6
+                 L21.3 25.6 L24.6 22.0 L29.2 22.0
+                 C31.3 22.0 32.5 20.3 32.5 17.7
+                 C32.5 15.1 31.3 15.7 29.2 15.7
+                 L10.7 15.7 Z" />
+        {/* the stem: wide at the shoulder, chiselled to a point */}
+        <path d="M14.2 17.1 L21.5 17.1 L17.1 34.2 L9.7 38.9 Z" />
+        {/* the leg */}
+        <path d="M23.4 23.8 L31.0 23.8 L40.3 38.9 L34.1 38.9 Z" />
+      </g>
     </svg>
   );
 }
@@ -1725,7 +1729,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
 
           <div style={{ textAlign: "center", marginBottom: 30 }}>
             <div className="auth-logo" style={{ display: "flex", justifyContent: "center", marginBottom: 15, color: t.bone }}>
-              <Logo size={46} accent={t.accent} />
+              <Logo size={46} />
             </div>
             <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.045em" }}>
               REAMP<span style={{ color: t.accent }}>.</span>
@@ -2401,7 +2405,7 @@ export default function ResellOS() {
      the one piece of chrome present on every tab, so it is the only place
      a logo is always seen and never in the way. */}
  <span style={{ display: "flex", alignItems: "center", gap: 9, color: C.bone }}>
- <Logo size={22} accent={C.accent} title="Reamp" />
+ <Logo size={22} title="Reamp" />
  <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.03em" }}>
  REAMP<span style={{ color: C.accent }}>.</span>
  </span>
