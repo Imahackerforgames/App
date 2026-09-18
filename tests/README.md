@@ -43,6 +43,12 @@ the app ships. Install it where you run the tests:
 npm install --no-save playwright
 ```
 
+## Screenshots
+
+Some of these write `shot-*.png` next to the repo root so a change to the
+look can be eyeballed rather than only asserted. They are output, not
+source, and are ignored by git.
+
 ## What they cannot tell you
 
 Supabase is mocked, so these prove the app's half: that it sends the right

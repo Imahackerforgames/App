@@ -565,14 +565,23 @@ End with a line starting "SOURCES:" listing the URLs you used, comma separated.`
      /* Sold listings per marketplace. Counted, not modelled — this is how
         many the search actually returned from each board. */
      soldByMarket: sold.marketCounts || {},
+     /* Sale dates read off the completed listings themselves ("Sold Sep 12").
+        Only some listings state one, so this is always a subset of soldSeen —
+        `datedCount` says how big a subset, and nothing is filled in for the
+        listings that stayed silent. */
+     soldDates: Array.isArray(sold.soldDates) ? sold.soldDates : [],
+     datedCount: Number(sold.datedCount) || 0,
      retrievedAt: active.retrievedAt || new Date().toISOString(),
    };
  },
 
- async getRecentSoldData(title, windowDays = 90) {
+ async getRecentSoldData(title, windowDays = 30) {
  const ref = CATALOG.find((c) => c.title === title);
  if (!ref) return { count: null, windowDays, estimated: true, unavailable: true };
- const scale = windowDays >= 90 ? 1 : windowDays >= 30 ? 0.4 : 0.12;
+ /* comps90 is a 90-day figure. The fractions run a little above the plain
+    day ratio because recent weeks carry more of a 90-day total than an even
+    split would give them. */
+ const scale = windowDays >= 30 ? 0.4 : windowDays >= 21 ? 0.28 : 0.12;
  return { count: Math.max(1, Math.round(ref.comps90 * scale)), windowDays, estimated: true };
  },
 
@@ -3572,13 +3581,85 @@ function ProductCard({ item, idx, onDetail }) {
    So the total is an estimate and the shape is a model of the trend. That
    is what the card already tells the reader it is, and connecting a
    marketplace replaces both with counted sales. */
+/* Below this many dated listings inside the widest window, a line is three
+   dots pretending to be a trend. The card hands over to the marketplace
+   links instead. */
+const DATED_MIN = 3;
+
+/* The three windows the sheet offers, and the wording for each. Kept in one
+   place because the chip, the number above the chart and the footnote all
+   have to describe the same span. */
+const SOLD_WINDOWS = [
+  { d: 7, chip: "7d", phrase: "in the last 7 days" },
+  { d: 21, chip: "3w", phrase: "in the last 3 weeks" },
+  { d: 30, chip: "30d", phrase: "in the last 30 days" },
+];
+const WIDEST_WINDOW = 30;
+const windowPhrase = (d) =>
+  (SOLD_WINDOWS.find((w) => w.d === d) || { phrase: `in the last ${d} days` }).phrase;
+
+/* Bucket widths per window, picked to give a readable number of points
+   without implying daily precision the data doesn't have. */
+const soldPlan = (windowDays) =>
+  windowDays <= 7 ? { n: 7, days: 1 }
+    : windowDays <= 21 ? { n: 7, days: 3 }
+    : { n: 10, days: 3 };
+
+/* Bucket edges and labels, shared by the modelled series and the counted one
+   so "7d" means the same seven days whichever fills it. Buckets are
+   half-open [from, to) and the last one ends at tomorrow's midnight, so a
+   listing that sold today lands in it. */
+function soldFrames(plan) {
+  const dayMs = 864e5;
+  const tomorrow = new Date(); tomorrow.setHours(0, 0, 0, 0);
+  tomorrow.setTime(tomorrow.getTime() + dayMs);
+  const fmt = (d, o) => d.toLocaleDateString(undefined, o);
+  return Array.from({ length: plan.n }, (_, i) => {
+    const to = tomorrow.getTime() - (plan.n - 1 - i) * plan.days * dayMs;
+    const from = new Date(to - plan.days * dayMs);
+    const last = new Date(to - dayMs);
+    return {
+      from: from.getTime(),
+      to,
+      tick: plan.days === 1 ? "SMTWTFS"[from.getDay()] : fmt(from, { month: "numeric", day: "numeric" }),
+      full: plan.days === 1
+        ? fmt(from, { weekday: "short", day: "numeric", month: "short" })
+        : `${fmt(from, { month: "short", day: "numeric" })} \u2013 ${fmt(last, { month: "short", day: "numeric" })}`,
+    };
+  });
+}
+
+/* The counted counterpart to soldSeries: real sale dates, read off the
+   completed listings themselves, dropped into those same buckets. Nothing
+   here is modelled or smoothed — a bucket reads zero because no listing said
+   it sold then, and `inWindow` is how many dated listings the line accounts
+   for. */
+function datedSeries(dates, windowDays) {
+  const plan = soldPlan(windowDays);
+  const frames = soldFrames(plan);
+  const counts = new Array(plan.n).fill(0);
+  let inWindow = 0;
+
+  for (const iso of dates || []) {
+    /* Split by hand rather than letting Date parse it: "2026-09-12" parses as
+       UTC midnight, which is the previous day west of Greenwich and would
+       drop a listing into the wrong bucket. */
+    const [y, m, d] = String(iso).split("-").map(Number);
+    if (!y || !m || !d) continue;
+    const t = new Date(y, m - 1, d).getTime();
+    if (isNaN(t) || t < frames[0].from) continue;
+    for (let i = plan.n - 1; i >= 0; i--) {
+      if (t >= frames[i].from && t < frames[i].to) { counts[i] += 1; inWindow += 1; break; }
+    }
+  }
+
+  const points = frames.map((f, i) => ({ sold: counts[i], tick: f.tick, full: f.full }));
+  return { points, tickEvery: points.length > 10 ? 2 : 1, inWindow, dated: (dates || []).length };
+}
+
 function soldSeries(item, windowDays, total) {
   const ref = CATALOG.find((c) => c.title === item.title) || item;
-  /* Bucket widths per window, picked to give a readable number of points
-     without implying daily precision the data doesn't have. */
-  const plan = windowDays === 7 ? { n: 7, days: 1 }
-    : windowDays === 30 ? { n: 10, days: 3 }
-    : { n: 13, days: 7 };
+  const plan = soldPlan(windowDays);
 
   // Trend sets the ratio between the oldest bucket and the newest one.
   const ratio = ref.trend === "up" ? 1.75 : ref.trend === "down" ? 0.55 : 1;
@@ -3597,23 +3678,8 @@ function soldSeries(item, windowDays, total) {
     return Math.max(0, v);
   });
 
-  const dayMs = 864e5;
-  const tomorrow = new Date(); tomorrow.setHours(0, 0, 0, 0);
-  tomorrow.setTime(tomorrow.getTime() + dayMs);
-
-  const fmt = (d, o) => d.toLocaleDateString(undefined, o);
-  const points = counts.map((sold, i) => {
-    const to = tomorrow.getTime() - (plan.n - 1 - i) * plan.days * dayMs;
-    const from = new Date(to - plan.days * dayMs);
-    const last = new Date(to - dayMs);
-    return {
-      sold,
-      tick: plan.days === 1 ? "SMTWTFS"[from.getDay()] : fmt(from, { month: "numeric", day: "numeric" }),
-      full: plan.days === 1
-        ? fmt(from, { weekday: "short", day: "numeric", month: "short" })
-        : `${fmt(from, { month: "short", day: "numeric" })} – ${fmt(last, { month: "short", day: "numeric" })}`,
-    };
-  });
+  const frames = soldFrames(plan);
+  const points = counts.map((sold, i) => ({ sold, tick: frames[i].tick, full: frames[i].full }));
   return { points, tickEvery: points.length > 10 ? 2 : 1 };
 }
 
@@ -3668,12 +3734,17 @@ function SoldElsewhere({ title, counts }) {
   );
 }
 
-function SoldChart({ item, windowDays, total }) {
+/* `series` is the counted path: a series already built from real sale dates.
+   When it is absent the chart falls back to the modelled catalog curve, which
+   is what the card's own wording says it is. Same drawing either way — only
+   the source of the numbers differs. */
+function SoldChart({ item, windowDays, total, series = null }) {
   const [hover, setHover] = useState(null);
   const [boxW, setBoxW] = useState(0);
   const wrapRef = useRef(null);
-  const { points, tickEvery } = useMemo(
-    () => soldSeries(item, windowDays, total), [item.title, windowDays, total]); // eslint-disable-line
+  const modelled = useMemo(
+    () => (series ? null : soldSeries(item, windowDays, total)), [item.title, windowDays, total, series]); // eslint-disable-line
+  const { points, tickEvery } = series || modelled;
 
   // Same height cap as TrendChart — see the note there.
   const H = 130, CAP_AT = 494, MAX_H = Math.round(CAP_AT * H / 320);
@@ -3730,7 +3801,7 @@ function SoldChart({ item, windowDays, total }) {
         onPointerMove={(e) => track(e.clientX)}
         onPointerLeave={() => setHover(null)}>
         <svg viewBox={`0 0 ${W} ${H}`} role="img"
-          aria-label={`Sold activity, ${points.length} points over ${windowDays} days`}
+          aria-label={`Sold activity, ${points.length} points ${windowPhrase(windowDays)}`}
           style={{ display: "block", width: "100%", height: "auto", overflow: "visible" }}>
           {[0, 0.5, 1].map((f) => {
             const gy = PAD.t + ih - f * ih;
@@ -3781,7 +3852,7 @@ function SoldChart({ item, windowDays, total }) {
 }
 
 function ProductDetailSheet({ item, db, put, onClose }) {
- const [window_, setWindowD] = useState(90);
+ const [window_, setWindowD] = useState(30);
  const [sold, setSold] = useState(null);
  const [live, setLive] = useState(null);
  const [related, setRelated] = useState([]);
@@ -3794,6 +3865,17 @@ function ProductDetailSheet({ item, db, put, onClose }) {
     anything. Read in several places below, so derived once. */
  const counted = Number(live?.soldSeen) || 0;
  const countedMarkets = Object.keys(live?.soldByMarket || {}).filter((k) => live.soldByMarket[k] > 0);
+
+ /* Sale dates the completed listings stated outright. Far fewer than
+    `counted` — most listings don't say — so the chart only goes up when
+    enough of them fall inside the widest window on offer. Below that a line
+    would be three dots pretending to be a trend, and the marketplace links
+    are the more honest answer. */
+ const soldDates = live?.soldDates || [];
+ const datedChart = soldDates.length >= DATED_MIN
+   && datedSeries(soldDates, WIDEST_WINDOW).inWindow >= DATED_MIN
+   ? datedSeries(soldDates, window_)
+   : null;
 
  useEffect(() => {
  setSaved((db.watchlist || []).some((w) => w.title === item.title));
@@ -3865,11 +3947,14 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  <Row l="Sold listings found" r={`${live.soldSeen}${live.soldCapped ? "+" : ""}`} />
  <Row l="Selling on" r={live.markets.length ? live.markets.join(", ") : "None found"} />
  <Row l="Sold data from" r={live.soldMarkets.length ? live.soldMarkets.join(", ") : "None found"} />
+ {live.datedCount > 0 && (
+ <Row l="Stated a sale date" r={`${live.datedCount} of ${live.soldSeen}${live.soldCapped ? "+" : ""}`} />
+ )}
  <p style={{ fontSize: 11, color: C.dead, margin: "10px 0 0", lineHeight: 1.55 }}>
  Counted from live marketplace listings, up to 20 per search — a "+" means
- at least that many, not a total. Dated 7/30/90-day sold counts and a trend
- direction need a connected marketplace account; searching the web can see
- what is listed now, not what sold last Tuesday.
+ at least that many, not a total. The sold-over-time line is built only from
+ listings that stated their own sale date; a complete sales history and a
+ trend direction still need a connected marketplace account.
  </p>
  </div>
  )}
@@ -3889,14 +3974,15 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  <div style={{ ...card, marginTop: 10 }}>
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
  <span style={label}>Recent sold activity</span>
- {/* Hidden when the numbers come from counted listings: those carry no
-     dates, so putting them under a 7d/30d/90d chip would be claiming a
-     time range nobody measured. */}
- {!(sold?.unavailable && counted > 0) && (
+ {/* Hidden when the numbers come from counted listings that carried no
+     dates: putting an undated count under a 7d chip would be claiming a
+     time range nobody measured. Once enough listings state a sale date,
+     the window means something again and the chips come back. */}
+ {!(sold?.unavailable && counted > 0 && !datedChart) && (
  <div style={{ display: "flex", gap: 5 }}>
- {[7, 30, 90].map((d) => (
- <button key={d} onClick={() => setWindowD(d)} className="fx fx-chip"
- style={{ ...pillBtn(window_ === d), padding: "4px 9px", fontSize: 10.5 }}>{d}d</button>
+ {SOLD_WINDOWS.map((w) => (
+ <button key={w.d} onClick={() => setWindowD(w.d)} className="fx fx-chip"
+ style={{ ...pillBtn(window_ === w.d), padding: "4px 9px", fontSize: 10.5 }}>{w.chip}</button>
  ))}
  </div>
  )}
@@ -3908,6 +3994,20 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  <div style={{ fontFamily: MONO, fontSize: 13, color: C.dead }}>Checking…</div>
  ) : sold.unavailable && live?.loading ? (
  <div style={{ fontFamily: MONO, fontSize: 13, color: C.dead }}>Counting sold listings…</div>
+ ) : sold.unavailable && counted > 0 && datedChart ? (
+ /* Counted sales with counted dates: a real time series. Every point is
+    listings that said they sold in that bucket, so an empty bucket is an
+    empty bucket rather than a gap smoothed over. */
+ <>
+ <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 600 }}>
+ {datedChart.inWindow} <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>
+ sold {windowPhrase(window_)}
+ </span>
+ </div>
+ <div style={{ marginTop: 12 }}>
+ <SoldChart item={item} windowDays={window_} series={datedChart} />
+ </div>
+ </>
  ) : sold.unavailable && counted > 0 ? (
  <>
  <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 600 }}>
@@ -3922,7 +4022,7 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  ) : (
  <>
  <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 600 }}>
- {sold.count} <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>sold, last {window_} days</span>
+ {sold.count} <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>sold {windowPhrase(window_)}</span>
  </div>
  {/* Same chart language as the home screen, driven by the 7d/30d/90d
      chips above, so the line and the number always describe one window.
@@ -3933,8 +4033,10 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  </>
  )}
  <p style={{ fontSize: 11, color: C.dead, margin: "8px 0 0" }}>
- {sold?.unavailable && counted > 0
- ? `Counted from completed listings found just now${live.soldCapped ? ", and capped at the search limit — the real number is higher" : ""}. Search does not surface every sale, so read it as a floor rather than a total.`
+ {sold?.unavailable && counted > 0 && datedChart
+ ? `Counted from the ${soldDates.length} of ${counted}${live.soldCapped ? "+" : ""} completed listings that stated a sale date. The rest didn't say, so every point is a floor — read the shape, not the height.`
+ : sold?.unavailable && counted > 0
+ ? `Counted from completed listings found just now${live.soldCapped ? ", and capped at the search limit — the real number is higher" : ""}. None of them stated a sale date, so there's nothing to plot over time. Search does not surface every sale, so read it as a floor rather than a total.`
  : sold?.unavailable
  ? "This product isn't in our reference data. Use the marketplace links below to check sold listings directly."
  : sold?.estimated

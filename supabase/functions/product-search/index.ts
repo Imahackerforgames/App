@@ -243,6 +243,10 @@ Deno.serve(async (req: Request) => {
         url: String(r.url),
         market: marketOf(String(r.url)),
         snippet: stripPrices(String(r.content ?? "")).slice(0, 180),
+        /* The listing's own words, untrimmed and with prices intact, kept
+           only long enough to read a sale date off. Deleted before this
+           leaves the function — see below. */
+        _text: `${r.title ?? ""} ${r.content ?? ""}`,
         image: images.find((i: any) =>
           typeof i === "string" ? false : i?.url
         )?.url ?? null,
@@ -283,6 +287,63 @@ Deno.serve(async (req: Request) => {
        about total sales on that marketplace. */
     const marketCounts: Record<string, number> = {};
     for (const r of results) marketCounts[r.market] = (marketCounts[r.market] ?? 0) + 1;
+
+    /* When a listing says when it sold, keep the date.
+
+       Completed listings usually carry it in their own text — "Sold Sep 12,
+       2026" on eBay, "Sold 12 Sep" elsewhere — and that is a real date on a
+       real sale, which is the only thing that can honestly be plotted over
+       time. Nothing is inferred: a listing with no readable date simply
+       contributes nothing here, and the caller is told how many of the
+       listings actually carried one.
+
+       Years are optional in these strings. A bare "Sep 12" means the most
+       recent September 12th that has already happened, since a completed
+       listing cannot have sold in the future. */
+    const MONTHS: Record<string, number> = {
+      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+    };
+    /* "Sold Sep 12, 2026" and "Sold 12 Sep 2026" are both common; the year
+       is often missing from both. */
+    const SOLD_DATE =
+      /sold[^A-Za-z0-9]{0,12}(?:([A-Za-z]{3,9})\.?\s+(\d{1,2})|(\d{1,2})\s+([A-Za-z]{3,9})\.?)(?:,?\s*(\d{4}))?/i;
+    const DAYS_IN = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+    const soldDates: string[] = [];
+    const now = Date.now();
+    for (const r of results) {
+      const m = String(r._text || "").match(SOLD_DATE);
+      if (!m) continue;
+      const month = MONTHS[(m[1] || m[4] || "").slice(0, 3).toLowerCase()];
+      if (month === undefined) continue;
+      const day = Number(m[2] || m[3]);
+      if (!day || day > DAYS_IN[month]) continue;
+
+      let year = Number(m[5]);
+      if (year) {
+        /* A four-digit number next to a date is usually the year, but not
+           always — drop anything outside the range a sale could fall in. */
+        const thisYear = new Date().getUTCFullYear();
+        if (year < 2000 || year > thisYear) continue;
+      } else {
+        year = new Date().getUTCFullYear();
+        if (Date.UTC(year, month, day) > now) year -= 1;
+      }
+
+      const t = Date.UTC(year, month, day);
+      /* Date.UTC rolls an impossible date forward (Feb 30 becomes Mar 2),
+         so check the parts came back unchanged rather than trusting it. */
+      const d = new Date(t);
+      if (d.getUTCMonth() !== month || d.getUTCDate() !== day || t > now) continue;
+      soldDates.push(d.toISOString().slice(0, 10));
+    }
+    soldDates.sort();
+
+    /* The working text goes no further. It is unstripped listing copy — full
+       of prices this app is careful not to present as its own — and the
+       client has no use for it. */
+    for (const r of results) delete r._text;
     console.log(`product-search: ok — "${query}" (${mode}${sold ? ", sold" : ""}) over ${domains.length} marketplace(s) [${domains.join(", ")}], ${perDomain} each → ${results.length} of ${hits.length} raw kept across ${markets.length} marketplaces.`);
 
     return json({
@@ -292,6 +353,8 @@ Deno.serve(async (req: Request) => {
       searchedDomains: domains,
       markets,
       marketCounts,
+      soldDates,
+      datedCount: soldDates.length,
       count: results.length,
       retrievedAt: new Date().toISOString(),
       source: "tavily",

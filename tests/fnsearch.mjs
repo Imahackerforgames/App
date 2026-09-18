@@ -111,5 +111,78 @@ const okReply = (sent) => new Response(JSON.stringify({
   ok("no url appears twice", new Set(urls).size === urls.length, JSON.stringify(urls));
 }
 
+// ── 7. sale dates are read, never invented ─────────────────────────────
+{
+  console.log("\n7. Sale dates come off the listings themselves");
+  const y = new Date().getUTCFullYear();
+  const dated = (sent) => new Response(JSON.stringify({ results: [
+    { url: `https://www.${sent.include_domains[0]}/itm/a`, title: "Nice thing", content: `Sold Mar 3, ${y - 1}` },
+    { url: `https://www.${sent.include_domains[0]}/itm/b`, title: `Thing (Sold Feb 14, ${y - 1})`, content: "" },
+    { url: `https://www.${sent.include_domains[0]}/itm/c`, title: "Thing", content: `Sold 14 Feb ${y - 1}` },
+    { url: `https://www.${sent.include_domains[0]}/itm/d`, title: "Thing", content: "no date here at all" },
+  ], images: [] }), { status: 200 });
+
+  const { data } = await runHandler({ body: { query: "x", sold: true, maxResults: 40 }, tavily: dated });
+  ok("dates were found", data.soldDates.length > 0, JSON.stringify(data.soldDates));
+  ok("every one is an ISO day", data.soldDates.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)),
+     JSON.stringify(data.soldDates));
+  ok("both orderings parse",
+     data.soldDates.includes(`${y - 1}-03-03`) && data.soldDates.includes(`${y - 1}-02-14`),
+     JSON.stringify(data.soldDates));
+  ok("they come back sorted",
+     JSON.stringify(data.soldDates) === JSON.stringify([...data.soldDates].sort()),
+     JSON.stringify(data.soldDates));
+  ok("datedCount matches", data.datedCount === data.soldDates.length,
+     `${data.datedCount} vs ${data.soldDates.length}`);
+  ok("undated listings add nothing", data.datedCount < data.count, `${data.datedCount} of ${data.count}`);
+  ok("never more dates than listings", data.datedCount <= data.count);
+  ok("the working text never ships", data.results.every((r) => r._text === undefined));
+  ok("and no listing text leaked a price",
+     data.results.every((r) => !/\$\d/.test(JSON.stringify(r))), JSON.stringify(data.results[0]));
+}
+
+// ── 8. a listing with no date contributes nothing ──────────────────────
+{
+  console.log("\n8. No date, no point on the chart");
+  const { data } = await runHandler({ body: { query: "x", sold: true, maxResults: 24 }, tavily: okReply });
+  ok("plenty of listings", data.count > 5, String(data.count));
+  ok("but zero dates, not zero-filled ones", data.datedCount === 0 && data.soldDates.length === 0,
+     JSON.stringify(data.soldDates));
+}
+
+// ── 9. junk near the word "sold" is not turned into a date ─────────────
+{
+  console.log("\n9. Nonsense is dropped rather than guessed at");
+  const junk = (sent) => new Response(JSON.stringify({ results: [
+    { url: `https://www.${sent.include_domains[0]}/itm/a`, title: "Sold Feb 30, 2024", content: "" },
+    { url: `https://www.${sent.include_domains[0]}/itm/b`, title: "Sold Smarch 4, 2024", content: "" },
+    { url: `https://www.${sent.include_domains[0]}/itm/c`, title: "Sold Jan 99, 2024", content: "" },
+    { url: `https://www.${sent.include_domains[0]}/itm/d`, title: "Sold Jan 1, 1899", content: "" },
+    { url: `https://www.${sent.include_domains[0]}/itm/e`, title: "Sold out", content: "" },
+  ], images: [] }), { status: 200 });
+  const { data } = await runHandler({ body: { query: "x", sold: true, maxResults: 24 }, tavily: junk });
+  ok("not one of them became a date", data.datedCount === 0, JSON.stringify(data.soldDates));
+}
+
+// ── 10. a bare month and day means the most recent one ─────────────────
+{
+  console.log("\n10. A year-less date means the one that already happened");
+  const now = new Date();
+  const recent = new Date(now.getTime() - 20 * 864e5);
+  const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const label = `${MON[recent.getUTCMonth()]} ${recent.getUTCDate()}`;
+  const bare = (sent) => new Response(JSON.stringify({ results: [
+    { url: `https://www.${sent.include_domains[0]}/itm/a`, title: `Thing Sold ${label}`, content: "" },
+  ], images: [] }), { status: 200 });
+  const { data } = await runHandler({
+    body: { query: "x", sold: true, marketplaces: ["ebay"], maxResults: 24 }, tavily: bare });
+  ok("it resolved to a date", data.soldDates.length === 1, JSON.stringify(data.soldDates));
+  ok("in the past, not the future", data.soldDates.every((d) => new Date(d + "T00:00:00Z") <= now),
+     JSON.stringify(data.soldDates));
+  ok("and it is the recent one, not last year's",
+     data.soldDates[0] === recent.toISOString().slice(0, 10),
+     `${data.soldDates[0]} vs ${recent.toISOString().slice(0, 10)}`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
