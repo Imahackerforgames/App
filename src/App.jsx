@@ -1188,6 +1188,13 @@ const Tag = ({ children }) => (
    Anything unrecognised is passed through with its code or status attached,
    so "it gives an error" is something that can be diagnosed rather than
    guessed at. */
+/* Supabase stores addresses lowercased, so "Antonio@..." and "antonio@..."
+   are the same account to it. The app was passing through whatever case was
+   typed, which meant the address it saved as the person's identity could
+   differ from the one on the account — and any comparison against it, now
+   or later, would quietly disagree. Trim and lowercase once, at the edge. */
+const cleanEmail = (v) => String(v || "").trim().toLowerCase();
+
 const AUTH_ERRORS = {
   /* Deliberately vague about how long. GoTrue enforces two separate limits
      here — a short per-address cooldown measured in seconds, and a
@@ -1524,7 +1531,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
     try {
       if (mode === "signup") {
         const d = await supabaseAuth("signup", {
-          email,
+          email: cleanEmail(email),
           password: pw,
           // The signup trigger reads full_name/name out of this metadata to
           // fill in profiles.name, so the username lands in the profile row.
@@ -1536,7 +1543,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
           setPhase("verify"); setCode("");
           setBusy(false); return;
         }
-        onDone({ email, provider: "email", ...sessionFields(d), id: d.user?.id, username: username.trim() });
+        onDone({ email: cleanEmail(email), provider: "email", ...sessionFields(d), id: d.user?.id, username: username.trim() });
       } else if (loginWith === "username") {
         // Supabase authenticates by email, so the username is resolved to an
         // account server-side by the username-login function.
@@ -1549,8 +1556,9 @@ function AuthScreen({ onDone, theme, recovery = null }) {
         if (!res.ok || !d.access_token) throw new Error(d.error || "Username or password is incorrect.");
         onDone({ email: d.user?.email || loginId.trim(), provider: "email", ...sessionFields(d), id: d.user?.id });
       } else {
-        const d = await supabaseAuth("token?grant_type=password", { email: loginId.trim(), password: pw });
-        onDone({ email: loginId.trim(), provider: "email", ...sessionFields(d), id: d.user?.id });
+        const addr = cleanEmail(loginId);
+        const d = await supabaseAuth("token?grant_type=password", { email: addr, password: pw });
+        onDone({ email: addr, provider: "email", ...sessionFields(d), id: d.user?.id });
       }
     } catch (e) {
       // Sandbox blocked the call, or the project isn't reachable from here.
@@ -1620,7 +1628,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
     if (!resetEmailOk || busy) return;
     setBusy(true); setErr(null); setNote(null);
     try {
-      await sendRecoveryEmail(resetEmail.trim());
+      await sendRecoveryEmail(cleanEmail(resetEmail));
       setResetSent(true);
     } catch (e) {
       // Unlike sign-in there is no demo path here: the email has to be sent
@@ -2460,10 +2468,32 @@ export default function ResellOS() {
  // setUser(null) on its own and re-render the app header — which reads
  // user.email — against a null user, blanking the screen.
  const signOut = async () => {
+   /* Read the token before anything clears it. Straight from storage rather
+      than through sessionToken(), which would try to renew a session we are
+      about to throw away. */
+   let token = null;
+   try {
+     const a = await window.storage.get("ros:session");
+     if (a) token = JSON.parse(a.value)?.token || null;
+   } catch {}
+
    setStage("auth");
    setUser(null);
    setTab("home");
    try { await window.storage.delete("ros:session"); } catch {}
+
+   /* Then tell Supabase. Deleting the local copy only hides the session from
+      this browser — the refresh token stays valid on the server until it is
+      revoked, so a sign-out that never reaches Supabase leaves a working
+      credential behind it. Not awaited: as far as this device is concerned
+      the person is already signed out, and a slow network should not hold
+      the screen. */
+   if (token) {
+     fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+       method: "POST",
+       headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${token}` },
+     }).catch(() => {});
+   }
  };
  /* Tied to the user, so signing out drops back to free immediately rather
     than leaving the previous person's plan on screen. */

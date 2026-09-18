@@ -12,6 +12,7 @@ Playwright, run against a production build with Supabase mocked. Three files:
 | `zoomaudit.mjs` | Prints every form control and its size on a phone viewport — the diagnostic behind zoomcheck, for when a new one is added. |
 | `fnsearch.mjs` | The product-search Edge Function itself, run in Node with Tavily stubbed: one search per marketplace, results dealt out evenly, filters still narrowing, one board failing not sinking the rest. |
 | `entcheck.mjs` | What "I've paid — check again" reports back: premium found, genuinely free, expired session, blocked table, lapsed premium, no network. |
+| `signinout.mjs` | Signing in with the address typed in any case, the password being left untouched, a wrong password still failing, and signing out revoking the session server-side before signing straight back in. |
 | `errs.mjs` | Every Supabase error shape, using the real response bodies — broken SMTP, rate limiting, a reused password, a breached password, a dead session, reauthentication. |
 
 ## Running them
@@ -26,6 +27,7 @@ node tests/premium.mjs
 node tests/checkout.mjs
 node tests/brand.mjs
 node tests/zoomcheck.mjs
+node tests/signinout.mjs
 node tests/entcheck.mjs
 node tests/fnsearch.mjs   # no browser or network needed
 ```
