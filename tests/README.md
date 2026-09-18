@@ -4,7 +4,6 @@ Playwright, run against a production build with Supabase mocked. Three files:
 
 | File | What it covers |
 |---|---|
-| `codeonly.mjs` | The whole journey with the 6-digit code and no link: request, wrong code, real code, reusing the old password, changing it, the old password ceasing to work, the new one signing in, and a used code being refused a second time. |
 | `reset.mjs` | Every route and edge: the link, the code, expired links, a stored session not hijacking a reset, the link pasted into an open tab, and ordinary sign-in still working. |
 | `premium.mjs` | What a free account can and cannot reach, and that a premium account reaches all of it. Walks every tab on both plans. |
 | `checkout.mjs` | That all four "Upgrade to premium" buttons open the current checkout link and not a stale one. |
@@ -21,7 +20,6 @@ Playwright, run against a production build with Supabase mocked. Three files:
 npm install
 npm run build
 npx vite preview --port 4173 --strictPort &   # tests expect this port
-node tests/codeonly.mjs
 node tests/reset.mjs
 node tests/errs.mjs
 node tests/premium.mjs

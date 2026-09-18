@@ -274,9 +274,9 @@ const strong = "Str0ng!Pass9";
   await ctx.close();
 }
 
-// ───────────────────────────────────────── 10. the 6-digit code route
+// ───────────────────────────────────────── 10. the sent screen
 {
-  console.log("\n10. Resetting with the 6-digit code instead of the link");
+  console.log("\n10. The check-your-email screen offers one thing: resend");
   const { ctx, page, calls } = await newPage();
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Forgot?" }).click();
@@ -284,39 +284,21 @@ const strong = "Str0ng!Pass9";
   await page.getByRole("button", { name: "Send reset link" }).click();
   await page.waitForTimeout(400);
 
-  const otp = page.getByPlaceholder("000000");
-  ok("code field offered alongside the link", await otp.isVisible());
-  ok("continue disabled until six digits",
-     await page.getByRole("button", { name: /Continue with code/ }).isDisabled());
+  ok("says to check the email", await page.getByText("Check your email").isVisible());
+  ok("names the link, not a code",
+     /password reset link/i.test(await page.locator("body").innerText()));
+  ok("no code box anywhere", (await page.getByPlaceholder("000000").count()) === 0);
+  ok("no continue-with-code button",
+     (await page.getByRole("button", { name: /Continue with code/ }).count()) === 0);
+  ok("a resend button is offered",
+     await page.getByRole("button", { name: /Resend email/ }).isVisible());
 
-  // a wrong code is rejected and does not advance
-  await otp.fill("999999");
-  await page.getByRole("button", { name: /Continue with code/ }).click();
+  const before = calls.filter((c) => c.kind === "recover").length;
+  await page.getByRole("button", { name: /Resend email/ }).click();
   await page.waitForTimeout(400);
-  ok("wrong code reports back", await page.getByRole("alert").isVisible());
-  ok("wrong code does not advance", (await page.getByText("Set a new password").count()) === 0);
-
-  // the right one
-  await otp.fill("123456");
-  await page.getByRole("button", { name: /Continue with code/ }).click();
-  await page.waitForTimeout(500);
-
-  const v = calls.find((x) => x.kind === "verify" && x.body?.token === "123456");
-  ok("POSTed type=recovery to /verify", v?.body?.type === "recovery", JSON.stringify(v?.body));
-  ok("email sent with the code", v?.body?.email === "tester@example.com");
-  ok("reaches the reset screen", await page.getByText("Set a new password").isVisible());
-
-  await page.getByPlaceholder("Make it a strong one").fill(strong);
-  await page.getByPlaceholder("Type it once more").fill(strong);
-  await page.getByRole("button", { name: /Save new password/ }).click();
-  await page.waitForTimeout(700);
-
-  const put = calls.find((x) => x.kind === "user" && x.method === "PUT");
-  ok("PUT authorised with the code-obtained session", put?.auth === "Bearer code_tok", put?.auth);
-  const body10 = await page.locator("body").innerText();
-  ok("code route also ends at the login screen", /Password changed/i.test(body10), body10.slice(0, 140));
-  ok("and carries no session forward",
-     !(await page.evaluate(() => localStorage.getItem("ros:session"))));
+  const after = calls.filter((c) => c.kind === "recover").length;
+  ok("resend actually sends another", after === before + 1, `${before} -> ${after}`);
+  ok("and stays on the same screen", await page.getByText("Check your email").isVisible());
   await ctx.close();
 }
 
