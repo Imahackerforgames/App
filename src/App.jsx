@@ -1472,6 +1472,13 @@ function passwordStrength(pw) {
   return { met, n, level, ok: n === PW_RULES.length };
 }
 
+/* The reset screens sit under a centred mark and a centred line of copy, so
+   their own text is centred too. Left-aligned prose under a centred header
+   reads as an accident rather than a choice. Input labels are deliberately
+   not included: a centred label over a left-aligned field looks broken. */
+const resetHead = { fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 8, textAlign: "center" };
+const resetBody = { fontSize: 13, lineHeight: 1.55, textAlign: "center" };
+
 function AuthScreen({ onDone, theme, recovery = null }) {
   const [mode, setMode]   = useState("login");   // login | signup
   /* A recovery link opens straight onto the reset screen. Nothing else on
@@ -1906,7 +1913,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
               /* Ask for the address, then stop. Like the code screen, this
                  replaces the card rather than sitting under it. */
               <div>
-                <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 8 }}>
+                <div style={resetHead}>
                   {resetSent ? "Check your email" : "Reset your password"}
                 </div>
 
@@ -1914,13 +1921,13 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                   <>
                     {/* Deliberately hedged. Confirming that an address has an
                         account would let anyone test addresses from this form. */}
-                    <p style={{ fontSize: 13, color: t.dim, lineHeight: 1.55, margin: "0 0 20px" }}>
+                    <p style={{ ...resetBody, color: t.dim, margin: "0 0 20px" }}>
                       If an account exists for <span style={{ color: t.bone, fontWeight: 700 }}>{resetEmail.trim()}</span>,
                       a password reset link is on its way. Open the email and follow
                       the link to set a new password. It's good for one hour and
                       works once.
                     </p>
-                    <p style={{ fontSize: 12, color: t.dead, lineHeight: 1.55, margin: "0 0 20px" }}>
+                    <p style={{ ...resetBody, fontSize: 12, color: t.dead, margin: "0 0 20px" }}>
                       Nothing after a couple of minutes? Check the spam folder, then send another.
                     </p>
 
@@ -1936,7 +1943,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                   </>
                 ) : (
                   <>
-                    <p style={{ fontSize: 13, color: t.dim, lineHeight: 1.55, margin: "0 0 20px" }}>
+                    <p style={{ ...resetBody, color: t.dim, margin: "0 0 20px" }}>
                       Type the email address on your account and we'll send you a link
                       that lets you set a new password.
                     </p>
@@ -1979,10 +1986,10 @@ function AuthScreen({ onDone, theme, recovery = null }) {
               <div>
                 {recovery?.error ? (
                   <>
-                    <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 8 }}>
+                    <div style={resetHead}>
                       This link has expired
                     </div>
-                    <p style={{ fontSize: 13, color: t.dim, lineHeight: 1.55, margin: "0 0 20px" }}>
+                    <p style={{ ...resetBody, color: t.dim, margin: "0 0 20px" }}>
                       Reset links last one hour and work once. Send yourself a fresh one
                       and open it straight away.
                     </p>
@@ -1994,10 +2001,10 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                   </>
                 ) : (
                   <>
-                    <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 8 }}>
+                    <div style={resetHead}>
                       Set a new password
                     </div>
-                    <p style={{ fontSize: 13, color: t.dim, lineHeight: 1.55, margin: "0 0 20px" }}>
+                    <p style={{ ...resetBody, color: t.dim, margin: "0 0 20px" }}>
                       Pick something you haven't used here before. You'll log in
                       with it on the next screen.
                     </p>
