@@ -2624,7 +2624,7 @@ export default function ResellOS() {
  <div key={tab}>
  {tab === "home" && <HomeScreen db={db} put={put} biz={biz} range={range} setRange={setRange} go={go} user={user} />}
  {tab === "discover" && <Discover db={db} put={put} jump={jump} go={go} isPro={isPro} requirePro={requirePro} />}
- {tab === "saturation" && <Saturation db={db} go={go} />}
+ {tab === "saturation" && <Saturation db={db} go={go} put={put} />}
  {tab === "business" && <Business db={db} biz={biz} put={put} range={range} setRange={setRange} jump={jump} requirePro={requirePro} isPro={isPro} />}
  {tab === "settings" && <SettingsPage db={db} put={put} reset={reset} user={user} signOut={signOut}
    isPro={isPro} ent={ent} refreshEntitlement={refreshEntitlement} entLoading={entLoading} entNote={entNote} />}
@@ -3490,25 +3490,42 @@ function SavedCompare({ db, put, onDetail }) {
  const toggle = (title) => setPicked((p) => p.includes(title) ? p.filter((t) => t !== title) : [...p, title]);
  const remove = async (title) => put("watchlist", list.filter((w) => w.title !== title));
 
- const items = picked.map((t) => CATALOG.find((c) => c.title === t)).filter(Boolean);
+ /* Prefer the catalog row when there is one — it holds 90 days of reference
+    data — and otherwise use what was saved with the product. Compare used to
+    resolve titles through the catalog alone and `.filter(Boolean)` whatever
+    it could not find, so picking two searched products opened a sheet
+    reading "0 products" with nothing in it. Nothing is dropped now; a
+    product with no measurements says so. */
+ const resolve = (w) => {
+   const ref = CATALOG.find((c) => c.title === w.title);
+   return ref ? { ...w, ...ref, inCatalog: true } : { trend: "flat", ...w, inCatalog: false };
+ };
+ const items = picked
+   .map((t) => list.find((w) => w.title === t))
+   .filter(Boolean)
+   .map(resolve);
 
  if (!list.length) return <Empty icon="🔖" title="Nothing saved yet"
- body="Save products from See More and they'll show up here to compare side by side." />;
+ body="Save a product from Discover, Product Search or Saturation and it shows up here to compare side by side." />;
 
  return (
  <div>
  {list.map((w, i) => {
  const on = picked.includes(w.title);
- const ref = CATALOG.find((c) => c.title === w.title);
+ const it = resolve(w);
  return (
  <div key={w.title} className="rise" style={{ ...rise(i), ...card, borderRadius: 16, marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
  <button onClick={() => toggle(w.title)} aria-label={on ? "Deselect" : "Select"}
  style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, cursor: "pointer", background: on ? C.accent : "transparent", border: `1.5px solid ${on ? C.accent : C.line}`, display: "grid", placeItems: "center" }}>
  {on && <Check size={14} color={C.onAccent} />}
  </button>
- <button onClick={() => ref && onDetail(ref)} style={{ flex: 1, minWidth: 0, background: "none", border: "none", textAlign: "left", cursor: ref ? "pointer" : "default", color: C.bone }}>
+ {/* Opens whatever was saved. This was gated on finding a catalog row,
+     which made every searched product in this list dead to the touch. */}
+ <button onClick={() => onDetail(it)} style={{ flex: 1, minWidth: 0, background: "none", border: "none", textAlign: "left", cursor: "pointer", color: C.bone }}>
  <div style={{ fontSize: 14, fontWeight: 700 }}>{w.title}</div>
- <div style={{ fontSize: 11.5, color: C.dim, marginTop: 3 }}>{w.cat}</div>
+ <div style={{ fontSize: 11.5, color: C.dim, marginTop: 3 }}>
+ {it.cat}{it.inCatalog ? "" : " · measured when opened"}
+ </div>
  </button>
  <button onClick={() => remove(w.title)} aria-label="Remove" className="fx"
  style={{ background: "none", border: "none", cursor: "pointer", color: C.dead, padding: 4, flexShrink: 0 }}>
@@ -3535,11 +3552,20 @@ function SavedCompare({ db, put, onDetail }) {
  <Mini l="Demand" v={demandLabel(it.vel)} />
  <Mini l="Competition" v={compLabel(it.sellers)} />
  <Mini l="Saturation" v={satLabel(it.vel, it.sellers)} />
- <Mini l="Trend" v={it.trend === "up" ? "Rising" : it.trend === "down" ? "Falling" : "Flat"} />
+ {/* "Flat" is the placeholder a searched product is saved with, not a
+     measurement — printing it here would claim a trend nobody read. */}
+ <Mini l="Trend" v={!it.inCatalog ? "Unknown"
+   : it.trend === "up" ? "Rising" : it.trend === "down" ? "Falling" : "Flat"} />
  </div>
  <div style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: VERDICT_COLOR[v.tone], marginTop: 10 }}>
  {v.label}
  </div>
+ {!it.inCatalog && (
+ <p style={{ fontSize: 11.5, color: C.dead, margin: "8px 0 0", lineHeight: 1.55 }}>
+ Found by searching, so there's no reference data behind it yet. Open it
+ from Saved and it gets measured against live listings.
+ </p>
+ )}
  </div>
  );
  })}
@@ -3877,6 +3903,12 @@ function SoldChart({ item, windowDays, total, series = null }) {
   );
 }
 
+/* One measurement per product per session. Opening the same item again —
+   from Saved, from Saturation, from a search you scrolled back to — reuses
+   it rather than spending two more searches on an answer already held.
+   Deliberately not persisted: "measured just now" has to stay true. */
+const LIVE_CACHE = new Map();
+
 function ProductDetailSheet({ item, db, put, onClose }) {
  const [window_, setWindowD] = useState(30);
  const [sold, setSold] = useState(null);
@@ -3889,6 +3921,10 @@ function ProductDetailSheet({ item, db, put, onClose }) {
 
  /* What the live measurement actually counted, if it ran and found
     anything. Read in several places below, so derived once. */
+ /* A catalog row carries reference data measured over 90 days. A live pass
+    sees at most twenty listings. The catalog wins for the judgement tiles;
+    the live pass is what gives the chart its dates. */
+ const inCatalog = CATALOG.some((c) => c.title === item.title);
  const counted = Number(live?.soldSeen) || 0;
  const countedMarkets = Object.keys(live?.soldByMarket || {}).filter((k) => live.soldByMarket[k] > 0);
 
@@ -3918,24 +3954,40 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  SearchProvider.findSimilarProducts(item).then(setRelated);
  }, [item.title, window_]); // eslint-disable-line
 
- /* Anything that came out of a live search has no catalog row behind it, so
-    every signal on this sheet used to read "Unknown". Go and measure it
-    instead: two searches, one for active listings and one for completed
-    ones. Only for products the catalog doesn't already cover, so opening a
-    known product costs nothing. */
+ /* Go and measure the product: two searches, one for active listings and
+    one for completed ones.
+
+    This used to be skipped for anything the catalog already covered, on the
+    grounds that opening a known product should cost nothing. That was also
+    why the sold-over-time line never appeared in AI Discover or Product
+    Search — both surface catalog-backed products, so both took the skip and
+    fell back to the modelled curve. Real dated sales beat a model, so the
+    measurement now runs for everything and the results are cached per title
+    for the session, which is what keeps reopening free. */
  useEffect(() => {
-   if (CATALOG.some((c) => c.title === item.title)) { setLive(null); return; }
    let alive = true;
+   const cached = LIVE_CACHE.get(item.title);
+   if (cached) { setLive(cached); return; }
    setLive({ loading: true });
    SearchProvider.analyzeProduct(item.title)
-     .then((r) => alive && setLive(r))
+     .then((r) => { LIVE_CACHE.set(item.title, r); if (alive) setLive(r); })
      .catch((e) => alive && setLive({ error: e.message || "Couldn't analyze this product." }));
    return () => { alive = false; };
  }, [item.title]);
 
  const save = async () => {
  const list = db.watchlist || [];
- await put("watchlist", saved ? list.filter((w) => w.title !== item.title) : [...list, { title: item.title, cat: item.cat }]);
+ /* Save the product, not just its name. It used to store title and category
+    only, and Saved rebuilt everything else by looking the title up in the
+    catalog — so anything found by searching came back as nothing, could not
+    be opened, and was dropped from Compare without a word. */
+ const entry = {
+   title: item.title, cat: item.cat, source: item.source ?? null,
+   comp: item.comp ?? null, vel: item.vel ?? null, sellers: item.sellers ?? null,
+   comps90: item.comps90 ?? null, trend: item.trend ?? "flat",
+   savedAt: new Date().toISOString(),
+ };
+ await put("watchlist", saved ? list.filter((w) => w.title !== item.title) : [...list, entry]);
  setSaved(!saved);
  };
 
@@ -3955,7 +4007,7 @@ function ProductDetailSheet({ item, db, put, onClose }) {
      two live passes, so a searched product gets measured signals instead
      of four tiles saying "Unknown". */}
  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginBottom: 6 }}>
- {live?.listings !== undefined ? (
+ {live?.listings !== undefined && !inCatalog ? (
  <>
  <Mini l="Demand" v={seenDemandLabel(live.soldSeen)} />
  <Mini l="Competition" v={seenCompLabel(live.listings)} />
@@ -3964,9 +4016,9 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  </>
  ) : (
  <>
- <Mini l="Demand" v={live?.loading ? "Checking…" : demandLabel(item.vel)} />
- <Mini l="Competition" v={live?.loading ? "Checking…" : compLabel(item.sellers)} />
- <Mini l="Saturation" v={live?.loading ? "Checking…" : satLabel(item.vel, item.sellers)} />
+ <Mini l="Demand" v={live?.loading && !inCatalog ? "Checking…" : demandLabel(item.vel)} />
+ <Mini l="Competition" v={live?.loading && !inCatalog ? "Checking…" : compLabel(item.sellers)} />
+ <Mini l="Saturation" v={live?.loading && !inCatalog ? "Checking…" : satLabel(item.vel, item.sellers)} />
  <Mini l="Trend" v={item.trend === "up" ? "Rising" : item.trend === "down" ? "Falling" : "Flat"} />
  </>
  )}
@@ -3982,9 +4034,7 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  <Row l="Sold listings found" r={`${live.soldSeen}${live.soldCapped ? "+" : ""}`} />
  <Row l="Selling on" r={live.markets.length ? live.markets.join(", ") : "None found"} />
  <Row l="Sold data from" r={live.soldMarkets.length ? live.soldMarkets.join(", ") : "None found"} />
- {live.datedCount > 0 && (
- <Row l="Stated a sale date" r={`${live.datedCount} of ${live.soldSeen}${live.soldCapped ? "+" : ""}`} />
- )}
+ {live.datedCount > 0 && <Row l="Sale dates read" r={String(live.datedCount)} />}
  <p style={{ fontSize: 11, color: C.dead, margin: "10px 0 0", lineHeight: 1.55 }}>
  Counted from live marketplace listings, up to 20 per search — a "+" means
  at least that many, not a total. The sold-over-time line is built only from
@@ -4027,9 +4077,7 @@ function ProductDetailSheet({ item, db, put, onClose }) {
      gone and counted real sold listings for it. Use those. */}
  {!sold ? (
  <div style={{ fontFamily: MONO, fontSize: 13, color: C.dead }}>Checking…</div>
- ) : sold.unavailable && live?.loading ? (
- <div style={{ fontFamily: MONO, fontSize: 13, color: C.dead }}>Counting sold listings…</div>
- ) : sold.unavailable && counted > 0 && datedChart ? (
+ ) : datedChart ? (
  /* Counted sales with counted dates: a real time series. Every point is
     listings that said they sold in that bucket, so an empty bucket is an
     empty bucket rather than a gap smoothed over.
@@ -4049,6 +4097,8 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  </div>
  </div>
  </>
+ ) : sold.unavailable && live?.loading ? (
+ <div style={{ fontFamily: MONO, fontSize: 13, color: C.dead }}>Counting sold listings…</div>
  ) : sold.unavailable && counted > 0 ? (
  <>
  <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 600 }}>
@@ -4065,23 +4115,25 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 600 }}>
  {sold.count} <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>sold {windowPhrase(window_)}</span>
  </div>
- {/* Same chart language as the home screen, driven by the 7d/30d/90d
-     chips above, so the line and the number always describe one window.
-     The buckets sum to exactly the count printed above it. */}
+ {/* The modelled fallback: a catalog product whose completed listings
+     didn't state enough dates to plot, or one still being measured. It
+     is replaced by the real line the moment enough dates arrive. */}
  <div style={{ marginTop: 12 }}>
  <SoldChart item={item} windowDays={window_} total={sold.count} />
  </div>
  </>
  )}
  <p style={{ fontSize: 11, color: C.dead, margin: "8px 0 0" }}>
- {sold?.unavailable && counted > 0 && datedChart
+ {datedChart
  ? `Read off completed listings that stated their own sale date. Search doesn't surface every sale, so every point is a floor — read the shape, not the height.`
  : sold?.unavailable && counted > 0
  ? `Counted from completed listings found just now${live.soldCapped ? ", and capped at the search limit — the real number is higher" : ""}. None of them stated a sale date, so there's nothing to plot over time. Search does not surface every sale, so read it as a floor rather than a total.`
  : sold?.unavailable
  ? "This product isn't in our reference data. Use the marketplace links below to check sold listings directly."
+ : sold?.estimated && live?.loading
+ ? "Estimated from available signals while the completed listings are counted. If enough of them state a sale date, this is replaced by the real ones."
  : sold?.estimated
- ? "Estimated from available signals — connect a marketplace for verified counts. The total is an estimate and the curve models the trend direction, not counted daily sales."
+ ? "Estimated from available signals — connect a marketplace for verified counts. Not enough completed listings stated a sale date to plot the real ones, so the total is an estimate and the curve models the trend direction, not counted daily sales."
  : ""}
  </p>
  <div style={{ marginTop: 12, fontSize: 13, color: C.dim }}>
@@ -4171,7 +4223,7 @@ const Mini = ({ l, v }) => (
  </div>
 );
 
-function Saturation({ db, go }) {
+function Saturation({ db, go, put }) {
  const [mode, setMode] = useState("online");
  const [cat, setCat] = useState("All");
  const [ticket, setTicket] = useState("all");
@@ -4248,7 +4300,9 @@ function Saturation({ db, go }) {
  Built from reference market data. Seller counts become live once a marketplace account is connected.
  </p>
 
- {detail && <ProductDetailSheet item={detail} db={db} put={() => {}} onClose={() => setDetail(null)} />}
+ {/* `put` used to be a no-op here, so "Save to watchlist" on a Saturation
+     product did nothing at all and the product never reached Saved. */}
+ {detail && <ProductDetailSheet item={detail} db={db} put={put} onClose={() => setDetail(null)} />}
  </div>
  );
 }

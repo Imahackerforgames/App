@@ -33,6 +33,7 @@ node tests/themes.mjs
 node tests/soldcard.mjs
 node tests/signinout.mjs
 node tests/entcheck.mjs
+node tests/savedsat.mjs
 node tests/fnsearch.mjs   # no browser or network needed
 ```
 
