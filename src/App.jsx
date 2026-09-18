@@ -570,6 +570,9 @@ End with a line starting "SOURCES:" listing the URLs you used, comma separated.`
         `datedCount` says how big a subset, and nothing is filled in for the
         listings that stayed silent. */
      soldDates: Array.isArray(sold.soldDates) ? sold.soldDates : [],
+     /* The same dates split by marketplace, so the breakdown under the chart
+        adds up to the line above it. */
+     soldDatesByMarket: sold.datesByMarket && typeof sold.datesByMarket === "object" ? sold.datesByMarket : {},
      datedCount: Number(sold.datedCount) || 0,
      retrievedAt: active.retrievedAt || new Date().toISOString(),
    };
@@ -2950,6 +2953,28 @@ function Stat({ label: l, value, sub, accent }) {
  </div>
  );
 }
+/* The counted sibling of MiniLine. Same row, same weights, same divider
+   rhythm — the sold card's table has to sit beside the revenue card's and
+   look like it was drawn by the same hand. `to` turns the row into a link
+   without changing how it reads. */
+const MiniCount = ({ l, v, bold, to }) => {
+  const inner = (
+    <>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6,
+        fontSize: 12.5, color: bold ? C.bone : C.dim, fontWeight: bold ? 700 : 400 }}>
+        {l}
+        {to && <ExternalLink size={11} color={C.dead} />}
+      </span>
+      <span style={{ fontFamily: MONO, fontSize: bold ? 15 : 12.5, fontWeight: bold ? 600 : 400,
+        color: bold ? C.accent : C.bone }}>{v}</span>
+    </>
+  );
+  const box = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0" };
+  return to
+    ? <a href={to} target="_blank" rel="noopener noreferrer" style={{ ...box, textDecoration: "none" }}>{inner}</a>
+    : <div style={box}>{inner}</div>;
+};
+
 const MiniLine = ({ l, v, bold }) => (
  <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
  <span style={{ fontSize: 12.5, color: bold ? C.bone : C.dim, fontWeight: bold ? 700 : 400 }}>{l}</span>
@@ -3746,8 +3771,9 @@ function SoldChart({ item, windowDays, total, series = null }) {
     () => (series ? null : soldSeries(item, windowDays, total)), [item.title, windowDays, total, series]); // eslint-disable-line
   const { points, tickEvery } = series || modelled;
 
-  // Same height cap as TrendChart — see the note there.
-  const H = 130, CAP_AT = 494, MAX_H = Math.round(CAP_AT * H / 320);
+  /* Same geometry as TrendChart, deliberately — see the note there. The two
+     charts sit in the same app and should read as one thing. */
+  const H = 140, CAP_AT = 494, MAX_H = Math.round(CAP_AT * H / 320);
   const W = boxW > CAP_AT ? Math.round(boxW * H / MAX_H) : 320;
   const PAD = { t: 14, r: 12, b: 20, l: 12 };
   const iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b;
@@ -3778,7 +3804,7 @@ function SoldChart({ item, windowDays, total, series = null }) {
 
   return (
     <div>
-      <div role="status" style={{ height: 32, marginBottom: 4 }}>
+      <div role="status" style={{ height: 34, marginBottom: 6 }}>
         <div style={{ fontSize: 9.5, color: C.dead, fontFamily: MONO, height: 13 }}>
           {active ? active.full : ""}
         </div>
@@ -3872,6 +3898,15 @@ function ProductDetailSheet({ item, db, put, onClose }) {
     would be three dots pretending to be a trend, and the marketplace links
     are the more honest answer. */
  const soldDates = live?.soldDates || [];
+
+ /* Each marketplace's share of the sales the line is drawn from, counted in
+    the window on screen. These sum to the chart's total by construction —
+    same dates, same buckets, just grouped. */
+ const datedByMarket = Object.entries(live?.soldDatesByMarket || {})
+   .map(([label, dates]) => [label, datedSeries(dates, window_).inWindow])
+   .filter(([, n]) => n > 0)
+   .sort((a, b) => b[1] - a[1]);
+
  const datedChart = soldDates.length >= DATED_MIN
    && datedSeries(soldDates, WIDEST_WINDOW).inWindow >= DATED_MIN
    ? datedSeries(soldDates, window_)
@@ -3997,15 +4032,21 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  ) : sold.unavailable && counted > 0 && datedChart ? (
  /* Counted sales with counted dates: a real time series. Every point is
     listings that said they sold in that bucket, so an empty bucket is an
-    empty bucket rather than a gap smoothed over. */
+    empty bucket rather than a gap smoothed over.
+
+    Laid out like Revenue vs profit on the home screen — chart, rule, the
+    numbers behind it, bold total — because it is the same kind of card and
+    should read like one. */
  <>
- <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 600 }}>
- {datedChart.inWindow} <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>
- sold {windowPhrase(window_)}
- </span>
- </div>
- <div style={{ marginTop: 12 }}>
  <SoldChart item={item} windowDays={window_} series={datedChart} />
+ <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+ {datedByMarket.map(([label, n]) => (
+ <MiniCount key={label} l={label} v={n}
+ to={MARKETS[MARKET_KEY_BY_LABEL[label]]?.url?.(item.title)} />
+ ))}
+ <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 8, paddingTop: 8 }}>
+ <MiniCount l={`Sold ${windowPhrase(window_)}`} v={datedChart.inWindow} bold />
+ </div>
  </div>
  </>
  ) : sold.unavailable && counted > 0 ? (
@@ -4034,7 +4075,7 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  )}
  <p style={{ fontSize: 11, color: C.dead, margin: "8px 0 0" }}>
  {sold?.unavailable && counted > 0 && datedChart
- ? `Counted from the ${soldDates.length} of ${counted}${live.soldCapped ? "+" : ""} completed listings that stated a sale date. The rest didn't say, so every point is a floor — read the shape, not the height.`
+ ? `Read off completed listings that stated their own sale date. Search doesn't surface every sale, so every point is a floor — read the shape, not the height.`
  : sold?.unavailable && counted > 0
  ? `Counted from completed listings found just now${live.soldCapped ? ", and capped at the search limit — the real number is higher" : ""}. None of them stated a sale date, so there's nothing to plot over time. Search does not surface every sale, so read it as a floor rather than a total.`
  : sold?.unavailable

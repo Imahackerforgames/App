@@ -16,7 +16,7 @@ const daysAgo = (n) => {
 /* Opens the detail sheet for a product that is NOT in the catalog — i.e. one
    that came from a live search — with product-search answering as it really
    does: an active pass and a sold pass, each with per-marketplace counts. */
-async function sheet({ soldResults, soldDates = [], activeResults = 12 }) {
+async function sheet({ soldResults, soldDates = [], datesByMarket = null, activeResults = 12 }) {
   const ctx = await b.newContext({ viewport: { width: 420, height: 950 }, deviceScaleFactor: 2 });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => { console.log("  PAGEERROR " + e.message); fail++; });
@@ -31,6 +31,7 @@ async function sheet({ soldResults, soldDates = [], activeResults = 12 }) {
       return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
         count: total, markets: Object.keys(counts), marketCounts: counts,
         soldDates, datedCount: soldDates.length,
+        datesByMarket: datesByMarket ?? (soldDates.length ? { eBay: soldDates } : {}),
         results: [], retrievedAt: new Date().toISOString() }) });
     }
     return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
@@ -108,7 +109,9 @@ console.log("\nWhen the listings did say when they sold");
 {
   /* Six dated sales: four inside the last week, two further back. */
   const dates = [1, 2, 3, 5, 12, 26].map(daysAgo);
-  const { ctx, page } = await sheet({ soldResults: { eBay: 9, Mercari: 4 }, soldDates: dates });
+  const { ctx, page } = await sheet({
+    soldResults: { eBay: 9, Mercari: 4 }, soldDates: dates,
+    datesByMarket: { eBay: [1, 3, 5, 12].map(daysAgo), Mercari: [2, 26].map(daysAgo) } });
   const body = await page.locator("body").innerText();
 
   ok("now it charts", await chart(page).count() === 1);
@@ -116,10 +119,21 @@ console.log("\nWhen the listings did say when they sold");
   ok("the three windows are offered", /\b7d\b/.test(body) && /\b3w\b/.test(body) && /\b30d\b/.test(body),
      body.match(/.{0,40}Recent sold activity.{0,60}/)?.[0]);
   ok("no fourth window sneaks in", !/\b90d\b/.test(body));
-  ok("30 days is the default and counts all six", /\b6\b[\s\S]{0,40}in the last 30 days/.test(body),
-     body.match(/.{0,60}in the last 30 days.{0,20}/)?.[0]);
-  ok("it says how many of the listings carried a date",
-     /6 of 13/.test(body), body.match(/Counted from.{0,90}/)?.[0]);
+  ok("30 days is the default and counts all six", /Sold in the last 30 days\s*6/.test(body),
+     body.match(/.{0,40}in the last 30 days.{0,20}/)?.[0]);
+
+  /* Laid out like Revenue vs profit: chart, rule, the numbers behind it,
+     bold total. */
+  ok("the marketplaces are broken out", /eBay\s*4/.test(body) && /Mercari\s*2/.test(body),
+     body.match(/eBay[\s\S]{0,30}/)?.[0]);
+  ok("and the breakdown adds up to the total, like the revenue card",
+     Number(body.match(/eBay\s*(\d+)/)?.[1]) + Number(body.match(/Mercari\s*(\d+)/)?.[1])
+       === Number(body.match(/Sold in the last 30 days\s*(\d+)/)?.[1]),
+     body.match(/eBay[\s\S]{0,120}/)?.[0]);
+  ok("the marketplace rows still link out",
+     (await Promise.all((await page.getByRole("link").all()).map((l) => l.getAttribute("href"))))
+       .some((h) => h && /ebay\.com/.test(h)));
+  ok("no big bare number competing with the chart", !/\n6 sold/.test(body));
 
   await page.screenshot({ path: "shot-soldchart.png" });
 
@@ -127,15 +141,20 @@ console.log("\nWhen the listings did say when they sold");
   await page.getByRole("button", { name: /^3w$/ }).click();
   await page.waitForTimeout(500);
   const wk3 = await page.locator("body").innerText();
-  ok("3w narrows the count to five", /\b5\b[\s\S]{0,40}in the last 3 weeks/.test(wk3),
-     wk3.match(/.{0,60}in the last 3 weeks.{0,20}/)?.[0]);
+  ok("3w narrows the count to five", /Sold in the last 3 weeks\s*5/.test(wk3),
+     wk3.match(/.{0,40}in the last 3 weeks.{0,20}/)?.[0]);
+  ok("and the breakdown re-sums for that window",
+     Number(wk3.match(/eBay\s*(\d+)/)?.[1] ?? 0) + Number(wk3.match(/Mercari\s*(\d+)/)?.[1] ?? 0) === 5,
+     wk3.match(/eBay[\s\S]{0,120}/)?.[0]);
 
   // 7 days drops the 12-day-old one too.
   await page.getByRole("button", { name: /^7d$/ }).click();
   await page.waitForTimeout(500);
   const wk1 = await page.locator("body").innerText();
-  ok("7d narrows it again to four", /\b4\b[\s\S]{0,40}in the last 7 days/.test(wk1),
-     wk1.match(/.{0,60}in the last 7 days.{0,20}/)?.[0]);
+  ok("7d narrows it again to four", /Sold in the last 7 days\s*4/.test(wk1),
+     wk1.match(/.{0,40}in the last 7 days.{0,20}/)?.[0]);
+  ok("a marketplace with nothing in the window drops out, it does not show 0",
+     !/Mercari\s*0/.test(wk1), wk1.match(/eBay[\s\S]{0,120}/)?.[0]);
   ok("the line is still drawn", await chart(page).count() === 1);
   await ctx.close();
 }

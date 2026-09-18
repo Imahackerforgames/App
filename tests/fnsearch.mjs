@@ -135,7 +135,9 @@ const okReply = (sent) => new Response(JSON.stringify({
   ok("datedCount matches", data.datedCount === data.soldDates.length,
      `${data.datedCount} vs ${data.soldDates.length}`);
   ok("undated listings add nothing", data.datedCount < data.count, `${data.datedCount} of ${data.count}`);
-  ok("never more dates than listings", data.datedCount <= data.count);
+  ok("the breakdown by marketplace adds up to the total",
+     Object.values(data.datesByMarket).flat().length === data.datedCount,
+     JSON.stringify(data.datesByMarket));
   ok("the working text never ships", data.results.every((r) => r._text === undefined));
   ok("and no listing text leaked a price",
      data.results.every((r) => !/\$\d/.test(JSON.stringify(r))), JSON.stringify(data.results[0]));
@@ -182,6 +184,39 @@ const okReply = (sent) => new Response(JSON.stringify({
   ok("and it is the recent one, not last year's",
      data.soldDates[0] === recent.toISOString().slice(0, 10),
      `${data.soldDates[0]} vs ${recent.toISOString().slice(0, 10)}`);
+}
+
+// ── 11. a completed-listings page yields every sale on it ──────────────
+{
+  console.log("\n11. One page, many sales — all of them counted");
+  const y = new Date().getUTCFullYear();
+  /* What a marketplace's sold-items page actually looks like: one result,
+     a long page, a sale date beside every item on it. Reading only the
+     first was why the chart had nothing to draw. */
+  const page = Array.from({ length: 14 }, (_, i) =>
+    `Item ${i} Sold Jul ${i + 1}, ${y - 1}`).join(" \u00b7 ");
+  const many = (sent) => new Response(JSON.stringify({ results: [
+    { url: `https://www.${sent.include_domains[0]}/sch/i.html`, title: "Sold items",
+      content: "Sold items page", raw_content: page },
+  ], images: [] }), { status: 200 });
+
+  const { data, calls } = await runHandler({
+    body: { query: "x", sold: true, marketplaces: ["ebay"], maxResults: 24 }, tavily: many });
+  ok("the whole page was asked for", calls[0].include_raw_content === true, JSON.stringify(calls[0].include_raw_content));
+  ok("all fourteen sales were read, not just the first", data.datedCount === 14, String(data.datedCount));
+  ok("from a single listing", data.count === 1, String(data.count));
+  ok("all attributed to the right marketplace",
+     data.datesByMarket.eBay?.length === 14, JSON.stringify(Object.keys(data.datesByMarket)));
+  ok("and the page text still never ships",
+     !JSON.stringify(data.results).includes("raw_content") && data.results.every((r) => r._text === undefined));
+}
+
+// ── 12. the active pass does not pay for page text it never reads ──────
+{
+  console.log("\n12. Only the sold pass pulls full pages");
+  const { calls } = await runHandler({ body: { query: "x", maxResults: 24 }, tavily: okReply });
+  ok("the active pass leaves it off", calls.every((c) => c.include_raw_content === false),
+     JSON.stringify(calls.map((c) => c.include_raw_content)));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

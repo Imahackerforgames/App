@@ -154,6 +154,18 @@ Deno.serve(async (req: Request) => {
     const wanted = Math.min(Math.max(Number(maxResults) || 10, 5), 40);
     const perDomain = Math.max(3, Math.min(10, Math.ceil(wanted / domains.length) + 2));
 
+    /* The sold pass asks for the whole page, not just the snippet.
+
+       A marketplace's completed-listings page carries a sale date beside
+       every item on it — that is the only real dated sales data this app can
+       reach. Tavily's default `content` is a few hundred characters of that
+       page, which usually holds one date or none, which is why the chart had
+       nothing to draw. `include_raw_content` returns the page text, where the
+       rest of the dates are.
+
+       Only on the sold pass: the active pass measures competition and has no
+       use for it, and raw content is by far the biggest thing in a Tavily
+       response. */
     const askTavily = async (domain: string) => {
       const res = await fetch("https://api.tavily.com/search", {
         method: "POST",
@@ -172,6 +184,7 @@ Deno.serve(async (req: Request) => {
           max_results: perDomain,
           include_images: true,
           include_answer: false,
+          include_raw_content: sold,
         }),
       });
       if (!res.ok) {
@@ -244,9 +257,13 @@ Deno.serve(async (req: Request) => {
         market: marketOf(String(r.url)),
         snippet: stripPrices(String(r.content ?? "")).slice(0, 180),
         /* The listing's own words, untrimmed and with prices intact, kept
-           only long enough to read a sale date off. Deleted before this
-           leaves the function — see below. */
-        _text: `${r.title ?? ""} ${r.content ?? ""}`,
+           only long enough to read sale dates off. Deleted before this
+           leaves the function — see below.
+
+           Capped because raw page text runs to hundreds of kilobytes and the
+           dates sit in the item cards near the top; scanning all of it would
+           cost time for listings nobody asked about. */
+        _text: `${r.title ?? ""} ${r.content ?? ""} ${String(r.raw_content ?? "").slice(0, 40000)}`,
         image: images.find((i: any) =>
           typeof i === "string" ? false : i?.url
         )?.url ?? null,
@@ -293,9 +310,12 @@ Deno.serve(async (req: Request) => {
        Completed listings usually carry it in their own text — "Sold Sep 12,
        2026" on eBay, "Sold 12 Sep" elsewhere — and that is a real date on a
        real sale, which is the only thing that can honestly be plotted over
-       time. Nothing is inferred: a listing with no readable date simply
-       contributes nothing here, and the caller is told how many of the
-       listings actually carried one.
+       time. Nothing is inferred: text with no readable date simply
+       contributes nothing here.
+
+       A completed-listings page lists many past sales, so one result can
+       legitimately yield many dates — which is why these are counted and
+       grouped as sales, not as listings.
 
        Years are optional in these strings. A bare "Sep 12" means the most
        recent September 12th that has already happened, since a completed
@@ -307,38 +327,52 @@ Deno.serve(async (req: Request) => {
     /* "Sold Sep 12, 2026" and "Sold 12 Sep 2026" are both common; the year
        is often missing from both. */
     const SOLD_DATE =
-      /sold[^A-Za-z0-9]{0,12}(?:([A-Za-z]{3,9})\.?\s+(\d{1,2})|(\d{1,2})\s+([A-Za-z]{3,9})\.?)(?:,?\s*(\d{4}))?/i;
+      /sold[^A-Za-z0-9]{0,12}(?:([A-Za-z]{3,9})\.?\s+(\d{1,2})|(\d{1,2})\s+([A-Za-z]{3,9})\.?)(?:,?\s*(\d{4}))?/gi;
+    /* A completed-listings page carries one of these per item, so a single
+       result legitimately yields many dates. Capped so a pathological page
+       cannot dominate the whole chart. */
+    const MAX_DATES_PER_PAGE = 80;
     const DAYS_IN = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
     const soldDates: string[] = [];
+    /* The same dates split by marketplace, so the caller can show a
+       breakdown that adds up to the total instead of two numbers that look
+       unrelated to each other. */
+    const datesByMarket: Record<string, string[]> = {};
     const now = Date.now();
     for (const r of results) {
-      const m = String(r._text || "").match(SOLD_DATE);
-      if (!m) continue;
-      const month = MONTHS[(m[1] || m[4] || "").slice(0, 3).toLowerCase()];
-      if (month === undefined) continue;
-      const day = Number(m[2] || m[3]);
-      if (!day || day > DAYS_IN[month]) continue;
+      let found = 0;
+      for (const m of String(r._text || "").matchAll(SOLD_DATE)) {
+        if (found >= MAX_DATES_PER_PAGE) break;
+        const month = MONTHS[(m[1] || m[4] || "").slice(0, 3).toLowerCase()];
+        if (month === undefined) continue;
+        const day = Number(m[2] || m[3]);
+        if (!day || day > DAYS_IN[month]) continue;
 
-      let year = Number(m[5]);
-      if (year) {
-        /* A four-digit number next to a date is usually the year, but not
-           always — drop anything outside the range a sale could fall in. */
-        const thisYear = new Date().getUTCFullYear();
-        if (year < 2000 || year > thisYear) continue;
-      } else {
-        year = new Date().getUTCFullYear();
-        if (Date.UTC(year, month, day) > now) year -= 1;
+        let year = Number(m[5]);
+        if (year) {
+          /* A four-digit number next to a date is usually the year, but not
+             always — drop anything outside the range a sale could fall in. */
+          const thisYear = new Date().getUTCFullYear();
+          if (year < 2000 || year > thisYear) continue;
+        } else {
+          year = new Date().getUTCFullYear();
+          if (Date.UTC(year, month, day) > now) year -= 1;
+        }
+
+        const t = Date.UTC(year, month, day);
+        /* Date.UTC rolls an impossible date forward (Feb 30 becomes Mar 2),
+           so check the parts came back unchanged rather than trusting it. */
+        const d = new Date(t);
+        if (d.getUTCMonth() !== month || d.getUTCDate() !== day || t > now) continue;
+        const iso = d.toISOString().slice(0, 10);
+        soldDates.push(iso);
+        (datesByMarket[r.market] ??= []).push(iso);
+        found += 1;
       }
-
-      const t = Date.UTC(year, month, day);
-      /* Date.UTC rolls an impossible date forward (Feb 30 becomes Mar 2),
-         so check the parts came back unchanged rather than trusting it. */
-      const d = new Date(t);
-      if (d.getUTCMonth() !== month || d.getUTCDate() !== day || t > now) continue;
-      soldDates.push(d.toISOString().slice(0, 10));
     }
     soldDates.sort();
+    for (const k of Object.keys(datesByMarket)) datesByMarket[k].sort();
 
     /* The working text goes no further. It is unstripped listing copy — full
        of prices this app is careful not to present as its own — and the
@@ -354,6 +388,7 @@ Deno.serve(async (req: Request) => {
       markets,
       marketCounts,
       soldDates,
+      datesByMarket,
       datedCount: soldDates.length,
       count: results.length,
       retrievedAt: new Date().toISOString(),
