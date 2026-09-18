@@ -562,6 +562,9 @@ End with a line starting "SOURCES:" listing the URLs you used, comma separated.`
      soldCapped: soldSeen >= 20,
      markets: active.markets || [],
      soldMarkets: sold.markets || [],
+     /* Sold listings per marketplace. Counted, not modelled — this is how
+        many the search actually returned from each board. */
+     soldByMarket: sold.marketCounts || {},
      retrievedAt: active.retrievedAt || new Date().toISOString(),
    };
  },
@@ -3589,6 +3592,39 @@ function soldSeries(item, windowDays, total) {
    plots counts. Same visual language: readout above the plot so nothing
    covers the line, quiet grid, accent line over a gradient, crosshair and
    marker on hover, fixed-height status row so nothing shifts. */
+/* Sold listings per marketplace, drawn from counted results.
+
+   Deliberately a breakdown rather than a line over time. The measurement
+   behind it has no dates on it — it is "these listings exist now", not
+   "this many sold on each day" — so a time series would be a shape invented
+   to look like history. The bars say only what was counted, which is the
+   most this data can honestly support. */
+function SoldByMarket({ counts }) {
+  const rows = Object.entries(counts || {})
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1]);
+  if (!rows.length) return null;
+  const max = Math.max(...rows.map(([, n]) => n));
+
+  return (
+    <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+      {rows.map(([market, n], i) => (
+        <div key={market} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ width: 82, flexShrink: 0, fontSize: 11.5, color: C.dim }}>{market}</span>
+          <div style={{ flex: 1, height: 10, borderRadius: 999, background: C.raised, overflow: "hidden" }}>
+            <div style={{
+              width: `${Math.round((n / max) * 100)}%`, height: "100%", borderRadius: 999,
+              background: i === 0 ? C.accent : C.accentDim,
+              transition: "width .4s cubic-bezier(.2,.7,.3,1)",
+            }} />
+          </div>
+          <span style={{ width: 24, textAlign: "right", fontFamily: MONO, fontSize: 12.5 }}>{n}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SoldChart({ item, windowDays, total }) {
   const [hover, setHover] = useState(null);
   const [boxW, setBoxW] = useState(0);
@@ -3711,6 +3747,11 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  const [cost, setCost] = useState("");
  const s = db.settings;
 
+ /* What the live measurement actually counted, if it ran and found
+    anything. Read in several places below, so derived once. */
+ const counted = Number(live?.soldSeen) || 0;
+ const countedMarkets = Object.keys(live?.soldByMarket || {}).filter((k) => live.soldByMarket[k] > 0);
+
  useEffect(() => {
  setSaved((db.watchlist || []).some((w) => w.title === item.title));
  SearchProvider.getRecentSoldData(item.title, window_).then(setSold);
@@ -3801,15 +3842,34 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  <div style={{ ...card, marginTop: 10 }}>
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
  <span style={label}>Recent sold activity</span>
+ {/* Hidden when the numbers come from counted listings: those carry no
+     dates, so putting them under a 7d/30d/90d chip would be claiming a
+     time range nobody measured. */}
+ {!(sold?.unavailable && counted > 0) && (
  <div style={{ display: "flex", gap: 5 }}>
  {[7, 30, 90].map((d) => (
  <button key={d} onClick={() => setWindowD(d)} className="fx fx-chip"
  style={{ ...pillBtn(window_ === d), padding: "4px 9px", fontSize: 10.5 }}>{d}d</button>
  ))}
  </div>
+ )}
  </div>
+ {/* A product that came from a live search has no catalog row, so the
+     estimate below has nothing to work from — but the sheet has already
+     gone and counted real sold listings for it. Use those. */}
  {!sold ? (
  <div style={{ fontFamily: MONO, fontSize: 13, color: C.dead }}>Checking…</div>
+ ) : sold.unavailable && live?.loading ? (
+ <div style={{ fontFamily: MONO, fontSize: 13, color: C.dead }}>Counting sold listings…</div>
+ ) : sold.unavailable && counted > 0 ? (
+ <>
+ <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 600 }}>
+ {counted}{live.soldCapped ? "+" : ""} <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>
+ sold listings found{countedMarkets.length ? ` across ${countedMarkets.length} marketplace${countedMarkets.length > 1 ? "s" : ""}` : ""}
+ </span>
+ </div>
+ <SoldByMarket counts={live.soldByMarket} />
+ </>
  ) : sold.unavailable ? (
  <div style={{ fontFamily: MONO, fontSize: 14, color: C.dim }}>No reliable sold data</div>
  ) : (
@@ -3826,7 +3886,9 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  </>
  )}
  <p style={{ fontSize: 11, color: C.dead, margin: "8px 0 0" }}>
- {sold?.unavailable
+ {sold?.unavailable && counted > 0
+ ? `Counted from completed listings found across the marketplaces just now${live.soldCapped ? ", and capped at the search limit — the real number is higher" : ""}. Search does not surface every sale, so read it as a floor rather than a total. No dates attached, so this is not a rate.`
+ : sold?.unavailable
  ? "This product isn't in our reference data. Use the marketplace links below to check sold listings directly."
  : sold?.estimated
  ? "Estimated from available signals — connect a marketplace for verified counts. The total is an estimate and the curve models the trend direction, not counted daily sales."

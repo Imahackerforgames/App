@@ -272,6 +272,17 @@ Deno.serve(async (req: Request) => {
     }
 
     const markets = [...new Set(results.map((r: any) => r.market))];
+
+    /* How many of those listings came from each marketplace. The caller can
+       already see which marketplaces answered; this says how much each one
+       actually carried, which is the difference between "eBay and Depop have
+       it" and "eBay has nine and Depop has one".
+
+       Counted from the listings that survived filtering, so it is a count of
+       things this search actually found — not an estimate, and not a claim
+       about total sales on that marketplace. */
+    const marketCounts: Record<string, number> = {};
+    for (const r of results) marketCounts[r.market] = (marketCounts[r.market] ?? 0) + 1;
     console.log(`product-search: ok — "${query}" (${mode}${sold ? ", sold" : ""}) over ${domains.length} marketplace(s) [${domains.join(", ")}], ${perDomain} each → ${results.length} of ${hits.length} raw kept across ${markets.length} marketplaces.`);
 
     return json({
@@ -280,6 +291,7 @@ Deno.serve(async (req: Request) => {
       sold,
       searchedDomains: domains,
       markets,
+      marketCounts,
       count: results.length,
       retrievedAt: new Date().toISOString(),
       source: "tavily",
