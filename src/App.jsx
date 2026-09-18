@@ -835,17 +835,45 @@ const ESSENTIALS = [
  { name: "Thermal label printer", cat: "Shipping Supplies", note: "Fast label printing with no ink cost." },
 ];
 
+/* Four palettes, two light and two dark.
+
+   onAccent is the reason this has one more token than it used to. Text on
+   an accent used to be hardcoded white, which is fine over a strong red and
+   illegible over gold: white on #C6A15B measures 2.4:1, and on #D4AF63 it
+   is 2.1:1. Each palette now names the colour that actually reads on its
+   own accent, and every pairing below was measured rather than eyeballed —
+   body text clears 4.5:1 against all three backgrounds it can sit on, and
+   the accent's own text clears 4.5:1 too.
+
+   Two values differ slightly from the palettes as specified, both for the
+   same reason. Pearl's steel blue and Ivory's sage are lovely as supporting
+   colours but too light to read as small text on white, so the tint is kept
+   and the value darkened until it clears; Pearl's blue is a shade deeper so
+   that white on it passes rather than nearly passes. */
 const THEMES = {
- wealth: { name: "Wealth", sub: "Black + Emerald", void:"#0A0F0C", panel:"#121A15", raised:"#1B2620", line:"#243328", accent:"#10B981", accentDim:"#065F46", bone:"#F2F7F4", dim:"#9BB0A3", dead:"#66786C" },
- heat: { name: "Heat", sub: "Black + Red", void:"#0B0708", panel:"#17100F", raised:"#221818", line:"#2E2020", accent:"#E5142B", accentDim:"#7E0A17", bone:"#F5EFEE", dim:"#A08F8F", dead:"#6E6060" },
- ice: { name: "Ice", sub: "White + Blue", void:"#F4F8FC", panel:"#FFFFFF", raised:"#EAF1F9", line:"#D8E4F0", accent:"#1264E0", accentDim:"#0C3D8C", bone:"#101B2B", dim:"#5C6C80", dead:"#95A3B3" },
- night: { name: "Night", sub: "Black + Purple", void:"#0A0810", panel:"#150F1E", raised:"#201530", line:"#2B2040", accent:"#9B5CF6", accentDim:"#5B2FA6", bone:"#F3EFFA", dim:"#A79BC0", dead:"#6E6483" },
- clean: { name: "Clean", sub: "White + Orange", void:"#FBF7F2", panel:"#FFFFFF", raised:"#F4EBDF", line:"#E8DAC5", accent:"#E8720C", accentDim:"#B8560A", bone:"#241A0F", dim:"#8A7A63", dead:"#B3A38C" },
+ ivory: { name: "Luxury Ivory", sub: "Ivory + Champagne Gold",
+   void:"#F7F5F0", panel:"#FFFFFF", raised:"#F0ECE3", line:"#E4DFD3",
+   accent:"#C6A15B", accentDim:"#A07E3C", accentText:"#7A5E28", onAccent:"#1C1C1C",
+   bone:"#1C1C1C", dim:"#63635B", dead:"#87877E" },
+ pearl: { name: "Pearl Blue", sub: "Pearl + Royal Blue",
+   void:"#F4F7FA", panel:"#FFFFFF", raised:"#E9EFF6", line:"#D9E3ED",
+   accent:"#4A75A4", accentDim:"#365777", accentText:"#365777", onAccent:"#FFFFFF",
+   bone:"#172033", dim:"#566878", dead:"#758C9E" },
+ obsidian: { name: "Obsidian Gold", sub: "Obsidian + Luxury Gold",
+   void:"#0D0F10", panel:"#15181A", raised:"#1E2225", line:"#2B3033",
+   accent:"#D4AF63", accentDim:"#8A6F35", accentText:"#D4AF63", onAccent:"#0D0F10",
+   bone:"#F5F1E8", dim:"#9DA29C", dead:"#6C736D" },
+ emerald: { name: "Midnight Emerald", sub: "Midnight Green + Emerald",
+   void:"#0B1210", panel:"#121A17", raised:"#1A2420", line:"#26312C",
+   accent:"#45B58A", accentDim:"#2A7458", accentText:"#45B58A", onAccent:"#0B1210",
+   bone:"#F1F4EF", dim:"#95A59B", dead:"#657A70" },
 };
 
 const C = {
  void:"var(--c-void)", panel:"var(--c-panel)", raised:"var(--c-raised)", line:"var(--c-line)",
- accent:"var(--c-accent)", accentDim:"var(--c-accentDim)", bone:"var(--c-bone)", dim:"var(--c-dim)", dead:"var(--c-dead)",
+ accent:"var(--c-accent)", accentDim:"var(--c-accentDim)",
+ accentText:"var(--c-accentText)", onAccent:"var(--c-onAccent)",
+ bone:"var(--c-bone)", dim:"var(--c-dim)", dead:"var(--c-dead)",
 };
 const MONO = "'IBM Plex Mono', ui-monospace, monospace";
 const SANS = "'Archivo', ui-sans-serif, system-ui, sans-serif";
@@ -853,7 +881,7 @@ const SANS = "'Archivo', ui-sans-serif, system-ui, sans-serif";
 const card = { background: C.panel, border: `1px solid ${C.line}`, borderRadius: 18, padding: 16 };
 const pillBtn = (on) => ({ borderRadius: 999, padding: "9px 16px", cursor: "pointer", fontSize: 13,
  fontWeight: on ? 700 : 600, background: on ? C.accent : "transparent",
- color: on ? "#fff" : C.dim, border: `1px solid ${on ? C.accent : C.line}` });
+ color: on ? C.onAccent : C.dim, border: `1px solid ${on ? C.accent : C.line}` });
 const inputSt = { padding: "12px 16px", fontFamily: SANS, fontSize: 14.5, color: C.bone,
  background: C.raised, border: `1px solid ${C.line}`, borderRadius: 999, width: "100%" };
 const label = { fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: C.dim };
@@ -861,7 +889,7 @@ const rise = (i = 0) => ({ animationDelay: `${i * 55}ms` });
 const MOTIVATION = ["Let's make some money.", "Let's build this wealth.", "Time to grow the business.", "Let's find the next winner."];
 
 const DEFAULTS = {
- profile: { name: "", state: "", zip: "", radius: 25, onboarded: false, theme: "heat" },
+ profile: { name: "", state: "", zip: "", radius: 25, onboarded: false, theme: "obsidian" },
  settings: { feePct: 13.25, payPct: 2.9, ship: 8, startingBalance: 0,
  notif: { opps: true, satur: true, demand: true, local: true }, aiUseData: true },
  inventory: [], sales: [], watchlist: [], notifications: [], readNotifs: [],
@@ -947,13 +975,15 @@ function useBusiness(db, range) {
 }
 
 function Styles({ theme }) {
- const t = THEMES[theme] || THEMES.heat;
+ const t = THEMES[theme] || THEMES.ivory;
  return (
  <style>{`
  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
  .reseller-root {
  --c-void:${t.void}; --c-panel:${t.panel}; --c-raised:${t.raised}; --c-line:${t.line};
- --c-accent:${t.accent}; --c-accentDim:${t.accentDim}; --c-bone:${t.bone}; --c-dim:${t.dim}; --c-dead:${t.dead};
+ --c-accent:${t.accent}; --c-accentDim:${t.accentDim};
+ --c-accentText:${t.accentText}; --c-onAccent:${t.onAccent};
+ --c-bone:${t.bone}; --c-dim:${t.dim}; --c-dead:${t.dead};
 
  /* One hover glow, defined once and used everywhere, so every element
     lights up identically. Both layers are centred — no y-offset — because
@@ -1037,8 +1067,8 @@ function Styles({ theme }) {
  /* Hovering and being on the tab read the same: the word takes the
     theme's accent. The underline is what separates "could go here"
     from "am here". */
- .topnav-link:hover { color: var(--c-accent); }
- .topnav-link[aria-current="page"] { color: var(--c-accent); border-bottom-color: var(--c-accent); }
+ .topnav-link:hover { color: var(--c-accentText); }
+ .topnav-link[aria-current="page"] { color: var(--c-accentText); border-bottom-color: var(--c-accentText); }
 
  /* ── Phone tab row: bubbles ───────────────────────────────────────
     The icons drop out and each name gets its own capsule, sharing the
@@ -1069,7 +1099,7 @@ function Styles({ theme }) {
    .topnav-link:active { transform: scale(.93); }
    .topnav-link[aria-current="page"] {
      background: color-mix(in srgb, var(--c-accent) 20%, transparent);
-     color: var(--c-accent);
+     color: var(--c-accentText);
    }
    .topnav-link[aria-current="page"]:hover {
      background: color-mix(in srgb, var(--c-accent) 26%, transparent);
@@ -1124,7 +1154,7 @@ function Styles({ theme }) {
  [data-layout="mobile"] .topnav-link:active { transform: scale(.93); }
  [data-layout="mobile"] .topnav-link[aria-current="page"] {
    background: color-mix(in srgb, var(--c-accent) 20%, transparent) !important;
-   color: var(--c-accent) !important;
+   color: var(--c-accentText) !important;
  }
  [data-layout="mobile"] .topnav-link[aria-current="page"]:hover {
    background: color-mix(in srgb, var(--c-accent) 26%, transparent) !important;
@@ -1149,7 +1179,7 @@ function Styles({ theme }) {
     would ring the whole line — a plain colour shift is the right weight
     here. !important because the label style is inline and would win. */
  .stock-head:hover { color: var(--c-bone) !important; }
- .stock-head:hover svg { color: var(--c-accent); }
+ .stock-head:hover svg { color: var(--c-accentText); }
  button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible, textarea:focus-visible {
  outline: 2px solid ${C.accent}; outline-offset: 3px; }
  ::-webkit-scrollbar { width:0; height:0; }
@@ -1509,7 +1539,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
   const [newPw, setNewPw]   = useState("");
   const [newPw2, setNewPw2] = useState("");
 
-  const t = THEMES[theme] || THEMES.heat;
+  const t = THEMES[theme] || THEMES.ivory;
   const strength = passwordStrength(pw);
   const emailOk = /\S+@\S+\.\S+/.test(email);
   // Logging in only needs credentials that already exist; the rules gate
@@ -1760,13 +1790,13 @@ function AuthScreen({ onDone, theme, recovery = null }) {
         .auth-in { transition: border-color .2s, box-shadow .2s, background .2s, transform .18s cubic-bezier(.2,.7,.3,1); }
         .auth-in:hover {
           transform: translateY(-2px);
-          border-color: var(--c-accent);
+          border-color: var(--c-accentText);
           box-shadow: var(--glow);
         }
         /* Declared after :hover so a focused field keeps the stronger ring
            even while the pointer is over it. */
         .auth-in:focus-within {
-          border-color: var(--c-accent) !important;
+          border-color: var(--c-accentText) !important;
           box-shadow: var(--glow-focus);
           transform: translateY(-2px);
         }
@@ -1782,7 +1812,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
         }
         .auth-link { transition: color .2s, transform .16s cubic-bezier(.2,.7,.3,1), text-shadow .2s; }
         .auth-link:hover {
-          color: var(--c-accent) !important; transform: translateY(-1px);
+          color: var(--c-accentText) !important; transform: translateY(-1px);
           text-shadow: 0 0 14px color-mix(in srgb, var(--c-accent) 65%, transparent);
         }
         /* On the svg, not .auth-logo — that element's markIn animation uses
@@ -1797,7 +1827,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
         .auth-cta:active:not(:disabled) { transform: translateY(0) scale(.98); }
         .auth-alt { transition: border-color .2s, background .2s, transform .16s; }
         .auth-alt:hover {
-          border-color: var(--c-accent) !important; transform: translateY(-1px);
+          border-color: var(--c-accentText) !important; transform: translateY(-1px);
           box-shadow: var(--glow);
         }
         /* The card and the mark stop moving but stay fully visible. The .1
@@ -1895,7 +1925,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                       letterSpacing: "0.34em", textAlign: "center", padding: "16px 0" }} />
                 </div>
 
-                {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accent, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
+                {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accentText, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
                 {note && <div style={{ fontSize: 12.5, color: t.dim, marginBottom: 12, lineHeight: 1.5 }}>{note}</div>}
 
                 <button onClick={verifyCode} disabled={!otpOk(code) || busy} className="auth-cta"
@@ -1903,7 +1933,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                     cursor: otpOk(code) && !busy ? "pointer" : "not-allowed",
                     fontFamily: SANS, fontSize: 15, fontWeight: 800,
                     background: otpOk(code) ? t.accent : t.raised,
-                    color: otpOk(code) ? "#fff" : t.dead }}>
+                    color: otpOk(code) ? t.onAccent : t.dead }}>
                   {busy ? "Checking…" : "Verify and continue"}
                 </button>
 
@@ -1942,13 +1972,13 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                       Nothing after a couple of minutes? Check the spam folder, then send another.
                     </p>
 
-                    {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accent, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
+                    {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accentText, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
                     {note && <div style={{ fontSize: 12.5, color: t.dim, marginBottom: 12, lineHeight: 1.5 }}>{note}</div>}
 
                     <button onClick={sendReset} disabled={busy} className="auth-cta"
                       style={{ width: "100%", padding: "15px", borderRadius: 14, border: "none",
                         cursor: busy ? "wait" : "pointer", fontFamily: SANS, fontSize: 15,
-                        fontWeight: 800, background: t.accent, color: "#fff" }}>
+                        fontWeight: 800, background: t.accent, color: t.onAccent }}>
                       {busy ? "Sending…" : "Resend email"}
                     </button>
                   </>
@@ -1968,7 +1998,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                         style={{ flex: 1, background: "none", border: "none", outline: "none", color: t.bone, fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
                     </div>
 
-                    {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accent, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
+                    {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accentText, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
                     {note && <div style={{ fontSize: 12.5, color: t.dim, marginBottom: 12, lineHeight: 1.5 }}>{note}</div>}
 
                     <button onClick={sendReset} disabled={!resetEmailOk || busy} className="auth-cta"
@@ -1976,7 +2006,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                         cursor: resetEmailOk && !busy ? "pointer" : "not-allowed",
                         fontFamily: SANS, fontSize: 15, fontWeight: 800,
                         background: resetEmailOk ? t.accent : t.raised,
-                        color: resetEmailOk ? "#fff" : t.dead }}>
+                        color: resetEmailOk ? t.onAccent : t.dead }}>
                       {busy ? "Sending…" : "Send reset link"}
                     </button>
                   </>
@@ -2006,7 +2036,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                     </p>
                     <button onClick={() => { clearAuthHash(); openForgot(); }} className="auth-cta"
                       style={{ width: "100%", padding: "15px", borderRadius: 14, border: "none", cursor: "pointer",
-                        fontFamily: SANS, fontSize: 15, fontWeight: 800, background: t.accent, color: "#fff" }}>
+                        fontFamily: SANS, fontSize: 15, fontWeight: 800, background: t.accent, color: t.onAccent }}>
                       Send a new link
                     </button>
                   </>
@@ -2082,7 +2112,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                       Both passwords have to match
                     </div>
 
-                    {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accent, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
+                    {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accentText, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
                     {note && <div style={{ fontSize: 12.5, color: t.dim, marginBottom: 12, lineHeight: 1.5 }}>{note}</div>}
 
                     <button onClick={applyReset} disabled={!resetOk || busy} className="auth-cta"
@@ -2090,7 +2120,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                         cursor: resetOk && !busy ? "pointer" : "not-allowed",
                         fontFamily: SANS, fontSize: 15, fontWeight: 800,
                         background: resetOk ? t.accent : t.raised,
-                        color: resetOk ? "#fff" : t.dead }}>
+                        color: resetOk ? t.onAccent : t.dead }}>
                       {busy ? "Saving…" : "Save new password"}
                     </button>
                   </>
@@ -2116,7 +2146,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                 <button key={k} onClick={() => { setMode(k); setErr(null); setNote(null); }} className="auth-tab"
                   style={{ flex: 1, position: "relative", zIndex: 1, background: "none", border: "none",
                     padding: "10px 0", cursor: "pointer", fontFamily: SANS, fontSize: 13.5,
-                    fontWeight: 700, color: mode === k ? "#fff" : t.dim }}>
+                    fontWeight: 700, color: mode === k ? t.onAccent : t.dim }}>
                   {l}
                 </button>
               ))}
@@ -2241,13 +2271,13 @@ function AuthScreen({ onDone, theme, recovery = null }) {
               </div>
             )}
 
-            {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accent, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
+            {err  && <div role="alert" style={{ fontSize: 12.5, color: t.accentText, marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
             {note && <div style={{ fontSize: 12.5, color: t.dim, marginBottom: 12, lineHeight: 1.5 }}>{note}</div>}
 
             <button onClick={submit} disabled={busy} className="auth-cta"
               style={{ width: "100%", padding: "15px", borderRadius: 14, border: "none",
                 cursor: busy ? "not-allowed" : "pointer", fontFamily: SANS, fontSize: 15, fontWeight: 800,
-                background: ok ? t.accent : t.raised, color: ok ? "#fff" : t.dead }}>
+                background: ok ? t.accent : t.raised, color: ok ? t.onAccent : t.dead }}>
               {busy ? "One moment…" : mode === "login" ? "Log in" : "Create account"}
             </button>
 
@@ -2295,7 +2325,7 @@ function Onboard({ onDone }) {
  const ok = !!state;
  return (
  <div className="reseller-root" style={{ minHeight: "100vh", background: C.void, color: C.bone, fontFamily: SANS }}>
- <Styles theme="heat" />
+ <Styles theme="obsidian" />
  <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 20px", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center" }}>
  <div key="ob" className="rise">
  <h2 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.035em", margin: 0 }}>
@@ -2316,14 +2346,14 @@ function Onboard({ onDone }) {
  <div style={{ marginTop: 18 }}>
  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 9 }}>
  <span style={{ color: C.dim }}>Search radius</span>
- <span style={{ fontFamily: MONO, color: C.accent, fontWeight: 600 }}>{radius} mi</span>
+ <span style={{ fontFamily: MONO, color: C.accentText, fontWeight: 600 }}>{radius} mi</span>
  </div>
  <input type="range" min={5} max={100} step={5} value={radius} aria-label="Radius"
  onChange={(e) => setRadius(+e.target.value)} style={{ width: "100%", accentColor: C.accent }} />
  </div>
  </div>
  <button disabled={!ok} onClick={() => onDone({ state, zip, radius })} className={ok ? "fx fx-accent" : ""}
- style={{ marginTop: 30, padding: "16px", borderRadius: 999, border: "none", fontSize: 14.5, fontWeight: 800, cursor: ok ? "pointer" : "not-allowed", background: ok ? C.accent : C.raised, color: ok ? "#fff" : C.dead }}>
+ style={{ marginTop: 30, padding: "16px", borderRadius: 999, border: "none", fontSize: 14.5, fontWeight: 800, cursor: ok ? "pointer" : "not-allowed", background: ok ? C.accent : C.raised, color: ok ? C.onAccent : C.dead }}>
  Show me opportunities
  </button>
  </div>
@@ -2507,13 +2537,13 @@ export default function ResellOS() {
    return () => { alive = false; };
  }, [user]);
 
- const theme = db.profile.theme || "heat";
+ const theme = db.profile.theme || "obsidian";
  /* Whatever we can call this person. Indexing straight into user.email
     crashed the whole app to a blank screen when a sign-in produced a session
     with no address on it — a label is never worth taking the UI down for. */
  const who = displayName(user, db.profile) || "Signed in";
 
- if (!ready) return <div style={{ minHeight: "100vh", background: THEMES.heat.void }} />;
+ if (!ready) return <div style={{ minHeight: "100vh", background: THEMES.ivory.void }} />;
 
  // `|| !user` is a backstop: everything below this line reads user.email, so
  // a null user must never reach it, however the state got that way.
@@ -2552,7 +2582,7 @@ export default function ResellOS() {
  </span>
  <button onClick={signOut} className="fx fx-chip" title={`Signed in as ${who} — tap to sign out`}
  style={{ display: "flex", alignItems: "center", gap: 8, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 999, padding: "5px 13px 5px 5px", cursor: "pointer", fontFamily: SANS, fontSize: 12, color: C.dim }}>
- <span style={{ width: 22, height: 22, borderRadius: 999, background: C.accent, color: "#fff", fontSize: 11, fontWeight: 700, display: "grid", placeItems: "center" }}>
+ <span style={{ width: 22, height: 22, borderRadius: 999, background: C.accent, color: C.onAccent, fontSize: 11, fontWeight: 700, display: "grid", placeItems: "center" }}>
  {who.charAt(0).toUpperCase()}
  </span>
  Sign out
@@ -2877,7 +2907,7 @@ function HomeScreen({ db, put, biz, range, setRange, go, user }) {
  Add your first product and your balance, sales and inventory value start tracking for real.
  </p>
  <button onClick={() => go("business")} className="fx fx-accent"
- style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 999, padding: "12px 22px", cursor: "pointer", fontSize: 13.5, fontWeight: 700 }}>
+ style={{ background: C.accent, color: C.onAccent, border: "none", borderRadius: 999, padding: "12px 22px", cursor: "pointer", fontSize: 13.5, fontWeight: 700 }}>
  Add a product
  </button>
  </div>
@@ -3018,7 +3048,7 @@ function PremiumModal({ feature, onClose }) {
           </button>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "center", margin: "2px 0 14px", color: C.accent }}>
+        <div style={{ display: "flex", justifyContent: "center", margin: "2px 0 14px", color: C.accentText }}>
           <Sparkles size={30} />
         </div>
 
@@ -3028,7 +3058,7 @@ function PremiumModal({ feature, onClose }) {
         </p>
 
         <button onClick={openCheckout} className="fx fx-accent"
-          style={{ width: "100%", background: C.accent, color: "#fff", border: "none", borderRadius: 999,
+          style={{ width: "100%", background: C.accent, color: C.onAccent, border: "none", borderRadius: 999,
             padding: "14px", cursor: "pointer", fontSize: 14, fontWeight: 800 }}>
           Upgrade to premium
         </button>
@@ -3050,7 +3080,7 @@ function PremiumModal({ feature, onClose }) {
 function PremiumGate({ title, blurb, onUpgrade }) {
   return (
     <div className="rise" style={{ ...card, borderRadius: 20, textAlign: "center", padding: "30px 20px" }}>
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: 14, color: C.accent }}>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 14, color: C.accentText }}>
         <Sparkles size={30} />
       </div>
       <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: "-0.02em" }}>{title}</div>
@@ -3058,7 +3088,7 @@ function PremiumGate({ title, blurb, onUpgrade }) {
         {blurb}
       </p>
       <button onClick={onUpgrade} className="fx fx-accent"
-        style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 999,
+        style={{ background: C.accent, color: C.onAccent, border: "none", borderRadius: 999,
           padding: "13px 26px", cursor: "pointer", fontSize: 13.5, fontWeight: 700 }}>
         Upgrade to premium
       </button>
@@ -3181,7 +3211,7 @@ function AIDiscover({ db, put, onDetail }) {
  <div style={{ marginTop: 16 }}>
  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 8 }}>
  <span style={{ color: C.dim }}>Search radius</span>
- <span style={{ fontFamily: MONO, color: C.accent, fontWeight: 600 }}>{f.radius} mi</span>
+ <span style={{ fontFamily: MONO, color: C.accentText, fontWeight: 600 }}>{f.radius} mi</span>
  </div>
  <input type="range" min={5} max={100} step={5} value={f.radius} aria-label="Radius"
  onChange={(e) => setF({ ...f, radius: +e.target.value })} style={{ width: "100%", accentColor: C.accent }} />
@@ -3209,7 +3239,7 @@ function AIDiscover({ db, put, onDetail }) {
  )}
 
  <button onClick={run} disabled={busy} className={busy ? "" : "fx fx-accent"}
- style={{ width: "100%", padding: "17px 16px", border: "none", borderRadius: 999, cursor: busy ? "wait" : "pointer", fontSize: 15, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", background: busy ? C.raised : C.accent, color: busy ? C.dead : "#fff" }}>
+ style={{ width: "100%", padding: "17px 16px", border: "none", borderRadius: 999, cursor: busy ? "wait" : "pointer", fontSize: 15, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", background: busy ? C.raised : C.accent, color: busy ? C.dead : C.onAccent }}>
  {busy ? "Working…" : rows ? "Find again" : "Find products"}
  </button>
 
@@ -3222,7 +3252,7 @@ function AIDiscover({ db, put, onDetail }) {
  <div style={{ marginTop: 16, display: "grid", gap: 9 }}>{[0,1,2].map((i) => <div key={i} className="skel" style={{ height: 64 }} />)}</div>
  </div>
  )}
- {err && !busy && <div style={{ ...card, borderColor: C.accent, marginTop: 12 }}><p style={{ fontSize: 13.5, color: C.accent, margin: 0, fontWeight: 700 }}>{err}</p></div>}
+ {err && !busy && <div style={{ ...card, borderColor: C.accent, marginTop: 12 }}><p style={{ fontSize: 13.5, color: C.accentText, margin: 0, fontWeight: 700 }}>{err}</p></div>}
  {!rows && !busy && !err && <p style={{ fontSize: 12.5, color: C.dead, margin: "16px 4px 0", lineHeight: 1.6 }}>Nothing found yet. Press the button and it searches the web for what's actually moving.</p>}
 
  {rows && !busy && (
@@ -3306,7 +3336,7 @@ function ProductSearch({ db, onAnalyze }) {
  onBlur={() => setTimeout(() => setFocus(false), 140)} onKeyDown={(e) => e.key === "Enter" && run()}
  placeholder="Jordan 4 Black Cat, PS5, Dyson Airwrap…" style={{ ...inputSt, flex: 1 }} />
  <button onClick={() => run()} disabled={busy} className="fx fx-accent"
- style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 999, padding: "0 24px", cursor: "pointer", fontSize: 13.5, fontWeight: 700 }}>{busy ? "…" : "Go"}</button>
+ style={{ background: C.accent, color: C.onAccent, border: "none", borderRadius: 999, padding: "0 24px", cursor: "pointer", fontSize: 13.5, fontWeight: 700 }}>{busy ? "…" : "Go"}</button>
  </div>
  {focus && sugs.length > 0 && (
  <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, right: 0, zIndex: 30, ...card, padding: 0, overflow: "hidden", boxShadow: "0 18px 44px -12px rgba(0,0,0,.6)" }}>
@@ -3351,7 +3381,7 @@ function ProductSearch({ db, onAnalyze }) {
  )}
 
  {busy && <div style={{ marginTop: 18, display: "grid", gap: 9 }}>{[0,1,2].map((i) => <div key={i} className="skel" style={{ height: 74 }} />)}</div>}
- {err && !busy && <p style={{ fontSize: 13.5, color: C.accent, marginTop: 16, fontWeight: 600 }}>{err}</p>}
+ {err && !busy && <p style={{ fontSize: 13.5, color: C.accentText, marginTop: 16, fontWeight: 600 }}>{err}</p>}
  {rows?.length === 0 && !busy && (
  <div style={{ padding: "34px 4px" }}>
  <p style={{ fontFamily: MONO, fontSize: 14, margin: 0 }}>No listings found.</p>
@@ -3376,7 +3406,7 @@ function ProductSearch({ db, onAnalyze }) {
  {/* The precise fault, straight from the search function. This is what
      turns "it doesn't work" into a fix you can act on. */}
  {rows[0].reason && (
- <span style={{ display: "block", marginTop: 7, color: C.accent, fontFamily: MONO, fontSize: 11.5 }}>
+ <span style={{ display: "block", marginTop: 7, color: C.accentText, fontFamily: MONO, fontSize: 11.5 }}>
  {rows[0].reason}
  </span>
  )}
@@ -3440,7 +3470,7 @@ function SavedCompare({ db, put, onDetail }) {
  <div key={w.title} className="rise" style={{ ...rise(i), ...card, borderRadius: 16, marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
  <button onClick={() => toggle(w.title)} aria-label={on ? "Deselect" : "Select"}
  style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, cursor: "pointer", background: on ? C.accent : "transparent", border: `1.5px solid ${on ? C.accent : C.line}`, display: "grid", placeItems: "center" }}>
- {on && <Check size={14} color="#fff" />}
+ {on && <Check size={14} color={C.onAccent} />}
  </button>
  <button onClick={() => ref && onDetail(ref)} style={{ flex: 1, minWidth: 0, background: "none", border: "none", textAlign: "left", cursor: ref ? "pointer" : "default", color: C.bone }}>
  <div style={{ fontSize: 14, fontWeight: 700 }}>{w.title}</div>
@@ -3455,7 +3485,7 @@ function SavedCompare({ db, put, onDetail }) {
  })}
 
  <button onClick={() => setCompare(true)} disabled={picked.length < 2} className={picked.length >= 2 ? "fx fx-accent" : ""}
- style={{ width: "100%", marginTop: 10, padding: "14px", borderRadius: 999, border: "none", cursor: picked.length >= 2 ? "pointer" : "not-allowed", fontSize: 13.5, fontWeight: 700, background: picked.length >= 2 ? C.accent : C.raised, color: picked.length >= 2 ? "#fff" : C.dead }}>
+ style={{ width: "100%", marginTop: 10, padding: "14px", borderRadius: 999, border: "none", cursor: picked.length >= 2 ? "pointer" : "not-allowed", fontSize: 13.5, fontWeight: 700, background: picked.length >= 2 ? C.accent : C.raised, color: picked.length >= 2 ? C.onAccent : C.dead }}>
  Compare {picked.length >= 2 ? `(${picked.length})` : "— pick 2 or more"}
  </button>
 
@@ -3834,7 +3864,7 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  {live?.error && (
  <div style={{ ...card, marginTop: 10, borderColor: C.accentDim }}>
  <p style={{ fontSize: 12.5, color: C.dim, margin: 0, lineHeight: 1.6 }}>
- Couldn't measure this product live. <span style={{ fontFamily: MONO, color: C.accent }}>{live.error}</span>
+ Couldn't measure this product live. <span style={{ fontFamily: MONO, color: C.accentText }}>{live.error}</span>
  </p>
  </div>
  )}
@@ -3929,7 +3959,7 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  return (
  <a key={k} href={m.url(item.title, db.profile)} target="_blank" rel="noopener noreferrer" className="lnk"
  style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 600, padding: "7px 12px", borderRadius: 999, color: m.sold ? C.bone : C.dim, border: `1px solid ${m.sold ? C.accentDim : C.line}`, textDecoration: "none" }}>
- {m.label}{m.sold && <span style={{ fontFamily: MONO, fontSize: 9, color: C.accent }}>SOLD</span>}
+ {m.label}{m.sold && <span style={{ fontFamily: MONO, fontSize: 9, color: C.accentText }}>SOLD</span>}
  <ExternalLink size={10} />
  </a>
  );
@@ -4208,7 +4238,7 @@ function Inventory({ db, put }) {
  return (
  <div>
  <button onClick={() => setAdd(true)} className="fx fx-accent"
- style={{ width: "100%", padding: "14px", border: "none", borderRadius: 999, cursor: "pointer", fontSize: 14, fontWeight: 700, background: C.accent, color: "#fff", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+ style={{ width: "100%", padding: "14px", border: "none", borderRadius: 999, cursor: "pointer", fontSize: 14, fontWeight: 700, background: C.accent, color: C.onAccent, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
  <Plus size={17} /> Add product
  </button>
 
@@ -4518,11 +4548,11 @@ function GenerateListing() {
  style={{ ...pillBtn(market === m), padding: "7px 13px", fontSize: 12 }}>{MARKETS[m].label}</button>
  ))}</Wrap>
  <Primary label={busy ? "Writing…" : "Generate listing"} disabled={busy || !title.trim()} onClick={run} />
- {err && <p style={{ fontSize: 12.5, color: C.accent, marginTop: 12, fontWeight: 600 }}>{err}</p>}
+ {err && <p style={{ fontSize: 12.5, color: C.accentText, marginTop: 12, fontWeight: 600 }}>{err}</p>}
  {busy && <div style={{ marginTop: 14, display: "grid", gap: 8 }}>{[0,1,2].map((i) => <div key={i} className="skel" style={{ height: 18 }} />)}</div>}
  {out && (
  <div className="rise" style={{ ...card, marginTop: 16 }}>
- <div style={{ ...label, color: C.accent, marginBottom: 10 }}>Draft listing</div>
+ <div style={{ ...label, color: C.accentText, marginBottom: 10 }}>Draft listing</div>
  <div style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.35 }}>{out.title}</div>
  <div style={{ fontFamily: MONO, fontSize: 12, color: C.dim, margin: "8px 0 12px" }}>{out.category}</div>
  <p style={{ fontSize: 13, lineHeight: 1.6, color: C.dim, whiteSpace: "pre-wrap", margin: 0 }}>{out.description}</p>
@@ -4589,7 +4619,7 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  <Group title="Appearance">
  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
  {Object.entries(THEMES).map(([id, t]) => {
- const on = (db.profile.theme || "heat") === id;
+ const on = (db.profile.theme || "obsidian") === id;
  return (
  <button key={id} onClick={() => put("profile", { ...db.profile, theme: id })} className="fx"
  style={{ textAlign: "left", cursor: "pointer", borderRadius: 16, padding: 13, background: t.panel, border: `2px solid ${on ? t.accent : "transparent"}` }}>
@@ -4618,7 +4648,7 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  <div style={{ marginTop: 15 }}>
  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 8 }}>
  <span style={{ color: C.dim }}>Search radius</span>
- <span style={{ fontFamily: MONO, color: C.accent, fontWeight: 600 }}>{db.profile.radius} mi</span>
+ <span style={{ fontFamily: MONO, color: C.accentText, fontWeight: 600 }}>{db.profile.radius} mi</span>
  </div>
  <input type="range" min={5} max={100} step={5} value={db.profile.radius} aria-label="Radius"
  onChange={(e) => put("profile", { ...db.profile, radius: +e.target.value })} style={{ width: "100%", accentColor: C.accent }} />
@@ -4673,7 +4703,7 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  <>
  <button onClick={openCheckout} className="fx fx-accent"
  style={{ width: "100%", marginTop: 10, padding: "14px", border: "none", borderRadius: 999,
-   cursor: "pointer", fontSize: 14, fontWeight: 700, background: C.accent, color: "#fff",
+   cursor: "pointer", fontSize: 14, fontWeight: 700, background: C.accent, color: C.onAccent,
    display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
  <Sparkles size={16} /> Upgrade to premium
  </button>
@@ -4712,7 +4742,7 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
 
  <Group title="Privacy & security">
  <button onClick={() => { if (confirm("Erase all your data? This can't be undone.")) reset(); }} className="fx fx-chip"
- style={{ ...pillBtn(false), width: "100%", padding: "13px", borderColor: C.accentDim, color: C.accent, fontWeight: 700 }}>
+ style={{ ...pillBtn(false), width: "100%", padding: "13px", borderColor: C.accentDim, color: C.accentText, fontWeight: 700 }}>
  Erase all my data
  </button>
  </Group>
@@ -4725,7 +4755,10 @@ const Toggle = ({ label: l, on, onToggle }) => (
  <span style={{ fontSize: 13.5 }}>{l}</span>
  <button role="switch" aria-checked={on} aria-label={l} onClick={onToggle}
  style={{ width: 44, height: 25, borderRadius: 999, border: "none", cursor: "pointer", background: on ? C.accent : C.raised, position: "relative", transition: "background .2s" }}>
- <span style={{ position: "absolute", top: 3, left: on ? 22 : 3, width: 19, height: 19, borderRadius: 999, background: "#fff", transition: "left .2s cubic-bezier(.2,.7,.3,1)" }} />
+ {/* The knob takes its colour from what it is sitting on. A white knob
+     worked while every theme was dark; on a light one the off-state track
+     is near-white too and the knob disappeared into it. */}
+ <span style={{ position: "absolute", top: 3, left: on ? 22 : 3, width: 19, height: 19, borderRadius: 999, background: on ? C.onAccent : C.dead, transition: "left .2s cubic-bezier(.2,.7,.3,1), background .2s" }} />
  </button>
  </label>
 );
@@ -4788,7 +4821,7 @@ RULES FOR THIS APPLICATION:
  <button onClick={() => { if (!requirePro("assistant")) return; setOpen(true); }}
  aria-label="Open AI assistant" className="fx fx-accent fab"
  style={{ position: "fixed", bottom: "calc(26px + env(safe-area-inset-bottom, 0px))", right: 18, width: 52, height: 52, borderRadius: 999, background: C.accent, border: "none", cursor: "pointer", zIndex: 45, boxShadow: "0 10px 28px -8px rgba(0,0,0,.5)", display: open ? "none" : "grid", placeItems: "center" }}>
- <Sparkles size={21} color="#fff" />
+ <Sparkles size={21} color={C.onAccent} />
  </button>
 
  {open && (
@@ -4857,7 +4890,7 @@ const Num = ({ l, v, set, step = 1, prefix, suffix }) => (
 
 const Primary = ({ label: l, onClick, disabled }) => (
  <button onClick={onClick} disabled={disabled} className={disabled ? "" : "fx fx-accent"}
- style={{ width: "100%", padding: "15px 16px", borderRadius: 999, border: "none", marginTop: 8, cursor: disabled ? "not-allowed" : "pointer", fontSize: 14.5, fontWeight: 800, background: disabled ? C.raised : C.accent, color: disabled ? C.dead : "#fff" }}>
+ style={{ width: "100%", padding: "15px 16px", borderRadius: 999, border: "none", marginTop: 8, cursor: disabled ? "not-allowed" : "pointer", fontSize: 14.5, fontWeight: 800, background: disabled ? C.raised : C.accent, color: disabled ? C.dead : C.onAccent }}>
  {l}
  </button>
 );
@@ -4885,7 +4918,7 @@ function Empty({ icon, title, body, cta, onCta }) {
  <p style={{ fontSize: 13.5, color: C.dim, margin: "9px 0 0", lineHeight: 1.6 }}>{body}</p>
  {cta && (
  <button onClick={onCta} className="fx fx-accent"
- style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 999, padding: "13px 26px", cursor: "pointer", fontSize: 13.5, fontWeight: 700, marginTop: 20 }}>{cta}</button>
+ style={{ background: C.accent, color: C.onAccent, border: "none", borderRadius: 999, padding: "13px 26px", cursor: "pointer", fontSize: 13.5, fontWeight: 700, marginTop: 20 }}>{cta}</button>
  )}
  </div>
  );

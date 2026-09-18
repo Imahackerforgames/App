@@ -14,6 +14,7 @@ Playwright, run against a production build with Supabase mocked. Three files:
 | `entcheck.mjs` | What "I've paid — check again" reports back: premium found, genuinely free, expired session, blocked table, lapsed premium, no network. |
 | `signinout.mjs` | Signing in with the address typed in any case, the password being left untouched, a wrong password still failing, and signing out revoking the session server-side before signing straight back in. |
 | `soldcard.mjs` | Recent sold activity for a live-searched product: counted totals, the per-marketplace breakdown, the cap marked as a floor, no time claim, and an honest empty state when nothing was found. |
+| `themes.mjs` | Each of the four palettes applying its variables, all four being offered in Settings, and none of the old theme names surviving anywhere. |
 | `errs.mjs` | Every Supabase error shape, using the real response bodies — broken SMTP, rate limiting, a reused password, a breached password, a dead session, reauthentication. |
 
 ## Running them
@@ -28,6 +29,7 @@ node tests/premium.mjs
 node tests/checkout.mjs
 node tests/brand.mjs
 node tests/zoomcheck.mjs
+node tests/themes.mjs
 node tests/soldcard.mjs
 node tests/signinout.mjs
 node tests/entcheck.mjs
