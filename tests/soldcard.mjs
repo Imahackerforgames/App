@@ -55,15 +55,22 @@ console.log("\nA live-searched product with sold listings found");
 {
   const { ctx, page } = await sheet({ soldResults: { eBay: 9, Mercari: 4, Depop: 1 } });
   const body = await page.locator("body").innerText();
-  ok("no longer says 'No reliable sold data'", !/No reliable sold data/i.test(body), body.slice(0, 200));
+  ok("the card is shown", /Recent sold activity/i.test(body));
   ok("shows the counted total", /\b14\b/.test(body), body.match(/.{0,40}sold listings.{0,40}/)?.[0]);
-  ok("names it as listings found, not sales", /sold listings found/i.test(body));
-  ok("breaks it down by marketplace",
+  ok("says plainly there is not enough history to chart",
+     /Not enough sold history to chart/i.test(body));
+  ok("no invented line chart", (await page.locator("svg path[fill]").count()) === 0 ||
+     !/sold, last \d+ days/i.test(body));
+  ok("offers each marketplace that had listings",
      /eBay/.test(body) && /Mercari/.test(body) && /Depop/.test(body));
-  ok("says search misses sales, so it is a floor", /floor/i.test(body));
-  ok("does not claim a time range", !/sold, last \d+ days/i.test(body));
-  ok("hides the 7d/30d/90d chips for counted data",
-     (await page.getByRole("button", { name: /^30d$/ }).count()) === 0);
+
+  const links = await page.getByRole("link").all();
+  const hrefs = await Promise.all(links.map((l) => l.getAttribute("href")));
+  const sold = hrefs.filter((h) => h && /ebay|mercari|depop/i.test(h));
+  ok("the links go to the marketplaces", sold.length >= 3, JSON.stringify(hrefs.slice(0, 5)));
+  ok("and open in a new tab",
+     (await Promise.all(links.slice(0, 3).map((l) => l.getAttribute("target")))).every((t) => t === "_blank"));
+  ok("ranked by where the listings were", /eBay[\s\S]{0,60}9 found/.test(body), body.match(/eBay[\s\S]{0,40}/)?.[0]);
   await page.screenshot({ path: "shot-soldcard.png" });
   await ctx.close();
 }
@@ -81,9 +88,9 @@ console.log("\nWhen nothing sold was found");
 {
   const { ctx, page } = await sheet({ soldResults: {} });
   const body = await page.locator("body").innerText();
-  ok("falls back to saying so honestly", /No reliable sold data/i.test(body));
-  ok("invents no chart", !/eBay\s*\n?\s*\d/.test(body.split("Recent sold activity")[1] || ""));
-  await ctx.close();
+  ok("the whole card is hidden, not left empty", !/Recent sold activity/i.test(body),
+     body.match(/.{0,60}Recent sold activity.{0,60}/)?.[0]);
+  ok("the rest of the sheet still renders", /What We Analyzed/i.test(body));
 }
 
 await b.close();

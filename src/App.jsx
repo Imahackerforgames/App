@@ -3622,35 +3622,48 @@ function soldSeries(item, windowDays, total) {
    plots counts. Same visual language: readout above the plot so nothing
    covers the line, quiet grid, accent line over a gradient, crosshair and
    marker on hover, fixed-height status row so nothing shifts. */
-/* Sold listings per marketplace, drawn from counted results.
+/* Where to go when the app cannot chart it.
 
-   Deliberately a breakdown rather than a line over time. The measurement
-   behind it has no dates on it — it is "these listings exist now", not
-   "this many sold on each day" — so a time series would be a shape invented
-   to look like history. The bars say only what was counted, which is the
-   most this data can honestly support. */
-function SoldByMarket({ counts }) {
+   A line needs dates on the data and the live measurement has none — it is
+   "these completed listings exist now", not "this many sold each day". Rather
+   than draw a shape invented to look like history, hand over to the
+   marketplaces that actually hold the sold history, and say how many
+   listings were found on each so the links are ranked by where the activity
+   is. */
+const MARKET_KEY_BY_LABEL = Object.fromEntries(
+  Object.keys(MARKETS).map((k) => [marketLabel(k), k]),
+);
+
+function SoldElsewhere({ title, counts }) {
   const rows = Object.entries(counts || {})
-    .filter(([, n]) => n > 0)
+    .filter(([label, n]) => n > 0 && MARKETS[MARKET_KEY_BY_LABEL[label]]?.url)
     .sort((a, b) => b[1] - a[1]);
   if (!rows.length) return null;
-  const max = Math.max(...rows.map(([, n]) => n));
 
   return (
-    <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
-      {rows.map(([market, n], i) => (
-        <div key={market} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ width: 82, flexShrink: 0, fontSize: 11.5, color: C.dim }}>{market}</span>
-          <div style={{ flex: 1, height: 10, borderRadius: 999, background: C.raised, overflow: "hidden" }}>
-            <div style={{
-              width: `${Math.round((n / max) * 100)}%`, height: "100%", borderRadius: 999,
-              background: i === 0 ? C.accent : C.accentDim,
-              transition: "width .4s cubic-bezier(.2,.7,.3,1)",
-            }} />
-          </div>
-          <span style={{ width: 24, textAlign: "right", fontFamily: MONO, fontSize: 12.5 }}>{n}</span>
-        </div>
-      ))}
+    <div style={{ marginTop: 10 }}>
+      <p style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.6, margin: "0 0 12px" }}>
+        Not enough sold history to chart this one. These marketplaces had
+        completed listings for it — open one to see the actual sold prices
+        and dates.
+      </p>
+      <div style={{ display: "grid", gap: 8 }}>
+        {rows.map(([label, n]) => (
+          <a key={label} href={MARKETS[MARKET_KEY_BY_LABEL[label]].url(title)}
+            target="_blank" rel="noopener noreferrer" className="fx fx-chip"
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: 10, padding: "11px 14px", borderRadius: 14, textDecoration: "none",
+              background: C.raised, border: `1px solid ${C.line}`, color: C.bone }}>
+            <span style={{ fontSize: 13.5, fontWeight: 600 }}>{label}</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontFamily: MONO, fontSize: 12, color: C.dim }}>
+                {n} found
+              </span>
+              <ExternalLink size={13} color={C.dim} />
+            </span>
+          </a>
+        ))}
+      </div>
     </div>
   );
 }
@@ -3869,6 +3882,10 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  </div>
  )}
 
+ {/* Hidden entirely when there is nothing to say: no catalog history, the
+     live count finished, and it found nothing. An empty card that only
+     explains its own emptiness is worse than no card. */}
+ {!(sold?.unavailable && !live?.loading && counted === 0) && (
  <div style={{ ...card, marginTop: 10 }}>
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
  <span style={label}>Recent sold activity</span>
@@ -3898,7 +3915,7 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  sold listings found{countedMarkets.length ? ` across ${countedMarkets.length} marketplace${countedMarkets.length > 1 ? "s" : ""}` : ""}
  </span>
  </div>
- <SoldByMarket counts={live.soldByMarket} />
+ <SoldElsewhere title={item.title} counts={live.soldByMarket} />
  </>
  ) : sold.unavailable ? (
  <div style={{ fontFamily: MONO, fontSize: 14, color: C.dim }}>No reliable sold data</div>
@@ -3917,7 +3934,7 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  )}
  <p style={{ fontSize: 11, color: C.dead, margin: "8px 0 0" }}>
  {sold?.unavailable && counted > 0
- ? `Counted from completed listings found across the marketplaces just now${live.soldCapped ? ", and capped at the search limit — the real number is higher" : ""}. Search does not surface every sale, so read it as a floor rather than a total. No dates attached, so this is not a rate.`
+ ? `Counted from completed listings found just now${live.soldCapped ? ", and capped at the search limit — the real number is higher" : ""}. Search does not surface every sale, so read it as a floor rather than a total.`
  : sold?.unavailable
  ? "This product isn't in our reference data. Use the marketplace links below to check sold listings directly."
  : sold?.estimated
@@ -3929,6 +3946,7 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  {item.comp > 0 ? money0(item.comp) : "Not available"}</span>
  </div>
  </div>
+ )}
 
  <div style={{ ...card, marginTop: 10 }}>
  <div style={{ ...label, marginBottom: 10 }}>What We Analyzed</div>
