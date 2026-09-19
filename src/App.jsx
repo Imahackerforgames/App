@@ -1506,6 +1506,63 @@ const OTP_MIN = 6;
 const OTP_MAX = 10;
 const otpOk = (v) => v.length >= OTP_MIN && v.length <= OTP_MAX;
 
+/* ── Has this password already been leaked? ─────────────────────────────
+
+   Strength rules check a password's *shape*. "Password1!" satisfies every
+   rule below and is one of the most breached strings in existence, because
+   shape is not the same question as "is this already on a list someone is
+   typing into login forms right now". That second question is the one that
+   stops credential stuffing, and it needs real breach data.
+
+   Supabase does this for you on the Pro plan. The data underneath is Have I
+   Been Pwned, which is free and open, so this asks it directly.
+
+   The password never leaves the browser. It is hashed with SHA-1, and only
+   the first five characters of that hash are sent. HIBP replies with every
+   leaked hash beginning with those five — several hundred of them — and the
+   match is found locally. That is k-anonymity: the server cannot tell which
+   of the candidates was being asked about, and never sees the password or
+   even its full hash.
+
+   SHA-1 is not a security choice here and is not protecting anything. It is
+   the format HIBP's corpus is published in, and the only thing being
+   compared is "is this exact string in that list".
+
+   Returns the number of breaches it appeared in, 0 if clean, or null if the
+   question could not be asked. Null is deliberately not "unsafe": if HIBP
+   is down or the network is blocked, that is not the person's fault and
+   they should not be locked out of signing up over it. */
+const PWNED_API = "https://api.pwnedpasswords.com/range/";
+
+async function pwnedCount(password) {
+  try {
+    if (!password || !globalThis.crypto?.subtle) return null;
+    const bytes = new TextEncoder().encode(password);
+    const digest = await crypto.subtle.digest("SHA-1", bytes);
+    const hash = [...new Uint8Array(digest)]
+      .map((b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+    const prefix = hash.slice(0, 5), suffix = hash.slice(5);
+
+    /* Add-Padding asks HIBP to pad the response with decoy rows, so the
+       size of the reply cannot be used to narrow down the prefix. */
+    const res = await fetch(PWNED_API + prefix, { headers: { "Add-Padding": "true" } });
+    if (!res.ok) return null;
+
+    for (const line of (await res.text()).split("\n")) {
+      const [suf, count] = line.trim().split(":");
+      if (suf === suffix) return Number(count) || 0;
+    }
+    return 0;
+  } catch {
+    return null;
+  }
+}
+
+/* One sentence, used by both the sign-up screen and the reset screen, so a
+   reset cannot be a quieter way past the same check. */
+const pwnedMessage = (n) =>
+  `That password has turned up in ${n === 1 ? "a known data breach" : `${n.toLocaleString()} known data breaches`}. It isn't about how it's spelled — attackers already have it on a list. Pick a different one.`;
+
 const PW_RULES = [
   ["8+ characters",     (p) => p.length >= 8],
   ["Lowercase letter",  (p) => /[a-z]/.test(p)],
@@ -1559,6 +1616,22 @@ function AuthScreen({ onDone, theme, recovery = null }) {
 
   const t = THEMES[theme] || THEMES.ivory;
   const strength = passwordStrength(pw);
+
+  /* null = not asked yet, 0 = clean, n = breached. Checked live rather than
+     only on submit, so someone finds out while they are still choosing
+     rather than after committing to it. Only once the password already
+     passes the shape rules — there is no point asking about half-typed
+     ones, and it keeps the request count to roughly one per password. */
+  const [pwned, setPwned] = useState(null);
+  useEffect(() => {
+    if (mode !== "signup" || !strength.ok) { setPwned(null); return; }
+    let alive = true;
+    const t = setTimeout(async () => {
+      const n = await pwnedCount(pw);
+      if (alive) setPwned(n);
+    }, 500);
+    return () => { alive = false; clearTimeout(t); };
+  }, [pw, mode, strength.ok]);
   const emailOk = /\S+@\S+\.\S+/.test(email);
   // Logging in only needs credentials that already exist; the rules gate
   // account creation, so an older weaker password can still sign in.
@@ -1578,6 +1651,19 @@ function AuthScreen({ onDone, theme, recovery = null }) {
       return;
     }
     if (!ok || busy) return;
+
+    /* The live check may not have run yet — fast typing, fast clicking — so
+       ask here too before the account exists. `null` means the question
+       could not be asked, and that is allowed through: a breach-list outage
+       must not become a broken sign-up. */
+    if (mode === "signup") {
+      setBusy(true);
+      const n = pwned ?? await pwnedCount(pw);
+      setPwned(n);
+      if (n > 0) { setBusy(false); setErr(pwnedMessage(n)); return; }
+      setBusy(false);
+    }
+
     setBusy(true); setErr(null); setNote(null);
     try {
       if (mode === "signup") {
@@ -1701,6 +1787,13 @@ function AuthScreen({ onDone, theme, recovery = null }) {
       return;
     }
     if (!resetMatches) { setErr("The two passwords don't match."); return; }
+
+    /* Same check as sign-up. A reset must not be the quiet way past it. */
+    setBusy(true);
+    const leaked = await pwnedCount(newPw);
+    setBusy(false);
+    if (leaked > 0) { setErr(pwnedMessage(leaked)); return; }
+
     setBusy(true); setErr(null); setNote(null);
     try {
       const u = await updatePassword(recovery.token, newPw);
@@ -2280,6 +2373,21 @@ function AuthScreen({ onDone, theme, recovery = null }) {
                     </span>
                   ))}
                 </div>
+
+                {/* The rules above are all green by the time this can show,
+                    which is the point: a password can satisfy every one of
+                    them and still be on a list someone is working through. */}
+                {pwned > 0 && (
+                  <div role="alert" style={{
+                    marginTop: 10, padding: "9px 12px", borderRadius: 12,
+                    background: t.raised, border: `1px solid ${PW_TONE.weak.color}`,
+                    fontSize: 11.5, lineHeight: 1.5, color: t.bone,
+                  }}>
+                    <strong style={{ color: PW_TONE.weak.color }}>Found in a data breach.</strong>{" "}
+                    This one has leaked {pwned === 1 ? "once" : `${pwned.toLocaleString()} times`} — attackers
+                    already have it. Choose something else.
+                  </div>
+                )}
               </div>
             )}
 
