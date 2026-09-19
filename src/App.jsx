@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useId } from "react";
 import {
  Home as HomeIcon, Compass, Layers, Briefcase, Settings as SettingsIcon,
  Sparkles, Search as SearchIcon, MapPin, Globe, ExternalLink, SlidersHorizontal,
@@ -730,6 +730,12 @@ const seenSatLabel = (listings, soldSeen) => {
   const ratio = listings / soldSeen;
   return ratio >= 3 ? "Crowded" : ratio >= 1.5 ? "Filling up" : "Room to move";
 };
+
+/* A date field can be cleared, and `new Date("").toISOString()` throws a
+   RangeError. With no error boundary above it that took the sheet out: the
+   button looked live, nothing saved, and the product was lost with no
+   message. Checked before it is converted, never after. */
+const validDate = (v) => !!v && !Number.isNaN(new Date(v).getTime());
 
 const demandLabel = (vel) => vel == null ? "Unknown" : vel >= 6 ? "High" : vel >= 3 ? "Medium" : "Low";
 const compLabel = (sellers) => sellers == null ? "Unknown" : sellers >= 50 ? "High" : sellers >= 20 ? "Medium" : "Low";
@@ -4542,7 +4548,7 @@ function Inventory({ db, put }) {
 
 function AddSheet({ onClose, onSave }) {
  const [f, setF] = useState({ title: "", units: 1, cost: "", purchaseDate: new Date().toISOString().slice(0, 10), notes: "" });
- const ok = f.title.trim() && +f.cost > 0 && +f.units > 0;
+ const ok = f.title.trim() && +f.cost > 0 && +f.units > 0 && validDate(f.purchaseDate);
  return (
  <Sheet title="Add product" onClose={onClose}>
  <Field label="What is it?" value={f.title} onChange={(v) => setF({ ...f, title: v })} placeholder="Dior Sauvage EDT 100ml" />
@@ -4570,7 +4576,7 @@ function SellSheet({ item, s, onClose, onSave }) {
  sell: amt, cost: item.cost * f.qty,
  feePct: isMeetup ? 0 : f.feePct, ship: isMeetup ? 0 : +f.ship, other: +f.other,
  });
- const ok = method && amt > 0 && +f.qty > 0 && +f.qty <= item.unitsLeft;
+ const ok = method && amt > 0 && +f.qty > 0 && +f.qty <= item.unitsLeft && validDate(f.soldAt);
 
  if (!method) {
  return (
@@ -5078,12 +5084,18 @@ function Sheet({ title, sub, onClose, children }) {
 }
 
 function Field({ label: l, value, onChange, type = "text", prefix, placeholder, big }) {
+ /* The label used to be a plain div sitting above the input, which looks
+    right and is invisible to a screen reader — every field in Add product,
+    Log a sale and Settings announced as an unlabelled box. A real
+    <label htmlFor> ties the two together, and lets tapping the label focus
+    the field. */
+ const id = useId();
  return (
  <div style={{ marginBottom: 14, flex: 1 }}>
- <div style={{ ...label, marginBottom: 8 }}>{l}</div>
+ <label htmlFor={id} style={{ ...label, marginBottom: 8, display: "block" }}>{l}</label>
  <div style={{ display: "flex", alignItems: "center", gap: 6, background: C.raised, border: `1px solid ${C.line}`, borderRadius: 999, padding: "0 16px" }}>
  {prefix && <span style={{ fontFamily: MONO, fontSize: big ? 20 : 14, color: C.dim }}>{prefix}</span>}
- <input type={type} value={value} placeholder={placeholder} inputMode={type === "number" ? "decimal" : undefined}
+ <input id={id} type={type} value={value} placeholder={placeholder} inputMode={type === "number" ? "decimal" : undefined}
  onChange={(e) => onChange(e.target.value)} className={big ? "fld fld-big" : "fld"}
  style={{ flex: 1, background: "none", border: "none", color: C.bone, outline: "none", fontFamily: type === "number" ? MONO : SANS, fontSize: big ? 20 : 14.5, fontWeight: big ? 600 : 400, padding: big ? "15px 0" : "13px 0", width: "100%" }} />
  </div>
