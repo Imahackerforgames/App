@@ -36,10 +36,20 @@ These cannot be changed from here and have to be done in a dashboard:
 | Where | What |
 |---|---|
 | GitHub → Settings → General | default branch (`main`) |
-| Vercel → project → Settings | production branch — follows the repo default unless overridden |
+| Vercel → project → Settings → **Environments** → **Production** → Branch Tracking | which branch deploys to production |
 | Supabase → Authentication → URL Configuration | Site URL, redirect URLs |
 | Supabase → Authentication → Emails → Templates | the reset email, kept in `supabase/templates/` |
 | Supabase → Edge Functions → Secrets | `TAVILY_API_KEY`, `ANTHROPIC_API_KEY` |
+
+### Finding the production branch setting
+
+It is not on the Git page, which is the obvious place and where everyone
+looks first. It is under **Settings → Environments**, which shows a *list*
+of environments — you have to click into **Production** — and then it is
+called **Branch Tracking**, not "Production Branch".
+
+It is set explicitly on this project, so it does not follow the repo's
+default branch. Changing the default on GitHub alone does nothing here.
 
 ## Edge Functions deploy separately
 
