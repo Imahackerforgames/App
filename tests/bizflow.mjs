@@ -11,7 +11,11 @@ const ok = (n, c, x = "") => { c ? (pass++, console.log("  PASS  " + n)) : (fail
 const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 
 async function app({ inventory = null } = {}) {
-  const ctx = await b.newContext({ viewport: { width: 400, height: 880 } });
+  /* Deliberately not UTC. Date bugs of the "a day early" kind are invisible
+     at zero offset — local midnight and UTC midnight are the same instant —
+     so a UTC test browser would pass while every real user west of Greenwich
+     saw the wrong day. */
+  const ctx = await b.newContext({ viewport: { width: 400, height: 880 }, timezoneId: "America/Los_Angeles" });
   const page = await ctx.newPage();
   const crashes = [];
   page.on("pageerror", (e) => crashes.push(e.message));
@@ -140,6 +144,35 @@ async function app({ inventory = null } = {}) {
   await page.getByLabel(/Sale amount/i).first().fill("60");
   await page.waitForTimeout(400);
   ok("the log button stays refused", await page.getByRole("button", { name: /^Log sale$/ }).isDisabled());
+  await ctx.close();
+}
+
+// ── 6. the date you pick is the date you get ───────────────────────────
+{
+  console.log("\n6. Dates are not a day early");
+  /* The old code did `new Date("2026-09-19")`, which is midnight UTC — still
+     the 18th anywhere west of Greenwich. Every stored date was a day out. */
+  const { ctx, page, crashes } = await app();
+  await page.getByRole("button", { name: /Add product|Add a product/i }).first().click({ force: true });
+  await page.waitForTimeout(700);
+  const f = page.locator(".fld");
+  await f.nth(0).fill("Date Test");
+  await f.nth(1).fill("1");
+  await f.nth(2).fill("10");
+  await page.locator('input[type="date"]').first().fill("2026-09-19");
+  await page.waitForTimeout(300);
+  await page.getByRole("button", { name: /Add to inventory/i }).click({ force: true });
+  await page.waitForTimeout(1000);
+
+  const saved = JSON.parse(await page.evaluate(() => localStorage.getItem("ros:u:u1:inventory")) || "[]");
+  const back = new Date(saved[0]?.addedAt);
+  ok("stored at all", saved.length === 1, JSON.stringify(saved));
+  ok("reads back as the 19th locally, not the 18th",
+     back.getFullYear() === 2026 && back.getMonth() === 8 && back.getDate() === 19,
+     `${saved[0]?.addedAt} -> ${back.toDateString()}`);
+  ok("and not stored at midnight UTC, which is the bug's fingerprint",
+     !/T00:00:00\.000Z$/.test(saved[0]?.addedAt || ""), String(saved[0]?.addedAt));
+  ok("no crashes", crashes.length === 0, crashes.join(" | "));
   await ctx.close();
 }
 

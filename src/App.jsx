@@ -731,11 +731,24 @@ const seenSatLabel = (listings, soldSeen) => {
   return ratio >= 3 ? "Crowded" : ratio >= 1.5 ? "Filling up" : "Room to move";
 };
 
-/* A date field can be cleared, and `new Date("").toISOString()` throws a
-   RangeError. With no error boundary above it that took the sheet out: the
-   button looked live, nothing saved, and the product was lost with no
-   message. Checked before it is converted, never after. */
-const validDate = (v) => !!v && !Number.isNaN(new Date(v).getTime());
+/* A date input hands back "2026-09-19", and `new Date("2026-09-19")` reads
+   that as midnight **UTC**. Seven hours west of Greenwich midnight UTC is
+   still the previous evening, so every date the app stored and showed came
+   back a day early. Read as local midnight instead: the calendar day someone
+   picked is the calendar day they see, wherever they are.
+
+   Returns null for anything unusable, which also covers the cleared-field
+   case — `new Date("").toISOString()` throws a RangeError, and with no error
+   boundary above it that used to take the whole sheet out silently. */
+const localMidnight = (ymd) => {
+  const [y, m, d] = String(ymd || "").split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const dt = new Date(y, m - 1, d);
+  /* Rejects the impossible without trusting Date, which rolls Feb 30 forward
+     to Mar 2 rather than complaining. */
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d ? dt : null;
+};
+const validDate = (v) => !!localMidnight(v);
 
 const demandLabel = (vel) => vel == null ? "Unknown" : vel >= 6 ? "High" : vel >= 3 ? "Medium" : "Low";
 const compLabel = (sellers) => sellers == null ? "Unknown" : sellers >= 50 ? "High" : sellers >= 20 ? "Medium" : "Low";
@@ -4925,7 +4938,7 @@ function AddSheet({ onClose, onSave }) {
  <Field label="Notes (optional)" value={f.notes} onChange={(v) => setF({ ...f, notes: v })} placeholder="Bought as a lot of 3" />
  <Primary label="Add to inventory" disabled={!ok}
  onClick={() => onSave({ title: f.title.trim(), units: +f.units, cost: +f.cost,
- purchaseDate: new Date(f.purchaseDate).toISOString(), notes: f.notes.trim() })} />
+ purchaseDate: localMidnight(f.purchaseDate).toISOString(), notes: f.notes.trim() })} />
  <Note>Where you'll sell it and for how much come later, when you log the actual sale.</Note>
  </Sheet>
  );
@@ -5001,7 +5014,7 @@ function SellSheet({ item, s, onClose, onSave }) {
  <Primary label="Log sale" disabled={!ok} onClick={() => onSave({
  id: `sale_${Date.now()}`, itemId: item.id, title: item.title, qty: +f.qty, amount: amt,
  cost: item.cost * f.qty, fees: calc.fees, other: +f.other, profit: calc.profit,
- market: isMeetup ? "meetup" : f.market, method, soldAt: new Date(f.soldAt).toISOString(),
+ market: isMeetup ? "meetup" : f.market, method, soldAt: localMidnight(f.soldAt).toISOString(),
  })} />
  <button onClick={() => setMethod(null)} className="fx fx-chip"
  style={{ ...pillBtn(false), width: "100%", marginTop: 9, padding: "10px 0", fontSize: 12 }}>
