@@ -46,7 +46,7 @@ async function app({ inventory = null } = {}) {
   await add.click({ force: true });
   await page.waitForTimeout(900);
 
-  const inv = JSON.parse(await page.evaluate(() => localStorage.getItem("ros:inventory")) || "[]");
+  const inv = JSON.parse(await page.evaluate(() => localStorage.getItem("ros:u:u1:inventory")) || "[]");
   ok("it saved", inv.length === 1, JSON.stringify(inv));
   ok("with the right numbers", inv[0]?.units === 3 && inv[0]?.cost === 20, JSON.stringify(inv[0]));
   ok("and a usable date", !Number.isNaN(new Date(inv[0]?.addedAt).getTime()), String(inv[0]?.addedAt));
@@ -120,7 +120,7 @@ async function app({ inventory = null } = {}) {
   ok("it can be logged", !(await log.isDisabled()));
   await log.click({ force: true });
   await page.waitForTimeout(900);
-  const sales = JSON.parse(await page.evaluate(() => localStorage.getItem("ros:sales")) || "[]");
+  const sales = JSON.parse(await page.evaluate(() => localStorage.getItem("ros:u:u1:sales")) || "[]");
   ok("the sale saved", sales.length === 1, JSON.stringify(sales));
   ok("no crashes", crashes.length === 0, crashes.join(" | "));
   await ctx.close();

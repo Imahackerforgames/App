@@ -913,27 +913,81 @@ const DEFAULTS = {
  inventory: [], sales: [], watchlist: [], notifications: [], readNotifs: [],
 };
 
-function useStore() {
+/* Every stored key is scoped to the account that owns it.
+
+   It was not. Keys were `ros:inventory`, `ros:sales`, `ros:profile` and so
+   on, with no account attached, and signing out cleared only `ros:session`.
+   So a browser held exactly one set of data and every account that logged in
+   on it saw the same inventory, the same sales, the same profit. On a shared
+   computer that is two people reading each other's finances — a privacy
+   leak, not a sync problem.
+
+   This is a stopgap, and worth being honest about what it does and does not
+   fix. It stops accounts seeing each other's data on one device. It does not
+   make anyone's data follow them to a second device, because the data still
+   lives in that browser. The real fix is Postgres, one row per user, which
+   is the next piece of work. */
+const dbKey = (scope, k) => `ros:u:${scope}:${k}`;
+
+/* The unscoped keys left over from before this change belong to somebody —
+   on a personal device, to the person still using it. They are handed to the
+   first account that signs in after the upgrade and then deleted, so a
+   second account cannot inherit them too.
+
+   On a shared device that first account might be the wrong one. That is a
+   worse-than-ideal outcome for one person, once, and it replaces the current
+   behaviour where every account sees the data forever. */
+const LEGACY_CLAIMED = "ros:legacy-claimed";
+
+async function claimLegacyData(scope) {
+ try {
+   if (await window.storage.get(LEGACY_CLAIMED)) return;
+   for (const k of Object.keys(DEFAULTS)) {
+     const legacy = await window.storage.get(`ros:${k}`);
+     if (!legacy) continue;
+     /* Never overwrite data this account already has. */
+     const existing = await window.storage.get(dbKey(scope, k));
+     if (!existing) await window.storage.set(dbKey(scope, k), legacy.value);
+     await window.storage.delete(`ros:${k}`);
+   }
+   await window.storage.set(LEGACY_CLAIMED, String(scope));
+ } catch {}
+}
+
+function useStore(scope) {
  const [db, setDb] = useState(DEFAULTS);
  const [ready, setReady] = useState(false);
 
+ /* Re-runs whenever the signed-in account changes, including to nobody on
+    sign-out — which is what drops the previous person's data out of memory
+    rather than leaving it on screen for whoever logs in next. */
  useEffect(() => {
+ let alive = true;
+ setReady(false);
  (async () => {
+ if (!scope) { if (alive) { setDb(DEFAULTS); setReady(true); } return; }
+ await claimLegacyData(scope);
  const next = { ...DEFAULTS };
  for (const k of Object.keys(DEFAULTS)) {
- try { const r = await window.storage.get(`ros:${k}`); if (r) next[k] = JSON.parse(r.value); } catch {}
+ try { const r = await window.storage.get(dbKey(scope, k)); if (r) next[k] = JSON.parse(r.value); } catch {}
  }
  if (!next.notifications.length) next.notifications = seedNotifications(next.profile);
- setDb(next); setReady(true);
+ if (alive) { setDb(next); setReady(true); }
  })();
- }, []);
+ return () => { alive = false; };
+ }, [scope]);
 
  const put = async (key, value) => {
  setDb((d) => ({ ...d, [key]: value }));
- try { await window.storage.set(`ros:${key}`, JSON.stringify(value)); } catch {}
+ /* Signed out, nothing is written. Without this guard a stray write
+    during sign-out would land in whatever scope came next. */
+ if (!scope) return;
+ try { await window.storage.set(dbKey(scope, key), JSON.stringify(value)); } catch {}
  };
  const reset = async () => {
- for (const k of Object.keys(DEFAULTS)) { try { await window.storage.delete(`ros:${k}`); } catch {} }
+ if (scope) {
+ for (const k of Object.keys(DEFAULTS)) { try { await window.storage.delete(dbKey(scope, k)); } catch {} }
+ }
  setDb(DEFAULTS);
  };
  return { db, ready, put, reset };
@@ -2488,11 +2542,16 @@ function Onboard({ onDone }) {
 }
 
 export default function ResellOS() {
- const { db, ready, put, reset } = useStore();
  const [stage, setStage] = useState("auth"); // auth | app
  const [tab, setTab] = useState("home");
  const [jump, setJump] = useState(null);
  const [user, setUser] = useState(null);
+
+ /* Which account's data to load. Falls back to the email for sessions minted
+    before the id was stored, so an older session does not read as a new
+    empty account. Null when signed out, which empties the store. */
+ const scope = user?.id || user?.email || null;
+ const { db, ready, put, reset } = useStore(scope);
  /* Set when the address bar says we arrived from a reset email. It outranks
     a stored session: someone who can't remember their password is not helped
     by being silently signed in as whoever used this browser last.

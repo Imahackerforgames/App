@@ -123,7 +123,7 @@ const openSaved = async (page) => {
   const after = await page.locator("body").innerText();
   ok("the button confirms the save", /Saved ✓/.test(after), after.match(/Save[^\n]{0,20}/)?.[0]);
 
-  const stored = await page.evaluate(() => localStorage.getItem("ros:watchlist"));
+  const stored = await page.evaluate(() => localStorage.getItem("ros:u:u1:watchlist"));
   ok("and it was actually written to storage", stored && JSON.parse(stored).length === 1, String(stored));
   ok("with the product's own numbers, not just its name",
      stored && "vel" in JSON.parse(stored)[0] && "comp" in JSON.parse(stored)[0], String(stored));
