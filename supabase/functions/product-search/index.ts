@@ -45,6 +45,14 @@ const LOCAL_DOMAINS = ["offerup.com", "facebook.com/marketplace"];
    sell", so a sold pass is restricted to these however the filter is set. */
 const SOLD_CAPABLE = new Set(["ebay.com", "mercari.com", "poshmark.com"]);
 
+/* The completed-items page per marketplace, which is where sale dates are
+   actually written down — one per row. Fetched directly on a sold pass.
+   Only marketplaces that render that page as text belong here. */
+const SOLD_PAGE: Record<string, (q: string) => string> = {
+  "ebay.com": (q) =>
+    `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&LH_Sold=1&LH_Complete=1&_sop=13`,
+};
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -334,16 +342,11 @@ Deno.serve(async (req: Request) => {
     const MAX_DATES_PER_PAGE = 80;
     const DAYS_IN = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
-    const soldDates: string[] = [];
-    /* The same dates split by marketplace, so the caller can show a
-       breakdown that adds up to the total instead of two numbers that look
-       unrelated to each other. */
-    const datesByMarket: Record<string, string[]> = {};
     const now = Date.now();
-    for (const r of results) {
-      let found = 0;
-      for (const m of String(r._text || "").matchAll(SOLD_DATE)) {
-        if (found >= MAX_DATES_PER_PAGE) break;
+    const readSoldDates = (text: string): string[] => {
+      const out: string[] = [];
+      for (const m of String(text || "").matchAll(SOLD_DATE)) {
+        if (out.length >= MAX_DATES_PER_PAGE) break;
         const month = MONTHS[(m[1] || m[4] || "").slice(0, 3).toLowerCase()];
         if (month === undefined) continue;
         const day = Number(m[2] || m[3]);
@@ -365,14 +368,75 @@ Deno.serve(async (req: Request) => {
            so check the parts came back unchanged rather than trusting it. */
         const d = new Date(t);
         if (d.getUTCMonth() !== month || d.getUTCDate() !== day || t > now) continue;
-        const iso = d.toISOString().slice(0, 10);
-        soldDates.push(iso);
-        (datesByMarket[r.market] ??= []).push(iso);
-        found += 1;
+        out.push(d.toISOString().slice(0, 10));
+      }
+      return out;
+    };
+
+    const soldDates: string[] = [];
+    /* The same dates split by marketplace, so the caller can show a
+       breakdown that adds up to the total instead of two numbers that look
+       unrelated to each other. */
+    const datesByMarket: Record<string, string[]> = {};
+    const addDates = (market: string, dates: string[]) => {
+      if (!market || !dates.length) return;
+      soldDates.push(...dates);
+      (datesByMarket[market] ??= []).push(...dates);
+    };
+
+    for (const r of results) addDates(r.market, readSoldDates(r._text));
+
+    /* Then the page the dates actually live on.
+
+       Searching for "sold" returns listing pages, and an individual listing
+       page mostly does not say when it sold — which is why the two previous
+       attempts at this came back with nothing to plot. A marketplace's
+       completed-items page does say: one date per row, dozens of rows. So
+       fetch that page directly instead of hoping search surfaces it. It is
+       the same URL the app already links to from the card.
+
+       Only eBay is listed. Mercari and Poshmark render their sold results in
+       the browser, so there is no text on the page to read; guessing at their
+       URLs would spend credits for nothing. */
+    let pageChars = 0;
+    if (sold) {
+      const urls = domains.map((d) => SOLD_PAGE[d]?.(String(query).trim())).filter(Boolean);
+      if (urls.length) {
+        try {
+          const ex = await fetch("https://api.tavily.com/extract", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ api_key: key, urls }),
+          });
+          if (!ex.ok) {
+            console.warn(`product-search: sold-page extract returned ${ex.status}; falling back to the listings alone.`);
+          } else {
+            const ed = await ex.json();
+            for (const r of ed?.results ?? []) {
+              const text = String(r?.raw_content ?? "");
+              pageChars += text.length;
+              const market = marketOf(String(r?.url ?? ""));
+              const found = readSoldDates(text);
+              /* Counts only — never the page text, which is full of prices
+                 this app does not present as its own. */
+              console.log(`product-search: sold page ${market || "?"} — ${text.length} chars, ${found.length} dates.`);
+              addDates(market, found);
+            }
+            for (const f of ed?.failed_results ?? []) {
+              console.warn(`product-search: sold page could not be read: ${String(f?.error ?? "unknown")}`);
+            }
+          }
+        } catch (e) {
+          console.warn(`product-search: sold-page extract threw: ${String(e)}`);
+        }
       }
     }
+
     soldDates.sort();
     for (const k of Object.keys(datesByMarket)) datesByMarket[k].sort();
+    if (sold) {
+      console.log(`product-search: sold dates — ${soldDates.length} total from ${results.length} listings and ${pageChars} chars of sold pages.`);
+    }
 
     /* The working text goes no further. It is unstripped listing copy — full
        of prices this app is careful not to present as its own — and the

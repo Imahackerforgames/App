@@ -13,14 +13,19 @@ const src = readFileSync("/home/user/App/supabase/functions/product-search/index
 const js = transformSync(src, { loader: "ts", target: "es2022", format: "esm" }).code;
 
 /* Load the module once per scenario with its own stubs. */
-async function runHandler({ body, tavily }) {
+async function runHandler({ body, tavily, extract = null }) {
   let handler;
   const calls = [];
   globalThis.Deno = { env: { get: (k) => (k === "TAVILY_API_KEY" ? "tvly-testkey000" : undefined) },
                       serve: (h) => { handler = h; } };
   globalThis.fetch = async (url, init) => {
     const sent = JSON.parse(init.body);
+    sent._endpoint = String(url).includes("/extract") ? "extract" : "search";
     calls.push(sent);
+    if (sent._endpoint === "extract") {
+      return extract ? extract(sent)
+        : new Response(JSON.stringify({ results: [], failed_results: [] }), { status: 200 });
+    }
     return tavily(sent);
   };
   const mod = `data:text/javascript;base64,${Buffer.from(js).toString("base64")}`;
@@ -28,7 +33,8 @@ async function runHandler({ body, tavily }) {
   const res = await handler(new Request("https://x/functions/v1/product-search", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   }));
-  return { res, data: await res.json(), calls };
+  return { res, data: await res.json(), calls: calls.filter((c) => c._endpoint === "search"),
+           extracts: calls.filter((c) => c._endpoint === "extract") };
 }
 
 const listing = (domain, i) => ({
@@ -217,6 +223,70 @@ const okReply = (sent) => new Response(JSON.stringify({
   const { calls } = await runHandler({ body: { query: "x", maxResults: 24 }, tavily: okReply });
   ok("the active pass leaves it off", calls.every((c) => c.include_raw_content === false),
      JSON.stringify(calls.map((c) => c.include_raw_content)));
+}
+
+// ── 13. the completed-items page is fetched, and read ──────────────────
+{
+  console.log("\n13. The sold pass goes and gets eBay's completed-items page");
+  const y = new Date().getUTCFullYear();
+  /* What that page is: a row per sale, each with its own date. An individual
+     listing page mostly does not carry one, which is why reading only the
+     search results found nothing to plot. */
+  const soldPage = Array.from({ length: 22 }, (_, i) =>
+    `Nice Thing ${i} Sold  Aug ${i + 1}, ${y - 1}`).join("\n");
+
+  const { data, extracts } = await runHandler({
+    body: { query: "jordan 4", sold: true, marketplaces: ["ebay"], maxResults: 24 },
+    tavily: okReply,
+    extract: (sent) => new Response(JSON.stringify({
+      results: [{ url: sent.urls[0], raw_content: soldPage }], failed_results: [],
+    }), { status: 200 }),
+  });
+
+  ok("it asked for exactly one page", extracts.length === 1 && extracts[0].urls.length === 1,
+     JSON.stringify(extracts.map((e) => e.urls)));
+  ok("the completed-items page, not the ordinary search",
+     /LH_Sold=1/.test(extracts[0].urls[0]) && /LH_Complete=1/.test(extracts[0].urls[0]),
+     extracts[0].urls[0]);
+  ok("the query is in it", /jordan%204|jordan\+4/i.test(extracts[0].urls[0]), extracts[0].urls[0]);
+  ok("and every dated row was read", data.datedCount === 22, String(data.datedCount));
+  ok("attributed to eBay", data.datesByMarket.eBay?.length === 22, JSON.stringify(Object.keys(data.datesByMarket)));
+  ok("still sorted", JSON.stringify(data.soldDates) === JSON.stringify([...data.soldDates].sort()));
+  ok("and the page text never ships", !JSON.stringify(data).includes("Nice Thing"));
+}
+
+// ── 14. the extra fetch is only for the sold pass ──────────────────────
+{
+  console.log("\n14. The active pass doesn't fetch sold pages");
+  const { extracts } = await runHandler({ body: { query: "x", maxResults: 24 }, tavily: okReply });
+  ok("no extract call at all", extracts.length === 0, String(extracts.length));
+}
+
+// ── 15. a blocked page loses the chart, not the search ─────────────────
+{
+  console.log("\n15. If the page can't be read, the rest still works");
+  const { res, data } = await runHandler({
+    body: { query: "x", sold: true, marketplaces: ["ebay"], maxResults: 24 },
+    tavily: okReply,
+    extract: () => new Response("forbidden", { status: 403 }),
+  });
+  ok("still a 200", res.status === 200, String(res.status));
+  ok("listings still counted", data.count > 0, String(data.count));
+  ok("just no dates, rather than invented ones", data.datedCount === 0, JSON.stringify(data.soldDates));
+}
+
+// ── 16. Mercari and Poshmark are not guessed at ────────────────────────
+{
+  console.log("\n16. Only marketplaces with a readable page are fetched");
+  const { extracts } = await runHandler({
+    body: { query: "x", sold: true, maxResults: 24 }, tavily: okReply,
+    extract: (sent) => new Response(JSON.stringify({ results: [], failed_results: [] }), { status: 200 }),
+  });
+  const urls = extracts.flatMap((e) => e.urls);
+  ok("eBay only, though three marketplaces were searched",
+     urls.length === 1 && /ebay\.com/.test(urls[0]), JSON.stringify(urls));
+  ok("no credits spent guessing at Mercari or Poshmark",
+     !urls.some((u) => /mercari|poshmark/.test(u)), JSON.stringify(urls));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
