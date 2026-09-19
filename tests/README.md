@@ -37,6 +37,7 @@ node tests/savedsat.mjs
 node tests/bizflow.mjs
 node tests/accounts.mjs
 node tests/cloud.mjs
+node tests/crash.mjs
 node tests/fnsearch.mjs   # no browser or network needed
 ```
 

@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
+import ErrorBoundary from "./ErrorBoundary.jsx";
 
 /* ──────────────────────────────────────────────────────────────
    window.storage shim.
@@ -33,8 +34,13 @@ if (!window.storage) {
   };
 }
 
+/* The boundary sits above App, not inside it, so a failure in App's own
+   render is still caught. Inside StrictMode React will invoke the render
+   twice in development; that is fine — the boundary is idempotent. */
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>
 );
