@@ -38,7 +38,9 @@ async function check(reply, { noRefreshToken = false } = {}) {
   await page.waitForTimeout(400);
   await page.getByRole("button", { name: /check again|Re-check my plan/ }).click();
   await page.waitForTimeout(700);
-  const note = (await page.getByRole("status").textContent().catch(() => "")) || "";
+  /* The plan note, not the offline banner. Both are live regions and the
+     banner renders first, so take the last one. */
+  const note = (await page.getByRole("status").last().textContent().catch(() => "")) || "";
   const body = await page.locator("body").innerText();
   await ctx.close();
   return { note, body, seen };

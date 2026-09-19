@@ -51,6 +51,21 @@ called **Branch Tracking**, not "Production Branch".
 It is set explicitly on this project, so it does not follow the repo's
 default branch. Changing the default on GitHub alone does nothing here.
 
+## Where a user's data lives
+
+In Postgres, one row per user, behind Row Level Security — `inventory`,
+`sales`, `watchlist`, and the profile row that also carries settings.
+
+The browser keeps a copy, but only as a cache: it fills the screen
+instantly, survives a dead connection, and is written before the network
+call so a change is never lost if the tab closes mid-save. The server is
+the source of truth.
+
+It used to be the other way round — local storage was the only copy — which
+meant data did not survive closing a tab, did not follow anyone to a second
+device, and was invisible between `reamp.store` and `www.reamp.store`
+because those are separate origins with separate storage.
+
 ## Edge Functions deploy separately
 
 They do **not** ship with the site. A push to `main` updates the front end

@@ -913,6 +913,81 @@ const DEFAULTS = {
  inventory: [], sales: [], watchlist: [], notifications: [], readNotifs: [],
 };
 
+/* ── Talking to the database ────────────────────────────────────────────
+
+   Small REST helpers over Supabase's PostgREST endpoint, using the signed-in
+   user's own token. Every request therefore arrives as that user, and Row
+   Level Security decides what they may touch — the browser never gets to
+   choose whose rows it reads. */
+async function sbRest(path, { method = "GET", body, prefer } = {}) {
+  const token = await sessionToken();
+  if (!token) throw new Error("signed out");
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    method,
+    headers: {
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(prefer ? { Prefer: prefer } : {}),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${detail.slice(0, 200)}`);
+  }
+  if (res.status === 204) return null;
+  return res.json().catch(() => null);
+}
+
+/* The app hands `put` a whole array every time — "here is the inventory now"
+   — rather than "add this one row". So a save is a reconcile: upsert
+   everything present, then delete whatever is no longer in the list. These
+   lists are tens of rows, not thousands, so doing it wholesale is both
+   simpler and harder to get wrong than tracking individual edits. */
+async function syncCollection(table, userId, rows, toRow) {
+  const mapped = rows.map((r) => ({ ...toRow(r), user_id: userId }));
+  if (mapped.length) {
+    await sbRest(table, { method: "POST", body: mapped, prefer: "resolution=merge-duplicates,return=minimal" });
+  }
+  /* Anything the client no longer has is gone. Scoped to this user by the
+     filter as well as by RLS — belt and braces on a destructive call. */
+  const keep = mapped.map((r) => `"${String(r.id).replace(/"/g, "")}"`).join(",");
+  const filter = mapped.length ? `&id=not.in.(${keep})` : "";
+  await sbRest(`${table}?user_id=eq.${userId}${filter}`, { method: "DELETE", prefer: "return=minimal" });
+}
+
+/* Shapes. The database uses snake_case and the app uses camelCase; these two
+   pairs are the only place that difference is allowed to exist. */
+const invToRow = (i) => ({
+  id: String(i.id), title: i.title ?? "", units: Number(i.units) || 1,
+  units_left: Math.max(0, Number(i.unitsLeft) || 0), cost: Number(i.cost) || 0,
+  purchase_date: i.purchaseDate || null, notes: i.notes || null,
+  added_at: i.addedAt || new Date().toISOString(), sold_out_at: i.soldOutAt || null,
+  updated_at: new Date().toISOString(),
+});
+const rowToInv = (r) => ({
+  id: r.id, title: r.title, units: r.units, unitsLeft: r.units_left, cost: Number(r.cost),
+  purchaseDate: r.purchase_date, notes: r.notes || "", addedAt: r.added_at, soldOutAt: r.sold_out_at,
+});
+const saleToRow = (x) => ({
+  id: String(x.id), item_id: x.itemId ? String(x.itemId) : null, title: x.title ?? "",
+  qty: Number(x.qty) || 1, amount: Number(x.amount) || 0, cost: Number(x.cost) || 0,
+  fees: Number(x.fees) || 0, other: Number(x.other) || 0, profit: Number(x.profit) || 0,
+  market: x.market || null, method: x.method || null,
+  sold_at: x.soldAt || new Date().toISOString(), updated_at: new Date().toISOString(),
+});
+const rowToSale = (r) => ({
+  id: r.id, itemId: r.item_id, title: r.title, qty: r.qty, amount: Number(r.amount),
+  cost: Number(r.cost), fees: Number(r.fees), other: Number(r.other), profit: Number(r.profit),
+  market: r.market, method: r.method, soldAt: r.sold_at,
+});
+const watchToRow = (w) => ({ title: w.title, category: w.cat || null, notes: JSON.stringify(w) });
+const rowToWatch = (r) => {
+  try { const full = JSON.parse(r.notes || "null"); if (full?.title) return full; } catch {}
+  return { title: r.title, cat: r.category || "Other", trend: "flat" };
+};
+
 /* Every stored key is scoped to the account that owns it.
 
    It was not. Keys were `ros:inventory`, `ros:sales`, `ros:profile` and so
@@ -954,9 +1029,40 @@ async function claimLegacyData(scope) {
  } catch {}
 }
 
-function useStore(scope) {
+/* Reads everything this account owns, in one go. Returns null if the
+   database could not be reached at all, which is different from an account
+   that genuinely has nothing — the caller must not confuse the two or an
+   offline moment would look like deleted data. */
+async function loadRemote(userId) {
+ try {
+   const [inv, sales, watch, prof] = await Promise.all([
+     sbRest(`inventory?user_id=eq.${userId}&select=*&order=added_at.desc`),
+     sbRest(`sales?user_id=eq.${userId}&select=*&order=sold_at.desc`),
+     sbRest(`watchlist?user_id=eq.${userId}&select=*`),
+     sbRest(`profiles?id=eq.${userId}&select=*`),
+   ]);
+   const row = Array.isArray(prof) ? prof[0] : null;
+   return {
+     inventory: (inv || []).map(rowToInv),
+     sales: (sales || []).map(rowToSale),
+     watchlist: (watch || []).map(rowToWatch),
+     profile: row
+       ? { name: row.name || "", state: row.state || "", zip: row.zip || "",
+           radius: row.radius ?? 25, onboarded: !!row.onboarded, theme: row.theme || "obsidian" }
+       : null,
+     settings: row?.settings || null,
+   };
+ } catch {
+   return null;
+ }
+}
+
+function useStore(scope, userId) {
  const [db, setDb] = useState(DEFAULTS);
  const [ready, setReady] = useState(false);
+ /* null when everything is saved, a message when the last save did not
+    reach the server. The browser copy is still correct either way. */
+ const [syncError, setSyncError] = useState(null);
 
  /* Re-runs whenever the signed-in account changes, including to nobody on
     sign-out — which is what drops the previous person's data out of memory
@@ -964,33 +1070,114 @@ function useStore(scope) {
  useEffect(() => {
  let alive = true;
  setReady(false);
+ setSyncError(null);
  (async () => {
  if (!scope) { if (alive) { setDb(DEFAULTS); setReady(true); } return; }
+
+ /* The browser copy first, so the screen fills immediately and still
+    works on a dead connection. */
  await claimLegacyData(scope);
- const next = { ...DEFAULTS };
+ const local = { ...DEFAULTS };
  for (const k of Object.keys(DEFAULTS)) {
- try { const r = await window.storage.get(dbKey(scope, k)); if (r) next[k] = JSON.parse(r.value); } catch {}
+ try { const r = await window.storage.get(dbKey(scope, k)); if (r) local[k] = JSON.parse(r.value); } catch {}
  }
- if (!next.notifications.length) next.notifications = seedNotifications(next.profile);
- if (alive) { setDb(next); setReady(true); }
+ if (!local.notifications.length) local.notifications = seedNotifications(local.profile);
+ if (alive) { setDb(local); setReady(true); }
+
+ if (!userId) return;
+ const remote = await loadRemote(userId);
+ if (!alive) return;
+
+ /* Unreachable. Keep showing the browser copy and say so, rather than
+    blanking the screen or pretending the data is gone. */
+ if (!remote) { setSyncError("Working offline — changes are saved on this device and will sync when you're back."); return; }
+
+ const remoteEmpty = !remote.inventory.length && !remote.sales.length && !remote.watchlist.length;
+ const localHas = local.inventory.length || local.sales.length || local.watchlist.length;
+
+ if (remoteEmpty && localHas) {
+ /* First sign-in since this account's data moved to the server. Send up
+    what is in this browser, once, so nobody loses what they typed. */
+ try {
+ await pushAll(userId, local);
+ setSyncError(null);
+ } catch (e) {
+ setSyncError("Couldn't upload this device's data yet. It's still saved here.");
+ }
+ return;
+ }
+
+ /* The server is the truth from here on. */
+ const merged = {
+ ...local,
+ inventory: remote.inventory,
+ sales: remote.sales,
+ watchlist: remote.watchlist,
+ ...(remote.profile ? { profile: remote.profile } : {}),
+ ...(remote.settings ? { settings: { ...DEFAULTS.settings, ...remote.settings } } : {}),
+ };
+ setDb(merged);
+ for (const k of ["inventory", "sales", "watchlist", "profile", "settings"]) {
+ try { await window.storage.set(dbKey(scope, k), JSON.stringify(merged[k])); } catch {}
+ }
  })();
  return () => { alive = false; };
- }, [scope]);
+ }, [scope, userId]);
 
  const put = async (key, value) => {
  setDb((d) => ({ ...d, [key]: value }));
- /* Signed out, nothing is written. Without this guard a stray write
-    during sign-out would land in whatever scope came next. */
  if (!scope) return;
+ /* Browser first and always. If the network call below fails, or the tab
+    closes mid-save, the change is already safe on this device. */
  try { await window.storage.set(dbKey(scope, key), JSON.stringify(value)); } catch {}
+ if (!userId) return;
+ try {
+ await pushKey(userId, key, value);
+ setSyncError(null);
+ } catch {
+ setSyncError("That change is saved on this device but hasn't reached the server yet.");
+ }
  };
+
  const reset = async () => {
  if (scope) {
  for (const k of Object.keys(DEFAULTS)) { try { await window.storage.delete(dbKey(scope, k)); } catch {} }
  }
+ if (userId) {
+ try {
+ await Promise.all([
+ sbRest(`inventory?user_id=eq.${userId}`, { method: "DELETE", prefer: "return=minimal" }),
+ sbRest(`sales?user_id=eq.${userId}`, { method: "DELETE", prefer: "return=minimal" }),
+ sbRest(`watchlist?user_id=eq.${userId}`, { method: "DELETE", prefer: "return=minimal" }),
+ ]);
+ } catch {}
+ }
  setDb(DEFAULTS);
  };
- return { db, ready, put, reset };
+ return { db, ready, put, reset, syncError };
+}
+
+/* One key's worth of state, sent to wherever it belongs. */
+async function pushKey(userId, key, value) {
+ if (key === "inventory") return syncCollection("inventory", userId, value, invToRow);
+ if (key === "sales") return syncCollection("sales", userId, value, saleToRow);
+ if (key === "watchlist") return syncCollection("watchlist", userId, value, watchToRow);
+ if (key === "profile") {
+ return sbRest(`profiles?id=eq.${userId}`, { method: "PATCH", prefer: "return=minimal",
+ body: { name: value.name || "", state: value.state || null, zip: value.zip || null,
+ radius: value.radius ?? 25, theme: value.theme || "obsidian", onboarded: !!value.onboarded } });
+ }
+ if (key === "settings") {
+ return sbRest(`profiles?id=eq.${userId}`, { method: "PATCH", prefer: "return=minimal", body: { settings: value } });
+ }
+ /* notifications and readNotifs are generated per device and not worth a
+    round trip; they stay in the browser. */
+}
+
+async function pushAll(userId, local) {
+ for (const k of ["inventory", "sales", "watchlist", "profile", "settings"]) {
+ await pushKey(userId, k, local[k]);
+ }
 }
 
 function seedNotifications(profile) {
@@ -2551,7 +2738,9 @@ export default function ResellOS() {
     before the id was stored, so an older session does not read as a new
     empty account. Null when signed out, which empties the store. */
  const scope = user?.id || user?.email || null;
- const { db, ready, put, reset } = useStore(scope);
+ /* The database needs the real account id; the local cache can fall back to
+    an email for sessions minted before ids were stored. */
+ const { db, ready, put, reset, syncError } = useStore(scope, user?.id || null);
  /* Set when the address bar says we arrived from a reset email. It outranks
     a stored session: someone who can't remember their password is not helped
     by being silently signed in as whoever used this browser last.
@@ -2753,6 +2942,15 @@ export default function ResellOS() {
  return (
  <div className="reseller-root" style={{ minHeight: "100vh", background: C.void, color: C.bone, fontFamily: SANS }}>
  <Styles theme={theme} />
+ {/* Said plainly rather than silently. A change that has not reached the
+     server is not lost — it is on this device — but the person is entitled
+     to know before they close the tab on a phone with no signal. */}
+ {syncError && (
+ <div role="status" style={{ padding: "10px 16px", background: C.raised,
+ borderBottom: `1px solid ${C.line}`, fontSize: 12, lineHeight: 1.5, color: C.dim, textAlign: "center" }}>
+ {syncError}
+ </div>
+ )}
  {/* The bottom padding was a 104px strip reserved for the fixed tab bar.
      With the bar gone it exists only to keep the last row of content clear
      of the assistant button — which the old 104px did not manage, so the
