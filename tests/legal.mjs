@@ -76,28 +76,22 @@ const settings = async (page) => {
        t.match(new RegExp(`.{0,50}${who}.{0,50}`, "i"))?.[0]);
   }
 
-  /* Not naming them is only defensible if the policy still says what each
-     one receives. Silence about third parties altogether would be a
-     misleading privacy policy, which is worse than a candid one. */
-  for (const [what, re] of [
-    ["storage", /Hosting and database/i],
-    ["website delivery", /Website delivery/i],
-    ["assistant", /Assistant —/i],
-    ["search", /Marketplace search/i],
-    ["email", /Email delivery/i],
-    ["fonts", /Typefaces/i],
-  ]) {
-    ok(`still says what the ${what} provider sees`, re.test(t));
-  }
+  /* Not naming them is only defensible while the policy still admits they
+     exist and says what they may not do. Silence about third parties
+     altogether would be a misleading privacy policy, which is worse than
+     the long version this replaced. These three lines are the floor. */
+  ok("still says the app runs on other companies' infrastructure",
+     /runs on other companies' infrastructure/i.test(t));
+  ok("and that none of them may sell your data or advertise with it",
+     /may sell your data or use it for advertising/i.test(t));
   ok("and offers the names to anyone who asks",
-     /write to us and we will tell you/i.test(t));
-  ok("and forbids them selling it or using it for advertising",
-     /None of them is permitted to sell it or use it for advertising/i.test(t));
+     /name them for anyone who asks/i.test(t));
   ok("states there is no analytics or tracking", /no analytics/i.test(t));
   ok("explains what the assistant is sent", /assistant is told/i.test(t));
   ok("and that it can be switched off", /Personalize with my business data/i.test(t));
   ok("explains the password check never sends the password",
-     /only the first five characters/i.test(t), t.match(/.{0,60}first five.{0,60}/i)?.[0]);
+     /password never leaves your device/i.test(t) && /first five characters/i.test(t),
+     t.match(/.{0,60}first five.{0,60}/i)?.[0]);
   await ctx.close();
 }
 
