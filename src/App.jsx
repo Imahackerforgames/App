@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useId } from "react";
+import { PRIVACY, TERMS, LEGAL_UPDATED, SUPPORT_EMAIL } from "./legal.jsx";
 import {
  Home as HomeIcon, Compass, Layers, Briefcase, Settings as SettingsIcon,
  Sparkles, Search as SearchIcon, MapPin, Globe, ExternalLink, SlidersHorizontal,
@@ -1859,6 +1860,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
      this page applies at that point — the person is holding a one-hour
      session and one job. */
   const [phase, setPhase] = useState(recovery ? "reset" : "form"); // form | verify | forgot | reset
+  const [legal, setLegal] = useState(null); // null | "terms" | "privacy"
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [loginWith, setLoginWith] = useState("email"); // email | username
@@ -2666,6 +2668,25 @@ function AuthScreen({ onDone, theme, recovery = null }) {
               {busy ? "One moment…" : mode === "login" ? "Log in" : "Create account"}
             </button>
 
+            {/* Shown before the account exists, not buried in Settings
+                afterwards — agreeing to something you were never offered is
+                not agreement. */}
+            {mode === "signup" && (
+              <p style={{ fontSize: 11, lineHeight: 1.55, color: t.dead, textAlign: "center", margin: "12px 0 0" }}>
+                By creating an account you agree to our{" "}
+                <button onClick={() => setLegal("terms")}
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer",
+                    color: t.accentText, fontSize: 11, fontWeight: 600, textDecoration: "underline", fontFamily: SANS }}>
+                  Terms
+                </button>{" "}and{" "}
+                <button onClick={() => setLegal("privacy")}
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer",
+                    color: t.accentText, fontSize: 11, fontWeight: 600, textDecoration: "underline", fontFamily: SANS }}>
+                  Privacy Policy
+                </button>.
+              </p>
+            )}
+
             {GOOGLE_SIGN_IN && (
             <>
             <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
@@ -2699,6 +2720,8 @@ function AuthScreen({ onDone, theme, recovery = null }) {
           )}
         </div>
       </div>
+
+      {legal && <LegalSheet which={legal} onClose={() => setLegal(null)} />}
     </div>
   );
 }
@@ -5204,6 +5227,51 @@ function Essentials() {
 }
 
 function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitlement, entLoading, entNote }) {
+ /* null | "terms" | "privacy" */
+ const [legal, setLegal] = useState(null);
+ const [closing, setClosing] = useState(false);
+ const [closeErr, setCloseErr] = useState(null);
+
+ /* Everything we hold, as a file. Built from what is on screen rather than
+    re-fetched, because that is what the person is being shown and promised. */
+ const exportData = () => {
+   const payload = {
+     exportedAt: new Date().toISOString(),
+     account: { email: user?.email || null, username: db.profile?.name || null },
+     profile: db.profile, settings: db.settings,
+     inventory: db.inventory, sales: db.sales, watchlist: db.watchlist,
+   };
+   const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+   const a = document.createElement("a");
+   a.href = url;
+   a.download = `reamp-export-${new Date().toISOString().slice(0, 10)}.json`;
+   document.body.appendChild(a); a.click(); a.remove();
+   setTimeout(() => URL.revokeObjectURL(url), 1000);
+ };
+
+ /* Deliberately two steps and a typed confirmation. This removes the
+    account and every row belonging to it, and there is no undo. */
+ const deleteAccount = async () => {
+   const typed = prompt('This deletes your account and everything in it. It cannot be undone.\n\nType DELETE to confirm.');
+   if (typed !== "DELETE") return;
+   setClosing(true); setCloseErr(null);
+   try {
+     const res = await fetch(`${SUPABASE_URL}/functions/v1/delete-account`, {
+       method: "POST", headers: await fnHeaders(),
+     });
+     const d = await res.json().catch(() => ({}));
+     if (!res.ok) throw new Error(d.error || `Couldn't delete the account (${res.status}).`);
+     /* Clear the local copy too, or the next sign-in on this browser would
+        find cached rows for an account that no longer exists. */
+     await reset();
+     await signOut();
+   } catch (e) {
+     setCloseErr(e.message || "Couldn't delete your account.");
+   } finally {
+     setClosing(false);
+   }
+ };
+
  return (
  <div style={{ paddingTop: 4 }}>
  <Group title="Account">
@@ -5345,13 +5413,84 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  </Group>
 
  <Group title="Privacy & security">
- <button onClick={() => { if (confirm("Erase all your data? This can't be undone.")) reset(); }} className="fx fx-chip"
+ <button onClick={exportData} className="fx fx-chip"
+ style={{ ...pillBtn(false), width: "100%", padding: "13px", fontWeight: 700 }}>
+ Export my data
+ </button>
+ <p style={{ fontSize: 11, color: C.dead, margin: "8px 0 14px", lineHeight: 1.55 }}>
+ Everything we hold about you, as a file you can keep.
+ </p>
+
+ <button onClick={() => { if (confirm("Erase all your data? Your account stays, but your inventory, sales and watchlist are removed. This can't be undone.")) reset(); }} className="fx fx-chip"
  style={{ ...pillBtn(false), width: "100%", padding: "13px", borderColor: C.accentDim, color: C.accentText, fontWeight: 700 }}>
  Erase all my data
  </button>
+ <p style={{ fontSize: 11, color: C.dead, margin: "8px 0 14px", lineHeight: 1.55 }}>
+ Empties your inventory, sales and watchlist. Your account stays open.
+ </p>
+
+ <button onClick={deleteAccount} disabled={closing} className="fx fx-chip"
+ style={{ ...pillBtn(false), width: "100%", padding: "13px", borderColor: PW_TONE.weak.color,
+ color: PW_TONE.weak.color, fontWeight: 700, cursor: closing ? "wait" : "pointer" }}>
+ {closing ? "Deleting…" : "Delete my account"}
+ </button>
+ <p style={{ fontSize: 11, color: C.dead, margin: "8px 0 0", lineHeight: 1.55 }}>
+ Closes your account and removes everything. There is no undo.
+ </p>
+ {closeErr && (
+ <p role="alert" style={{ fontSize: 11.5, color: PW_TONE.weak.color, margin: "8px 0 0", lineHeight: 1.55 }}>
+ {closeErr}
+ </p>
+ )}
  </Group>
+
+ <Group title="Legal">
+ {[["privacy", "Privacy Policy"], ["terms", "Terms of Service"]].map(([k, n]) => (
+ <button key={k} onClick={() => setLegal(k)}
+ style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%",
+ padding: "10px 0", background: "none", border: "none", cursor: "pointer", color: C.bone, textAlign: "left" }}>
+ <span style={{ fontSize: 13.5 }}>{n}</span>
+ <ChevronRight size={15} color={C.dim} />
+ </button>
+ ))}
+ <p style={{ fontSize: 11, color: C.dead, margin: "10px 0 0", lineHeight: 1.55 }}>
+ Questions about either: {SUPPORT_EMAIL}
+ </p>
+ </Group>
+
+ {legal && <LegalSheet which={legal} onClose={() => setLegal(null)} />}
  </div>
  );
+}
+
+/* Both documents render through here. They are plain data — a list of
+   [heading, ...paragraphs] — so the same content could be printed, emailed
+   or served as a page without rewriting it as markup. */
+function LegalSheet({ which, onClose }) {
+  const doc = which === "terms" ? TERMS : PRIVACY;
+  const title = which === "terms" ? "Terms of Service" : "Privacy Policy";
+  return (
+    <Sheet title={title} sub={`Last updated ${LEGAL_UPDATED}`} onClose={onClose}>
+      {doc.map(([heading, ...paras], i) => (
+        <div key={i} style={{ marginBottom: heading ? 18 : 14 }}>
+          {heading && (
+            <h3 style={{ fontSize: 14.5, fontWeight: 800, letterSpacing: "-0.01em", margin: "0 0 8px" }}>
+              {heading}
+            </h3>
+          )}
+          {paras.map((t, j) => (
+            <p key={j} style={{ fontSize: 13, lineHeight: 1.65, color: C.dim, margin: "0 0 8px" }}>
+              {/* The unanswered bits are flagged in the copy itself rather
+                  than hidden, so they cannot be published by accident. */}
+              {t.startsWith("NEEDS YOUR ANSWER")
+                ? <span style={{ color: C.accentText, fontWeight: 600 }}>{t}</span>
+                : t}
+            </p>
+          ))}
+        </div>
+      ))}
+    </Sheet>
+  );
 }
 
 const Toggle = ({ label: l, on, onToggle }) => (
