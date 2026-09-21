@@ -11,7 +11,9 @@
     <meta name="description" content="Reamp — track what you buy, what you sell, and what you actually made." />
     <title>Reamp</title>
   </head>
-  <body style="margin:0">
+  <!-- The default palette's ground, so the very first paint is not white.
+       The app overrides this from the live theme as soon as it mounts. -->
+  <body style="margin:0;background:#0D0F10">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
