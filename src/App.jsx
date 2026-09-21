@@ -1254,6 +1254,29 @@ function useBusiness(db, range) {
 
 function Styles({ theme }) {
  const t = THEMES[theme] || THEMES.ivory;
+
+ /* Two things CSS in this component cannot reach on its own.
+
+    The status-bar strip on iOS and the browser chrome on Android take their
+    colour from a meta tag, not from a stylesheet. It was hard-coded dark,
+    right for two of the four palettes and wrong for the other two.
+
+    And the document's own background is set inline in index.html so the
+    first paint is not white — an inline style beats a stylesheet rule, so
+    the theme has to be applied the same way rather than through the CSS
+    below, which would silently lose. */
+ useEffect(() => {
+   let tag = document.querySelector('meta[name="theme-color"]');
+   if (!tag) {
+     tag = document.createElement("meta");
+     tag.setAttribute("name", "theme-color");
+     document.head.appendChild(tag);
+   }
+   tag.setAttribute("content", t.void);
+   document.documentElement.style.background = t.void;
+   document.body.style.background = t.void;
+ }, [t.void]);
+
  return (
  <style>{`
  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -1296,6 +1319,27 @@ function Styles({ theme }) {
 
  /* And stops Safari inflating body text of its own accord on rotation. */
  html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+ /* The page's own ground, painted on html and body rather than only on the
+    app's root element.
+
+    The root element covers the viewport, but the viewport is not everything
+    a phone shows. Rubber-band scrolling drags the page past its own edge,
+    and the notch and home-indicator strips sit outside it too — and in both
+    of those places the browser paints the *body*, which had no background
+    at all and so came out white. That is the white band at the top and
+    bottom on every screen, login included.
+
+    Set from the live theme, so the light palettes get their own ground
+    rather than a dark bar. */
+ html, body { background: ${t.void}; }
+ #root { background: ${t.void}; min-height: 100%; }
+
+ /* Keeps the colour under the notch and the home indicator rather than
+    leaving those strips to the browser's default. */
+ @supports (padding: env(safe-area-inset-top)) {
+   body { background-color: ${t.void}; }
+ }
  @keyframes rise { from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:none;} }
  .rise { opacity:0; animation: rise .5s cubic-bezier(.2,.7,.3,1) forwards; }
  @keyframes sweep { 0%{transform:translateX(-100%)} 100%{transform:translateX(360%)} }
