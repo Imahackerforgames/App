@@ -546,7 +546,12 @@ End with a line starting "SOURCES:" listing the URLs you used, comma separated.`
        headers: await fnHeaders(),
        body: JSON.stringify({ query: title, mode, marketplaces, sold, maxResults: 20 }),
      });
-     if (!res.ok) throw new Error(`Search service returned ${res.status}.`);
+     if (!res.ok) {
+       /* The function explains itself — a spent quota, a rate limit, a bad
+          key — and that sentence is far more use than the status code. */
+       const body = await res.json().catch(() => ({}));
+       throw new Error(String(body.error || `Search service returned ${res.status}.`).slice(0, 160));
+     }
      return res.json();
    };
 

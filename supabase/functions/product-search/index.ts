@@ -53,6 +53,53 @@ const SOLD_PAGE: Record<string, (q: string) => string> = {
     `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&LH_Sold=1&LH_Complete=1&_sop=13`,
 };
 
+/* How many searches one account gets per hour.
+
+   Each analysis is two calls to this function, and each call fans out to one
+   Tavily search per marketplace plus a page extract — so a single analysis
+   can be a dozen Tavily requests. Sixty calls an hour is far more than a
+   person browsing, and far less than a loop can spend.
+
+   Counted in Postgres, not in memory: Edge Functions run on many instances
+   and an in-process counter is bypassed by landing on a different one. */
+const SEARCH_MAX = 60, SEARCH_WINDOW = 60 * 60;
+
+/* Fails open. A limiter that stops everyone working when the database is
+   unreachable is worse than the spending it prevents. */
+async function allow(bucket: string, max: number, windowSeconds: number): Promise<boolean> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return true;
+  try {
+    const res = await fetch(`${url}/rest/v1/rpc/consume_rate_limit`, {
+      method: "POST",
+      headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_bucket: bucket, p_max: max, p_window_seconds: windowSeconds }),
+    });
+    if (!res.ok) {
+      console.error("rate limit check failed:", res.status, (await res.text()).slice(0, 200));
+      return true;
+    }
+    return (await res.json()) !== false;
+  } catch (e) {
+    console.error("rate limit check threw:", String(e));
+    return true;
+  }
+}
+
+/* Who is asking. verify_jwt is on, so a token is always present and already
+   verified by the gateway before this runs — reading the subject claim here
+   is for bucketing, not for trusting. Unparseable falls back to the address
+   so the limit still applies to something. */
+function callerId(req: Request): string {
+  try {
+    const raw = (req.headers.get("Authorization") || "").replace(/^Bearer /i, "");
+    const claims = JSON.parse(atob(raw.split(".")[1]));
+    if (claims?.sub) return `user:${claims.sub}`;
+  } catch {}
+  return `ip:${(req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown"}`;
+}
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -124,6 +171,13 @@ Deno.serve(async (req: Request) => {
 
     if (!query || typeof query !== "string" || !query.trim()) {
       return json({ error: "Missing 'query'." }, 400);
+    }
+
+    /* Checked after the request is understood but before a single Tavily
+       credit is spent. */
+    if (!(await allow(`search:${callerId(req)}`, SEARCH_MAX, SEARCH_WINDOW))) {
+      console.warn("product-search: rate limited.");
+      return json({ error: "You've run a lot of searches in the last hour. Try again shortly." }, 429);
     }
 
     const pool = mode === "local" ? LOCAL_DOMAINS : ONLINE_DOMAINS;

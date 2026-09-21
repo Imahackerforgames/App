@@ -13,13 +13,20 @@ const src = readFileSync("/home/user/App/supabase/functions/product-search/index
 const js = transformSync(src, { loader: "ts", target: "es2022", format: "esm" }).code;
 
 /* Load the module once per scenario with its own stubs. */
-async function runHandler({ body, tavily, extract = null }) {
+async function runHandler({ body, tavily, extract = null, rateLimitAllows = true, rateLimitBroken = false }) {
   let handler;
   const calls = [];
-  globalThis.Deno = { env: { get: (k) => (k === "TAVILY_API_KEY" ? "tvly-testkey000" : undefined) },
-                      serve: (h) => { handler = h; } };
+  const rpcCalls = [];
+  const ENV = { TAVILY_API_KEY: "tvly-testkey000",
+                SUPABASE_URL: "https://stub.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-stub" };
+  globalThis.Deno = { env: { get: (k) => ENV[k] }, serve: (h) => { handler = h; } };
   globalThis.fetch = async (url, init) => {
     const sent = JSON.parse(init.body);
+    if (String(url).includes("/rpc/consume_rate_limit")) {
+      rpcCalls.push(sent);
+      if (rateLimitBroken) return new Response("limiter exploded", { status: 500 });
+      return new Response(JSON.stringify(rateLimitAllows), { status: 200 });
+    }
     sent._endpoint = String(url).includes("/extract") ? "extract" : "search";
     calls.push(sent);
     if (sent._endpoint === "extract") {
@@ -33,7 +40,8 @@ async function runHandler({ body, tavily, extract = null }) {
   const res = await handler(new Request("https://x/functions/v1/product-search", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   }));
-  return { res, data: await res.json(), calls: calls.filter((c) => c._endpoint === "search"),
+  return { res, data: await res.json(), rpcCalls,
+           calls: calls.filter((c) => c._endpoint === "search"),
            extracts: calls.filter((c) => c._endpoint === "extract") };
 }
 
@@ -287,6 +295,32 @@ const okReply = (sent) => new Response(JSON.stringify({
      urls.length === 1 && /ebay\.com/.test(urls[0]), JSON.stringify(urls));
   ok("no credits spent guessing at Mercari or Poshmark",
      !urls.some((u) => /mercari|poshmark/.test(u)), JSON.stringify(urls));
+}
+
+// ── 17. one account cannot drain the Tavily balance ────────────────────
+{
+  console.log("\n17. Searches are capped per account");
+  const { res, data, calls, rpcCalls } = await runHandler({
+    body: { query: "x", maxResults: 24 }, tavily: okReply, rateLimitAllows: false });
+  ok("refused with 429", res.status === 429, String(res.status));
+  ok("and says why in words", /lot of searches|try again/i.test(data.error || ""), JSON.stringify(data.error));
+  ok("not one Tavily credit was spent", calls.length === 0, String(calls.length));
+  ok("the limit was checked once", rpcCalls.length === 1, String(rpcCalls.length));
+  ok("bucketed per account, not globally", /^search:/.test(rpcCalls[0]?.p_bucket || ""), rpcCalls[0]?.p_bucket);
+}
+
+// ── 18. a broken limiter must not lock everyone out ────────────────────
+{
+  console.log("\n18. If the limiter itself fails, searching still works");
+  /* The RPC answering with a server error rather than a verdict. Failing
+     closed here would mean a database hiccup takes the whole product down,
+     which is worse than the spending a limiter prevents. */
+  const { res, data, calls, rpcCalls } = await runHandler({
+    body: { query: "x", maxResults: 24 }, tavily: okReply, rateLimitBroken: true });
+  ok("the limiter was asked", rpcCalls.length === 1, String(rpcCalls.length));
+  ok("still a 200 rather than a lockout", res.status === 200, String(res.status));
+  ok("the search actually ran", calls.length > 0, String(calls.length));
+  ok("and results came back", data.count > 0, String(data.count));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

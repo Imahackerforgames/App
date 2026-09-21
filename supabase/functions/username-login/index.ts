@@ -37,6 +37,52 @@ const json = (body: unknown, status = 200) =>
 // tell "no such username" apart from "wrong password".
 const DENIED = { error: "Username or password is incorrect." };
 
+/* How many tries, over how long.
+   Per address: generous, because a household or office shares one.
+   Per username: tight, because nobody signs in to the same account eight
+   times in a quarter of an hour, and that is the number an attacker working
+   through a password list has to beat. */
+const IP_MAX = 20, IP_WINDOW = 15 * 60;
+const USER_MAX = 8, USER_WINDOW = 15 * 60;
+
+/* Counted in Postgres rather than in memory. Edge Functions run on many
+   instances and an in-process counter is bypassed by whoever lands on a
+   different one; a row is shared by all of them.
+
+   Fails open. If the database cannot be reached, people who have forgotten
+   nothing still get to sign in — a limiter that locks everyone out when it
+   breaks is worse than the attack it prevents. */
+async function allow(bucket: string, max: number, windowSeconds: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/consume_rate_limit`, {
+      method: "POST",
+      headers: {
+        apikey: SERVICE_KEY,
+        Authorization: `Bearer ${SERVICE_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ p_bucket: bucket, p_max: max, p_window_seconds: windowSeconds }),
+    });
+    if (!res.ok) {
+      console.error("rate limit check failed:", res.status, (await res.text()).slice(0, 200));
+      return true;
+    }
+    return (await res.json()) !== false;
+  } catch (e) {
+    console.error("rate limit check threw:", String(e));
+    return true;
+  }
+}
+
+const TOO_MANY = {
+  error: "Too many sign-in attempts. Wait a few minutes and try again.",
+};
+
+/* Supabase sits behind a proxy, so the socket address is the proxy's. The
+   first entry in x-forwarded-for is the client. */
+const clientIp = (req: Request) =>
+  (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown";
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
@@ -47,6 +93,19 @@ Deno.serve(async (req: Request) => {
     if (typeof username !== "string" || typeof password !== "string" ||
         !username.trim() || !password) {
       return json({ error: "Enter a username and password." }, 400);
+    }
+
+    /* Before touching any credential. Both buckets are consumed on every
+       attempt, successful or not, which keeps it simple and race-free — a
+       real person uses one of eight. */
+    const who = username.trim().toLowerCase();
+    const [ipOk, userOk] = await Promise.all([
+      allow(`login:ip:${clientIp(req)}`, IP_MAX, IP_WINDOW),
+      allow(`login:user:${who}`, USER_MAX, USER_WINDOW),
+    ]);
+    if (!ipOk || !userOk) {
+      console.warn(`username-login: rate limited (${!ipOk ? "address" : "username"}).`);
+      return json(TOO_MANY, 429);
     }
 
     const admin = { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` };
