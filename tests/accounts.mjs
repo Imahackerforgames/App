@@ -24,7 +24,7 @@ async function ctx() {
   await page.route("**://*.supabase.co/**", (r) => r.abort());
   return { c, page };
 }
-const PROFILE = JSON.stringify({ onboarded: true, theme: "obsidian", state: "CA", zip: "90001", radius: 25 });
+const PROFILE = JSON.stringify({ username: "tester", onboarded: true, theme: "obsidian", state: "CA", zip: "90001", radius: 25 });
 
 /* The profile is scoped per account like everything else, so each account
    needs its own or it lands on onboarding instead of the app. `onboard:false`
@@ -107,7 +107,7 @@ const openBusiness = async (page) => {
   // Seed the pre-fix shape: unscoped keys.
   await page.evaluate((inv) => {
     localStorage.setItem("ros:inventory", inv);
-    localStorage.setItem("ros:profile", JSON.stringify({ onboarded: true, theme: "obsidian", state: "CA", zip: "90001", radius: 25 }));
+    localStorage.setItem("ros:profile", JSON.stringify({ username: "tester", onboarded: true, theme: "obsidian", state: "CA", zip: "90001", radius: 25 }));
   }, stock("Legacy Widget"));
 
   await asUser(page, "user-ddd", "dave@example.com", { onboard: false });

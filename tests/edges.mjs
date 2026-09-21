@@ -25,7 +25,7 @@ async function look({ theme = "obsidian", signedIn = true } = {}) {
     await page.evaluate((th) => {
       localStorage.setItem("ros:session", JSON.stringify({ email: "a@b.com", provider: "email",
         token: "t", id: "u1", refresh: "r", expiresAt: Math.floor(Date.now() / 1000) + 3600 }));
-      localStorage.setItem("ros:u:u1:profile", JSON.stringify({ onboarded: true, theme: th, state: "CA", zip: "90001", radius: 25 }));
+      localStorage.setItem("ros:u:u1:profile", JSON.stringify({ username: "tester", onboarded: true, theme: th, state: "CA", zip: "90001", radius: 25 }));
     }, theme);
   }
   await page.reload({ waitUntil: "networkidle" });

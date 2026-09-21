@@ -24,7 +24,7 @@ async function app({ inventory = null } = {}) {
   await page.route("**://*.supabase.co/**", (r) => r.abort());
   await page.addInitScript((inv) => {
     localStorage.setItem("ros:session", JSON.stringify({ email:"t@e.com", provider:"email", token:"t", id:"u1", refresh:"r", expiresAt: Math.floor(Date.now()/1000)+3600 }));
-    localStorage.setItem("ros:profile", JSON.stringify({ onboarded:true, theme:"obsidian", state:"CA", zip:"90001", radius:25 }));
+    localStorage.setItem("ros:profile", JSON.stringify({ username: "tester", onboarded: true, theme:"obsidian", state:"CA", zip:"90001", radius:25 }));
     if (inv) localStorage.setItem("ros:inventory", inv);
   }, inventory);
   await page.goto("http://localhost:4173/", { waitUntil: "networkidle" });

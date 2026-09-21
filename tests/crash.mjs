@@ -21,7 +21,7 @@ async function app({ corrupt = false } = {}) {
   await page.evaluate(([uid, bad]) => {
     localStorage.setItem("ros:session", JSON.stringify({ email: "a@b.com", provider: "email",
       token: "t", id: uid, refresh: "r", expiresAt: Math.floor(Date.now() / 1000) + 3600 }));
-    localStorage.setItem(`ros:u:${uid}:profile`, JSON.stringify({ onboarded: true, theme: "obsidian", state: "CA", zip: "90001", radius: 25 }));
+    localStorage.setItem(`ros:u:${uid}:profile`, JSON.stringify({ username: "tester", onboarded: true, theme: "obsidian", state: "CA", zip: "90001", radius: 25 }));
     /* Valid JSON, wrong shape. The app parses it happily and then calls
        .map on an object during render — a realistic corrupted-cache crash,
        not a contrived throw. */

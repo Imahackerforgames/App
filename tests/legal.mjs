@@ -26,7 +26,7 @@ async function app({ signedIn = true, deleteReply = null } = {}) {
     await page.evaluate((uid) => {
       localStorage.setItem("ros:session", JSON.stringify({ email: "a@b.com", provider: "email",
         token: "t", id: uid, refresh: "r", expiresAt: Math.floor(Date.now() / 1000) + 3600 }));
-      localStorage.setItem(`ros:u:${uid}:profile`, JSON.stringify({ onboarded: true, theme: "obsidian", state: "CA", zip: "90001", radius: 25 }));
+      localStorage.setItem(`ros:u:${uid}:profile`, JSON.stringify({ username: "tester", onboarded: true, theme: "obsidian", state: "CA", zip: "90001", radius: 25 }));
       localStorage.setItem(`ros:u:${uid}:inventory`, JSON.stringify([{ id: "inv_1", title: "Test Item",
         units: 1, unitsLeft: 1, cost: 20, addedAt: new Date().toISOString(), notes: "", soldOutAt: null }]));
     }, UID);

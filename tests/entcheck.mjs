@@ -25,7 +25,7 @@ async function check(reply, { noRefreshToken = false } = {}) {
     // which is a different case (covered below).
     localStorage.setItem("ros:session", JSON.stringify({ email: "t@example.com", provider: "email", token: "tok", id: "u1",
       ...(noRefresh ? {} : { refresh: "rt" }), expiresAt: Math.floor(Date.now() / 1000) + 3600 }));
-    localStorage.setItem("ros:profile", JSON.stringify({ onboarded: true, theme: "heat", state: "CA", zip: "90001", radius: 25 }));
+    localStorage.setItem("ros:profile", JSON.stringify({ username: "tester", onboarded: true, theme: "heat", state: "CA", zip: "90001", radius: 25 }));
   }, noRefreshToken);
   await page.goto("http://localhost:4173/", { waitUntil: "networkidle" });
   await page.waitForTimeout(700);

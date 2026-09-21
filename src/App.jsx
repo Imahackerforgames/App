@@ -926,7 +926,7 @@ const rise = (i = 0) => ({ animationDelay: `${i * 55}ms` });
 const MOTIVATION = ["Let's make some money.", "Let's build this wealth.", "Time to grow the business.", "Let's find the next winner."];
 
 const DEFAULTS = {
- profile: { name: "", state: "", zip: "", radius: 25, onboarded: false, theme: "obsidian" },
+ profile: { name: "", username: "", state: "", zip: "", radius: 25, onboarded: false, theme: "obsidian" },
  settings: { feePct: 13.25, payPct: 2.9, ship: 8, startingBalance: 0,
  notif: { opps: true, satur: true, demand: true, local: true }, aiUseData: true },
  inventory: [], sales: [], watchlist: [], notifications: [], readNotifs: [],
@@ -1066,8 +1066,9 @@ async function loadRemote(userId) {
      sales: (sales || []).map(rowToSale),
      watchlist: (watch || []).map(rowToWatch),
      profile: row
-       ? { name: row.name || "", state: row.state || "", zip: row.zip || "",
-           radius: row.radius ?? 25, onboarded: !!row.onboarded, theme: row.theme || "obsidian" }
+       ? { name: row.name || "", username: row.username || "", state: row.state || "",
+           zip: row.zip || "", radius: row.radius ?? 25, onboarded: !!row.onboarded,
+           theme: row.theme || "obsidian" }
        : null,
      settings: row?.settings || null,
    };
@@ -1906,7 +1907,6 @@ function AuthScreen({ onDone, theme, recovery = null }) {
   const [phase, setPhase] = useState(recovery ? "reset" : "form"); // form | verify | forgot | reset
   const [legal, setLegal] = useState(null); // null | "terms" | "privacy"
   const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
   const [loginWith, setLoginWith] = useState("email"); // email | username
   const [loginId, setLoginId] = useState("");          // whichever of the two they typed
   const [pw, setPw]       = useState("");
@@ -1945,12 +1945,12 @@ function AuthScreen({ onDone, theme, recovery = null }) {
     : loginId.trim().length >= 2;
   const ok = mode === "login"
     ? loginIdOk && pw.length >= 6
-    : emailOk && username.trim().length >= 2 && strength.ok;
+    : emailOk && strength.ok;
 
   const submit = async () => {
     // Spell out why rather than leaving a dead button. The strength gate is
     // the most likely reason someone is stuck here.
-    if (!busy && mode === "signup" && emailOk && username.trim().length >= 2 && !strength.ok) {
+    if (!busy && mode === "signup" && emailOk && !strength.ok) {
       const missing = strength.met.filter((r) => !r.ok).map((r) => r.label.toLowerCase());
       setErr(`Password is too weak${strength.level === "fair" ? " — only fair" : ""}. Still needs ${missing.join(", ")}. Try again.`);
       return;
@@ -1972,12 +1972,14 @@ function AuthScreen({ onDone, theme, recovery = null }) {
     setBusy(true); setErr(null); setNote(null);
     try {
       if (mode === "signup") {
+        /* No username here any more. It is asked for on the next screen,
+           once the account exists — three fields on a sign-up form loses
+           people, and a name chosen before you have seen the product is a
+           name chosen badly. profiles.username stays null until then, which
+           is what PickUsername keys off. */
         const d = await supabaseAuth("signup", {
           email: cleanEmail(email),
           password: pw,
-          // The signup trigger reads full_name/name out of this metadata to
-          // fill in profiles.name, so the username lands in the profile row.
-          data: { username: username.trim(), name: username.trim() },
         });
         if (d.user && !d.access_token) {
           // No note here — the verify screen's own heading already says this,
@@ -1985,7 +1987,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
           setPhase("verify"); setCode("");
           setBusy(false); return;
         }
-        onDone({ email: cleanEmail(email), provider: "email", ...sessionFields(d), id: d.user?.id, username: username.trim() });
+        onDone({ email: cleanEmail(email), provider: "email", ...sessionFields(d), id: d.user?.id });
       } else if (loginWith === "username") {
         // Supabase authenticates by email, so the username is resolved to an
         // account server-side by the username-login function.
@@ -2009,7 +2011,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
         // The login tab writes to loginId and the sign-up tab to email. Sending
         // the wrong one here handed the app an identity with no address at all.
         const who = mode === "login" ? loginId.trim() : email.trim();
-        setTimeout(() => onDone({ email: who, provider: "demo", username: username.trim() }), 900);
+        setTimeout(() => onDone({ email: who, provider: "demo" }), 900);
       } else setErr(e.message);
     } finally { setBusy(false); }
   };
@@ -2024,11 +2026,11 @@ function AuthScreen({ onDone, theme, recovery = null }) {
     try {
       const d = await supabaseAuth("verify", { type: "signup", email, token });
       if (!d.access_token) { setErr("That code didn't work. Check it and try again."); return; }
-      onDone({ email, provider: "email", ...sessionFields(d), id: d.user?.id, username: username.trim() });
+      onDone({ email, provider: "email", ...sessionFields(d), id: d.user?.id });
     } catch (e) {
       if (/failed to fetch|networkerror|load failed/i.test(e.message)) {
         setNote("Can't reach Supabase from this preview. Continuing in demo mode.");
-        setTimeout(() => onDone({ email, provider: "demo", username: username.trim() }), 900);
+        setTimeout(() => onDone({ email, provider: "demo" }), 900);
       } else setErr(/expired|invalid/i.test(e.message)
         ? "That code is wrong or has expired. Send a new one."
         : e.message);
@@ -2568,18 +2570,6 @@ function AuthScreen({ onDone, theme, recovery = null }) {
               ))}
             </div>
 
-            {mode === "signup" && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim, marginBottom: 8 }}>Username</div>
-                <div className="auth-in" style={{ display: "flex", alignItems: "center", background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px" }}>
-                  <input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
-                    placeholder="What should we call you?" autoComplete="username" maxLength={40}
-                    onKeyDown={(e) => e.key === "Enter" && submit()}
-                    style={{ flex: 1, background: "none", border: "none", outline: "none", color: t.bone, fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
-                </div>
-              </div>
-            )}
-
             <div style={{ marginBottom: 16 }}>
               {mode === "login" ? (
                 /* Pick which credential you're typing. The label is the
@@ -2766,6 +2756,117 @@ function AuthScreen({ onDone, theme, recovery = null }) {
       </div>
 
       {legal && <LegalSheet which={legal} onClose={() => setLegal(null)} />}
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Picking a username, after the account exists rather than before.
+
+   Sign-up used to ask for three things. It now asks for two, and this
+   screen asks for the third once the person is already through the door
+   and far likelier to finish. It is also the shape Google sign-in needs
+   later: an OAuth provider hands over an email and a display name but
+   never a username, so whatever route someone arrives by, they end up
+   here exactly once.
+
+   The database is the only authority on whether this screen is needed —
+   `profiles.username` being empty. Asking the session instead looked
+   tempting and was wrong: signing in by email stores no username, so
+   every returning customer would have been asked to choose one again.
+
+   Usernames are unique, so two people can pick the same one moments
+   apart. The check below is a courtesy that makes the common case
+   pleasant; the unique index is what actually guarantees it, and a 409
+   coming back is handled as "taken" rather than as a crash.
+   ────────────────────────────────────────────────────────────── */
+const USERNAME_RE = /^[a-zA-Z0-9_-]{3,20}$/;
+
+/* A first guess from the email, so most people can press the button
+   without typing. Stripped to the legal character set and padded if the
+   result is too short to be valid. */
+const suggestUsername = (email) => {
+  const base = String(email || "").split("@")[0].replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 20);
+  return base.length >= 3 ? base : "";
+};
+
+function PickUsername({ email, userId, onDone }) {
+  const [name, setName] = useState(() => suggestUsername(email));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const valid = USERNAME_RE.test(name.trim());
+
+  const save = async () => {
+    const want = name.trim();
+    if (!valid || busy) return;
+    setBusy(true); setErr(null);
+
+    /* A demo session has no account behind it, so there is nothing to
+       write. Let it through rather than blocking on a database that was
+       never going to answer. */
+    if (!userId) { onDone(want); return; }
+
+    try {
+      const taken = await sbRest(
+        `profiles?select=id&username=ilike.${encodeURIComponent(want)}&limit=1`);
+      const owner = Array.isArray(taken) && taken.length ? taken[0].id : null;
+      if (owner && owner !== userId) {
+        setErr("That username is taken. Try another.");
+        setBusy(false); return;
+      }
+      if (owner === userId) { onDone(want); return; }
+      await sbRest(`profiles?id=eq.${userId}`,
+        { method: "PATCH", prefer: "return=minimal", body: { username: want } });
+      onDone(want);
+    } catch (e) {
+      /* 23505 is Postgres for "unique violation" — somebody took it in the
+         moment between the check and the write. Worth its own message,
+         because "try again" would be wrong advice. */
+      const msg = String(e?.message || e);
+      setErr(/23505|duplicate|conflict/i.test(msg)
+        ? "That username was just taken. Try another."
+        : "Couldn't save that. Check your connection and try again.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="reseller-root" style={{ minHeight: "100vh", background: C.void, color: C.bone, fontFamily: SANS }}>
+      <Styles theme="obsidian" />
+      <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 20px", minHeight: "100vh",
+        display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <div key="pu" className="rise">
+          <h2 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.035em", margin: 0 }}>
+            Pick a username
+          </h2>
+          <p style={{ fontSize: 14, color: C.dim, margin: "10px 0 24px", lineHeight: 1.6 }}>
+            It's what we'll call you, and you can sign in with it instead of your email.
+          </p>
+
+          <div className="auth-in" style={{ display: "flex", alignItems: "center", background: C.raised,
+            border: `1px solid ${err ? C.accent : C.line}`, borderRadius: 14, padding: "0 16px" }}>
+            <input type="text" value={name} autoFocus autoComplete="username" maxLength={20}
+              aria-label="Username"
+              onChange={(e) => { setName(e.target.value); setErr(null); }}
+              onKeyDown={(e) => e.key === "Enter" && save()}
+              placeholder="yourname"
+              style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.bone,
+                fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
+          </div>
+
+          <p role={err ? "alert" : undefined}
+            style={{ fontSize: 12, color: err ? C.accentText : C.dead, margin: "10px 0 0", lineHeight: 1.6 }}>
+            {err || "3–20 characters. Letters, numbers, underscores and hyphens."}
+          </p>
+        </div>
+
+        <button disabled={!valid || busy} onClick={save} className={valid && !busy ? "fx fx-accent" : ""}
+          style={{ marginTop: 26, padding: "16px", borderRadius: 999, border: "none", fontSize: 14.5,
+            fontWeight: 800, cursor: valid && !busy ? "pointer" : "not-allowed",
+            background: valid && !busy ? C.accent : C.raised, color: valid && !busy ? C.onAccent : C.dead }}>
+          {busy ? "Saving…" : "Continue"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -3013,6 +3114,20 @@ export default function ResellOS() {
  setStage("app");
  }} />
  );
+
+ /* Before onboarding, because a username is the one thing the app cannot
+    work around: username sign-in needs it, and it is how the person is
+    addressed everywhere. Gated on the profile loaded from the database,
+    so nobody who already has one is asked twice. */
+ if (!db.profile.username && !user?.username) {
+ return <PickUsername email={user?.email} userId={user?.id || null}
+   onDone={(username) => {
+     put("profile", { ...db.profile, username });
+     /* Mirrored onto the session so the greeting and the header pick it
+        up straight away, rather than after the next reload. */
+     setUser((u) => (u ? { ...u, username } : u));
+   }} />;
+ }
 
  if (!db.profile.onboarded) {
  return <Onboard onDone={(loc) => put("profile", { ...db.profile, ...loc, onboarded: true })} />;
