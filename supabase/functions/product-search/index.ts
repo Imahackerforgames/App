@@ -57,12 +57,13 @@ const SOLD_PAGE: Record<string, (q: string) => string> = {
 
    Each analysis is two calls to this function, and each call fans out to one
    Tavily search per marketplace plus a page extract — so a single analysis
-   can be a dozen Tavily requests. Sixty calls an hour is far more than a
-   person browsing, and far less than a loop can spend.
+   can be a dozen Tavily requests. Fifteen calls an hour is therefore about
+   seven analyses, which keeps the Tavily bill firmly bounded and is worth
+   watching: a genuinely busy reseller could reach it in an afternoon.
 
    Counted in Postgres, not in memory: Edge Functions run on many instances
    and an in-process counter is bypassed by landing on a different one. */
-const SEARCH_MAX = 60, SEARCH_WINDOW = 60 * 60;
+const SEARCH_MAX = 15, SEARCH_WINDOW = 60 * 60;
 
 /* Fails open. A limiter that stops everyone working when the database is
    unreachable is worse than the spending it prevents. */

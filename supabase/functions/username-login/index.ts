@@ -37,13 +37,18 @@ const json = (body: unknown, status = 200) =>
 // tell "no such username" apart from "wrong password".
 const DENIED = { error: "Username or password is incorrect." };
 
-/* How many tries, over how long.
-   Per address: generous, because a household or office shares one.
-   Per username: tight, because nobody signs in to the same account eight
-   times in a quarter of an hour, and that is the number an attacker working
-   through a password list has to beat. */
-const IP_MAX = 20, IP_WINDOW = 15 * 60;
-const USER_MAX = 8, USER_WINDOW = 15 * 60;
+/* How many tries, over how long. Both windows are an hour.
+
+   Per address, then per username. The username number is the one an attacker
+   working through a password list has to beat, and six an hour makes that
+   hopeless.
+
+   The address number is the blunter instrument: an office, a household or a
+   mobile carrier can put many people behind one address, and ten an hour is
+   shared between all of them. That is a deliberate trade of a little
+   convenience for a much smaller attack surface. */
+const IP_MAX = 10, IP_WINDOW = 60 * 60;
+const USER_MAX = 6, USER_WINDOW = 60 * 60;
 
 /* Counted in Postgres rather than in memory. Edge Functions run on many
    instances and an in-process counter is bypassed by whoever lands on a
