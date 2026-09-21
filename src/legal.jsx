@@ -7,8 +7,13 @@
    with it — a privacy policy that describes a different product is worse
    than none, because it is a promise you are not keeping.
 
-   Two things in here need a human decision and are marked NEEDS YOUR
-   ANSWER in the text: the support address and the governing law.
+   One thing in here still needs a human decision and is marked NEEDS YOUR
+   ANSWER in the text: the support address. Governing law is settled — the
+   United States.
+
+   A caveat worth leaving written down: US contract law is state law, not
+   federal. Naming the country is enough to be going on with, but a lawyer
+   would name a state. Changing it later is one line.
    ────────────────────────────────────────────────────────────── */
 
 export const LEGAL_UPDATED = "21 September 2026";
@@ -19,15 +24,20 @@ export const SUPPORT_EMAIL = "support@reamp.store";
 
 export const PRIVACY = [
   [null,
-    `This explains what Reamp stores about you, who else can see it, and how to get rid of it. It describes the app as it actually works today.`],
+    `Short version: we keep what you type into Reamp so the app works, we don't sell it, we don't track you, and you can take it with you or delete it whenever you like.`,
+    `The rest of this page is the detail — written in plain language, and describing what the app actually does today rather than what a template says.`],
 
   ["What we store",
     `When you create an account: your email address, the username you choose, and a password. The password is hashed by our authentication provider — it is never stored in a form anyone can read, including us.`,
     `What you enter while using Reamp: the products in your inventory, what you paid, what you sold them for, your sales, your watchlist, your fee and shipping settings, and — if you provide them — your state, ZIP code and search radius. Location is optional and used only to find local listings.`,
     `We do not ask for your real name, phone number, address, or any payment card details.`],
 
-  ["What we do not do",
-    `There is no analytics, no advertising, no tracking pixels and no third-party trackers in Reamp. We do not sell or rent your data to anyone, and we do not build a profile of you for marketing.`],
+  ["What we'll never do",
+    `We think you should know what isn't happening here, because plenty of apps do all of it.`,
+    `We don't sell your data. Not to advertisers, not to data brokers, not to anyone — there's no version of Reamp where your numbers become someone else's product.`,
+    `We don't track you. No analytics, no advertising pixels, no third-party trackers anywhere in the app. Nobody is watching which screens you visit or building a profile of you.`,
+    `We don't share your figures with other people. What you bought, what you sold it for and what you made is yours. Nobody else using Reamp can see any of it.`,
+    `And we won't quietly change any of that. If it ever does change, we'll tell you in the app rather than editing this page and hoping you don't notice.`],
 
   ["Who processes your data",
     `Reamp is built on services that necessarily see some of your information:`,
@@ -107,7 +117,7 @@ export const TERMS = [
     `We may update these terms. If a change matters, we will say so in the app. Continuing to use Reamp after that means you accept the new version.`],
 
   ["Governing law",
-    `NEEDS YOUR ANSWER — these terms should name the state or country whose law governs them and where disputes are handled. That is usually where you or your business are based. Tell us and we will fill it in.`],
+    `These terms are governed by the laws of the United States. Any dispute arising from them will be handled in the United States.`],
 
   ["Contact",
     `NEEDS YOUR ANSWER — confirm this address works: ${SUPPORT_EMAIL}`],

@@ -87,8 +87,23 @@ const settings = async (page) => {
   await page.getByRole("button", { name: /^Terms$/ }).click();
   await page.waitForTimeout(700);
   const t = await page.locator("body").innerText();
-  ok("governing law is marked as needing an answer",
-     /NEEDS YOUR ANSWER[\s\S]{0,120}governing|governing[\s\S]{0,200}NEEDS YOUR ANSWER/i.test(t),
+  /* Governing law is answered now — the United States, which the owner
+     chose. It must no longer carry the flag, or the flag stops meaning
+     anything. */
+  /* Counting rather than matching proximity: the Contact section sits
+     directly under Governing law, so anything that looks nearby catches the
+     wrong flag. One flag left on the page, and it is the address one. */
+  const flags = t.match(/NEEDS YOUR ANSWER/gi) || [];
+  ok("governing law is answered, not flagged",
+     /governed by the laws of the United States/i.test(t) && flags.length === 1,
+     `${flags.length} flag(s): ${t.match(/governed by[\s\S]{0,60}/i)?.[0]}`);
+
+  /* The support address is the one thing still outstanding. This assertion
+     is what turns "I'll come back to it" into something that shouts if it
+     is forgotten — and it will start failing the moment it is answered,
+     which is the point. */
+  ok("the support address is still marked as needing an answer",
+     /NEEDS YOUR ANSWER[\s\S]{0,120}@/i.test(t),
      t.match(/NEEDS YOUR ANSWER.{0,100}/)?.[0]);
   await ctx.close();
 }
