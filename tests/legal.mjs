@@ -60,16 +60,39 @@ const settings = async (page) => {
 
 // ── 2. the privacy policy describes this app, not a template ───────────
 {
-  console.log("\n2. The privacy policy names what is actually true");
+  console.log("\n2. The privacy policy describes this app, without naming suppliers");
   const { ctx, page } = await app({ signedIn: false });
   await page.getByRole("button", { name: /^Sign up$/ }).first().click();
   await page.waitForTimeout(600);
   await page.getByRole("button", { name: /^Privacy Policy$/ }).click();
   await page.waitForTimeout(700);
   const t = await page.locator("body").innerText();
+  /* The suppliers are deliberately not named — the owner does not want the
+     stack published. This is the assertion that keeps that decision true:
+     if a vendor name is ever pasted back into the copy, it fails here
+     rather than on a customer's screen. */
   for (const who of ["Supabase", "Vercel", "Anthropic", "Tavily", "Resend", "Have I Been Pwned", "Google Fonts"]) {
-    ok(`names ${who}`, new RegExp(who, "i").test(t));
+    ok(`does not name ${who}`, !new RegExp(who, "i").test(t),
+       t.match(new RegExp(`.{0,50}${who}.{0,50}`, "i"))?.[0]);
   }
+
+  /* Not naming them is only defensible if the policy still says what each
+     one receives. Silence about third parties altogether would be a
+     misleading privacy policy, which is worse than a candid one. */
+  for (const [what, re] of [
+    ["storage", /Hosting and database/i],
+    ["website delivery", /Website delivery/i],
+    ["assistant", /Assistant —/i],
+    ["search", /Marketplace search/i],
+    ["email", /Email delivery/i],
+    ["fonts", /Typefaces/i],
+  ]) {
+    ok(`still says what the ${what} provider sees`, re.test(t));
+  }
+  ok("and offers the names to anyone who asks",
+     /write to us and we will tell you/i.test(t));
+  ok("and forbids them selling it or using it for advertising",
+     /None of them is permitted to sell it or use it for advertising/i.test(t));
   ok("states there is no analytics or tracking", /no analytics/i.test(t));
   ok("explains what the assistant is sent", /assistant is told/i.test(t));
   ok("and that it can be switched off", /Personalize with my business data/i.test(t));

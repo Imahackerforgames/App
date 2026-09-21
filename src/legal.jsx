@@ -2,10 +2,19 @@
    Privacy policy and terms.
 
    Written from what the code actually does, not from a template. Every
-   third party named here is one the app really contacts; every field
-   listed is one it really stores. If the app changes, this has to change
-   with it — a privacy policy that describes a different product is worse
-   than none, because it is a promise you are not keeping.
+   field listed is one it really stores; every processor described is one
+   the app really contacts. If the app changes, this has to change with
+   it — a privacy policy that describes a different product is worse than
+   none, because it is a promise you are not keeping.
+
+   The suppliers are described by what they do, not by name: the owner
+   would rather not publish the stack. That is a decision with a cost —
+   data protection law in several places expects recipients to be
+   identified, at least by category, and some customers will ask. The
+   section therefore still says precisely what each kind of provider
+   receives, and offers the names on request, which is what keeps it an
+   honest disclosure rather than a silence. Do not let it decay into a
+   vague paragraph: the specifics are the whole point.
 
    One thing in here still needs a human decision and is marked NEEDS YOUR
    ANSWER in the text: the support address. Governing law is settled — the
@@ -39,15 +48,16 @@ export const PRIVACY = [
     `We don't share your figures with other people. What you bought, what you sold it for and what you made is yours. Nobody else using Reamp can see any of it.`,
     `And we won't quietly change any of that. If it ever does change, we'll tell you in the app rather than editing this page and hoping you don't notice.`],
 
-  ["Who processes your data",
-    `Reamp is built on services that necessarily see some of your information:`,
-    `Supabase — stores your account and your data, sends account emails. Your inventory and sales live in their database.`,
-    `Vercel — serves the website. Sees the usual web request information, including your IP address.`,
-    `Anthropic — powers the assistant. See the next section for exactly what is sent.`,
-    `Tavily — performs the marketplace searches. Receives the product terms you search for, not your identity.`,
-    `Resend — delivers account emails such as password resets. Receives your email address.`,
-    `Have I Been Pwned — checks whether a password you choose has appeared in a known breach. Your password is never sent: it is hashed in your browser and only the first five characters of that hash leave your device, so nobody can tell which password was being checked.`,
-    `Google Fonts — serves the typefaces. Google sees your IP address when the page loads.`],
+  ["Services we rely on",
+    `Reamp doesn't run on its own hardware, so a small number of specialist providers necessarily handle some of your information on our behalf. We don't publish which companies they are — that's part of how the app is built — but here is exactly what each kind of provider sees:`,
+    `Hosting and database — your account, your inventory, your sales and your settings are stored here. This is where your data lives.`,
+    `Website delivery — serves the pages to your browser, and sees the usual web request information including your IP address.`,
+    `Assistant — receives your questions and whatever business summary you have allowed. The next section sets that out in full.`,
+    `Marketplace search — receives the product terms you search for. It is not told who you are.`,
+    `Email delivery — sends account emails such as password resets, and receives your email address to do it.`,
+    `Breached-password check — when you choose a password we check it against a public list of passwords exposed in known data breaches. Your password is never sent anywhere: it is hashed in your browser and only the first five characters of that hash leave your device, so nobody on the other end can tell which password was being checked, or even which account it belongs to.`,
+    `Typefaces — the fonts are fetched from a font service, which sees your IP address when the page loads.`,
+    `Every one of these is bound to use your information only to provide that service to us. None of them is permitted to sell it or use it for advertising. If you need the specific companies named — for a compliance review, for instance — write to us and we will tell you.`],
 
   ["What the assistant is told",
     `When you use the assistant, and only then, we send it a summary of your business so it can answer usefully: your inventory titles, quantities and costs, your revenue and profit totals, your best-performing marketplace and product, your watchlist, and your location settings.`,
