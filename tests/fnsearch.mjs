@@ -20,7 +20,8 @@ const TOKEN = (sub) =>
 
 /* Load the module once per scenario with its own stubs. */
 async function runHandler({ body, tavily, extract = null, rateLimitAllows = true,
-                            rateLimitBroken = false, pro = true, signedIn = true }) {
+                            rateLimitBroken = false, pro = true, signedIn = true,
+                            rateLimitRow = null, onConsume = null }) {
   let handler;
   const calls = [];
   const rpcCalls = [];
@@ -30,6 +31,10 @@ async function runHandler({ body, tavily, extract = null, rateLimitAllows = true
   globalThis.fetch = async (url, init) => {
     /* The entitlement lookup is a GET with no body, so it has to be handled
        before anything tries to parse one. */
+    if (String(url).includes("/rest/v1/rate_limits")) {
+      return new Response(JSON.stringify(rateLimitRow ? [rateLimitRow] : []),
+        { status: 200, headers: { "Content-Type": "application/json" } });
+    }
     if (String(url).includes("/rest/v1/entitlements")) {
       return new Response(JSON.stringify(pro ? [{ plan: "pro", expires_at: null }] : []),
         { status: 200, headers: { "Content-Type": "application/json" } });
@@ -37,6 +42,7 @@ async function runHandler({ body, tavily, extract = null, rateLimitAllows = true
     const sent = JSON.parse(init.body);
     if (String(url).includes("/rpc/consume_rate_limit")) {
       rpcCalls.push(sent);
+      onConsume?.(sent);
       if (rateLimitBroken) return new Response("limiter exploded", { status: 500 });
       return new Response(JSON.stringify(rateLimitAllows), { status: 200 });
     }
@@ -63,8 +69,26 @@ async function runHandler({ body, tavily, extract = null, rateLimitAllows = true
            extracts: calls.filter((c) => c._endpoint === "extract") };
 }
 
+/* Each marketplace gives listings their own URL shape, and the function
+   now keeps only URLs with that shape — so a fixture that put /itm/ on
+   every domain would be testing a world that does not exist, and only the
+   eBay rows would survive. */
+const LISTING_PATH = {
+  "ebay.com": "itm",
+  "mercari.com": "item",
+  "poshmark.com": "listing",
+  "depop.com": "products",
+  "vinted.com": "items",
+  "offerup.com": "item/detail",
+  "facebook.com/marketplace": "marketplace/item",
+};
+const listingUrl = (domain, id) => {
+  const host = domain.split("/")[0];
+  return `https://www.${host}/${LISTING_PATH[domain] ?? "itm"}/${id}`;
+};
+
 const listing = (domain, i) => ({
-  url: `https://www.${domain}/itm/${domain.split(".")[0]}-${i}`,
+  url: listingUrl(domain, `${domain.split(".")[0]}-${i}`),
   title: `${domain.split(".")[0]} listing ${i} $${10 + i}`,
   content: `a thing for sale $${10 + i}`,
 });
@@ -148,10 +172,10 @@ const okReply = (sent) => new Response(JSON.stringify({
   console.log("\n7. Sale dates come off the listings themselves");
   const y = new Date().getUTCFullYear();
   const dated = (sent) => new Response(JSON.stringify({ results: [
-    { url: `https://www.${sent.include_domains[0]}/itm/a`, title: "Nice thing", content: `Sold Mar 3, ${y - 1}` },
-    { url: `https://www.${sent.include_domains[0]}/itm/b`, title: `Thing (Sold Feb 14, ${y - 1})`, content: "" },
-    { url: `https://www.${sent.include_domains[0]}/itm/c`, title: "Thing", content: `Sold 14 Feb ${y - 1}` },
-    { url: `https://www.${sent.include_domains[0]}/itm/d`, title: "Thing", content: "no date here at all" },
+    { url: listingUrl(sent.include_domains[0], "a"), title: "Nice thing", content: `Sold Mar 3, ${y - 1}` },
+    { url: listingUrl(sent.include_domains[0], "b"), title: `Thing (Sold Feb 14, ${y - 1})`, content: "" },
+    { url: listingUrl(sent.include_domains[0], "c"), title: "Thing", content: `Sold 14 Feb ${y - 1}` },
+    { url: listingUrl(sent.include_domains[0], "d"), title: "Thing", content: "no date here at all" },
   ], images: [] }), { status: 200 });
 
   const { data } = await runHandler({ body: { query: "x", sold: true, maxResults: 40 }, tavily: dated });
@@ -188,11 +212,11 @@ const okReply = (sent) => new Response(JSON.stringify({
 {
   console.log("\n9. Nonsense is dropped rather than guessed at");
   const junk = (sent) => new Response(JSON.stringify({ results: [
-    { url: `https://www.${sent.include_domains[0]}/itm/a`, title: "Sold Feb 30, 2024", content: "" },
-    { url: `https://www.${sent.include_domains[0]}/itm/b`, title: "Sold Smarch 4, 2024", content: "" },
-    { url: `https://www.${sent.include_domains[0]}/itm/c`, title: "Sold Jan 99, 2024", content: "" },
-    { url: `https://www.${sent.include_domains[0]}/itm/d`, title: "Sold Jan 1, 1899", content: "" },
-    { url: `https://www.${sent.include_domains[0]}/itm/e`, title: "Sold out", content: "" },
+    { url: listingUrl(sent.include_domains[0], "a"), title: "Sold Feb 30, 2024", content: "" },
+    { url: listingUrl(sent.include_domains[0], "b"), title: "Sold Smarch 4, 2024", content: "" },
+    { url: listingUrl(sent.include_domains[0], "c"), title: "Sold Jan 99, 2024", content: "" },
+    { url: listingUrl(sent.include_domains[0], "d"), title: "Sold Jan 1, 1899", content: "" },
+    { url: listingUrl(sent.include_domains[0], "e"), title: "Sold out", content: "" },
   ], images: [] }), { status: 200 });
   const { data } = await runHandler({ body: { query: "x", sold: true, maxResults: 24 }, tavily: junk });
   ok("not one of them became a date", data.datedCount === 0, JSON.stringify(data.soldDates));
@@ -206,7 +230,7 @@ const okReply = (sent) => new Response(JSON.stringify({
   const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const label = `${MON[recent.getUTCMonth()]} ${recent.getUTCDate()}`;
   const bare = (sent) => new Response(JSON.stringify({ results: [
-    { url: `https://www.${sent.include_domains[0]}/itm/a`, title: `Thing Sold ${label}`, content: "" },
+    { url: listingUrl(sent.include_domains[0], "a"), title: `Thing Sold ${label}`, content: "" },
   ], images: [] }), { status: 200 });
   const { data } = await runHandler({
     body: { query: "x", sold: true, marketplaces: ["ebay"], maxResults: 24 }, tavily: bare });
@@ -236,7 +260,11 @@ const okReply = (sent) => new Response(JSON.stringify({
     body: { query: "x", sold: true, marketplaces: ["ebay"], maxResults: 24 }, tavily: many });
   ok("the whole page was asked for", calls[0].include_raw_content === true, JSON.stringify(calls[0].include_raw_content));
   ok("all fourteen sales were read, not just the first", data.datedCount === 14, String(data.datedCount));
-  ok("from a single listing", data.count === 1, String(data.count));
+  /* The page itself is never shown. It is a search-results page, not
+     something you can buy, so the display filter drops it — while its
+     fourteen dates are still counted above. That split is the point: what
+     is shown and what is read are different questions. */
+  ok("but the page itself is not shown as a product", data.count === 0, String(data.count));
   ok("all attributed to the right marketplace",
      data.datesByMarket.eBay?.length === 14, JSON.stringify(Object.keys(data.datesByMarket)));
   ok("and the page text still never ships",
@@ -319,9 +347,15 @@ const okReply = (sent) => new Response(JSON.stringify({
 {
   console.log("\n17. Searches are capped per account");
   const { res, data, calls, rpcCalls } = await runHandler({
-    body: { query: "x", maxResults: 24 }, tavily: okReply, rateLimitAllows: false });
+    body: { query: "x", maxResults: 24 }, tavily: okReply, rateLimitAllows: false,
+    /* A refusal means the counter is at the cap, so the row has to say so
+       too — otherwise the fixture describes a state that cannot happen. */
+    rateLimitRow: { count: 35, window_start: new Date().toISOString() } });
   ok("refused with 429", res.status === 429, String(res.status));
-  ok("and says why in words", /lot of searches|try again/i.test(data.error || ""), JSON.stringify(data.error));
+  ok("and says why in words", /used all your searches/i.test(data.error || ""), JSON.stringify(data.error));
+  /* The refusal carries the balance too, so the app can say when it lifts
+     rather than leaving the person to guess. */
+  ok("and carries the balance", data.quota?.remaining === 0, JSON.stringify(data.quota));
   ok("not one Tavily credit was spent", calls.length === 0, String(calls.length));
   ok("the limit was checked once", rpcCalls.length === 1, String(rpcCalls.length));
   ok("bucketed per account, not globally", /^search:/.test(rpcCalls[0]?.p_bucket || ""), rpcCalls[0]?.p_bucket);
@@ -368,6 +402,133 @@ console.log("\nPremium is enforced by the server, not just the interface");
   });
   ok("a premium account still gets through", res.status === 200, String(res.status));
   ok("and the search actually runs", calls.length > 0, String(calls.length));
+}
+
+/* ── only things you can actually buy ───────────────────────────────────
+   Restricting by domain let through everything else a marketplace hosts.
+   The five below are the real results from a live search that prompted
+   this: a forum thread, two brand landing pages, an editorial post and a
+   seller's shopfront. Every one on the right domain. None of them a
+   product. */
+console.log("\nNon-listing pages are discarded");
+{
+  const junk = [
+    ["https://community.ebay.com/t5/Selling/Selling-a-Pre-Owned-HandBag/td-p/33", "Selling a Pre Owned HandBag on EBay? Think twice | Selling | eBay Community"],
+    ["https://poshmark.com/brand/Merona", "Merona Products for Sale up to 90% Off Retail - Poshmark"],
+    ["https://poshmark.com/brand/Italy", "Italy Products for Sale up to 90% Off Retail - Poshmark"],
+    ["https://www.vinted.com/blog/luxury-trend-update", "Luxury Trend Update by Vinted"],
+    ["https://poshmark.com/closet/kailynlowry", "Kail's Closet (@kailynlowry) - Poshmark"],
+  ];
+  const real = [
+    ["https://www.ebay.com/itm/226012345678", "Coach Willow Tote Pebbled Leather Handbag | eBay"],
+    ["https://poshmark.com/listing/Coach-Willow-Tote-68f0a1", "Coach Willow Tote - Poshmark"],
+    ["https://www.mercari.com/us/item/m88776655/", "Coach Willow Tote Brown | Mercari"],
+    ["https://www.depop.com/products/seller-coach-willow-tote/", "Coach Willow Tote - Depop"],
+    ["https://www.vinted.com/items/4455667-coach-willow-tote", "Coach Willow Tote | Vinted"],
+  ];
+  const all = [...junk, ...real];
+  const { data } = await runHandler({
+    body: { query: "coach willow tote", maxResults: 20 },
+    tavily: (sent) => {
+      const host = sent.include_domains[0].split("/")[0].split(".")[0];
+      const mine = all.filter(([u]) => u.includes(host));
+      return new Response(JSON.stringify({
+        results: mine.map(([url, title]) => ({ url, title, content: "listing text" })),
+        images: [],
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    },
+  });
+
+  const urls = data.results.map((r) => r.url);
+  for (const [url, title] of junk) {
+    ok(`drops ${title.slice(0, 34)}…`, !urls.includes(url), url);
+  }
+  ok("keeps every real listing", real.every(([u]) => urls.includes(u)),
+     JSON.stringify(urls));
+  ok("and nothing else got through", data.results.length === real.length,
+     String(data.results.length));
+}
+
+console.log("\nTitles lose the marketplace's own name");
+{
+  const { data } = await runHandler({
+    body: { query: "coach willow tote" },
+    tavily: (sent) => {
+      const d = sent.include_domains[0];
+      const rows = {
+        "ebay.com": ["https://www.ebay.com/itm/1", "Coach Willow Tote Brown for sale online | eBay"],
+        "poshmark.com": ["https://poshmark.com/listing/x-1", "Coach Willow Tote - Poshmark | Poshmark"],
+        "depop.com": ["https://www.depop.com/products/s-x/", "Coach Willow Tote \u00b7 Depop"],
+      }[d];
+      return new Response(JSON.stringify({
+        results: rows ? [{ url: rows[0], title: rows[1], content: "x" }] : [], images: [],
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    },
+  });
+  const titles = data.results.map((r) => r.title);
+  ok("no marketplace suffix survives",
+     titles.every((t) => !/ebay|poshmark|depop/i.test(t)), JSON.stringify(titles));
+  ok("and the product name is intact",
+     titles.every((t) => /^Coach Willow Tote/.test(t)), JSON.stringify(titles));
+  ok("the doubled suffix goes too",
+     titles.includes("Coach Willow Tote"), JSON.stringify(titles));
+}
+
+console.log("\nEvery result carries a direct link");
+{
+  const { data } = await runHandler({ body: { query: "airpods" }, tavily: (sent) =>
+    new Response(JSON.stringify({ results: [{
+      url: `https://www.${sent.include_domains[0]}/itm/1`.replace("poshmark.com/itm", "poshmark.com/listing")
+        .replace("mercari.com/itm", "mercari.com/item").replace("depop.com/itm", "depop.com/products")
+        .replace("vinted.com/itm", "vinted.com/items"),
+      title: "AirPods Pro", content: "x" }], images: [] }), { status: 200 }) });
+  ok("a url on every row", data.results.length > 0 && data.results.every((r) => /^https:\/\//.test(r.url)),
+     JSON.stringify(data.results.map((r) => r.url)));
+}
+
+/* ── the visible allowance ──────────────────────────────────────────────
+   A limit nobody can see is indistinguishable from the app being broken.
+   The two things that must hold: asking what is left must not spend one,
+   and the number must be the real one rather than something invented. */
+console.log("\nThe search allowance can be read without spending it");
+{
+  let consumed = 0;
+  const { res, data, calls } = await runHandler({
+    body: { peek: true },
+    tavily: okReply,
+    rateLimitRow: { count: 9, window_start: new Date(Date.now() - 10 * 60_000).toISOString() },
+    onConsume: () => { consumed++; },
+  });
+  ok("a peek answers 200", res.status === 200, String(res.status));
+  ok("the limit is the real one", data.quota.limit === 35, JSON.stringify(data.quota));
+  ok("used comes from the counter", data.quota.used === 9, String(data.quota?.used));
+  ok("and remaining is the difference", data.quota.remaining === 26, String(data.quota?.remaining));
+  ok("peeking spends nothing", consumed === 0, String(consumed));
+  ok("and runs no search", calls.length === 0, String(calls.length));
+  ok("it says when it resets", typeof data.quota.resetsAt === "string", JSON.stringify(data.quota.resetsAt));
+}
+{
+  /* A window that lapsed is a full allowance again, not a reset time in
+     the past — which is what a naive read of the row would report. */
+  const { data } = await runHandler({
+    body: { peek: true }, tavily: okReply,
+    rateLimitRow: { count: 15, window_start: new Date(Date.now() - 3 * 60 * 60_000).toISOString() },
+  });
+  ok("a lapsed window reads as untouched", data.quota.used === 0 && data.quota.remaining === 35,
+     JSON.stringify(data.quota));
+  ok("with no reset pending", data.quota.resetsAt === null, JSON.stringify(data.quota.resetsAt));
+}
+{
+  const { data } = await runHandler({ body: { peek: true }, tavily: okReply, pro: false });
+  ok("a free account is refused a peek too", /premium/i.test(String(data.error)), JSON.stringify(data.error));
+}
+{
+  const { data } = await runHandler({
+    body: { query: "airpods" }, tavily: okReply,
+    rateLimitRow: { count: 4, window_start: new Date().toISOString() },
+  });
+  ok("a real search reports the balance back", data.quota?.remaining === 31,
+     JSON.stringify(data.quota));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

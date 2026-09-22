@@ -45,6 +45,36 @@ const LOCAL_DOMAINS = ["offerup.com", "facebook.com/marketplace"];
    sell", so a sold pass is restricted to these however the filter is set. */
 const SOLD_CAPABLE = new Set(["ebay.com", "mercari.com", "poshmark.com"]);
 
+/* What an individual product listing's URL looks like, per marketplace.
+
+   Restricting by domain was never enough. A marketplace's domain also
+   carries its forums, its brand landing pages, its editorial posts and its
+   sellers' shopfronts, and search ranks those highly because they are
+   popular pages — so a search for a handbag came back with an eBay
+   Community thread, two Poshmark brand pages, a Vinted trend article and
+   somebody's closet. All on the right domains. None of them a thing you can
+   buy.
+
+   Every one of these marketplaces gives individual listings their own URL
+   shape, and that shape is the only reliable way to tell a product from a
+   page about products. Titles cannot do it: "Merona Products for Sale up to
+   90% Off Retail" reads like a listing and is a category page.
+
+   A marketplace missing from this map has no results kept at all, which is
+   deliberate — silently falling back to "anything on the domain" is how the
+   original bug behaves. */
+const LISTING_PATH: Record<string, RegExp> = {
+  eBay: /\/itm\//i,
+  Mercari: /\/item\//i,
+  Poshmark: /\/listing\//i,
+  Depop: /\/products\//i,
+  Vinted: /\/items\//i,
+  OfferUp: /\/item\/detail\//i,
+  Marketplace: /\/marketplace\/item\//i,
+};
+const isListing = (market: string, url: string) =>
+  !!LISTING_PATH[market]?.test(String(url || ""));
+
 /* The completed-items page per marketplace, which is where sale dates are
    actually written down — one per row. Fetched directly on a sold pass.
    Only marketplaces that render that page as text belong here. */
@@ -57,13 +87,55 @@ const SOLD_PAGE: Record<string, (q: string) => string> = {
 
    Each analysis is two calls to this function, and each call fans out to one
    Tavily search per marketplace plus a page extract — so a single analysis
-   can be a dozen Tavily requests. Fifteen calls an hour is therefore about
-   seven analyses, which keeps the Tavily bill firmly bounded and is worth
-   watching: a genuinely busy reseller could reach it in an afternoon.
+   can be a dozen Tavily requests. Thirty-five calls an hour is therefore
+   around seventeen analyses, which is a working afternoon rather than a
+   wall, while still bounding the Tavily bill.
 
    Counted in Postgres, not in memory: Edge Functions run on many instances
    and an in-process counter is bypassed by landing on a different one. */
-const SEARCH_MAX = 15, SEARCH_WINDOW = 60 * 60;
+const SEARCH_MAX = 35, SEARCH_WINDOW = 60 * 60;
+
+/* What is left, without spending any of it.
+
+   A limit nobody can see is indistinguishable from the app being broken:
+   you press search, nothing happens, and there is no way to learn why. So
+   the count is readable, and the app shows it.
+
+   Read straight from the table rather than through consume_rate_limit,
+   because that function's whole job is to increment — looking at your own
+   remaining balance must not cost you one of them. The window is fixed, so
+   a row older than the window has already lapsed and reads as zero used. */
+type Quota = { limit: number; used: number; remaining: number; resetsAt: string | null };
+async function quotaFor(bucket: string, max: number, windowSeconds: number): Promise<Quota | null> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return null;
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/rate_limits?select=count,window_start&bucket=eq.${encodeURIComponent(bucket)}&limit=1`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } },
+    );
+    if (!res.ok) return null;
+    const rows = await res.json();
+    const row = Array.isArray(rows) ? rows[0] : null;
+
+    const startedAt = row?.window_start ? new Date(row.window_start).getTime() : 0;
+    const endsAt = startedAt + windowSeconds * 1000;
+    /* A lapsed window is a fresh allowance, so it reads as nothing used and
+       no reset pending — not as a reset time in the past. */
+    const live = !!row && endsAt > Date.now();
+    const used = live ? Number(row.count) || 0 : 0;
+    return {
+      limit: max,
+      used: Math.min(used, max),
+      remaining: Math.max(0, max - used),
+      resetsAt: live ? new Date(endsAt).toISOString() : null,
+    };
+  } catch (e) {
+    console.error("product-search: quota read failed:", String(e));
+    return null;
+  }
+}
 
 /* Fails open. A limiter that stops everyone working when the database is
    unreachable is worse than the spending it prevents. */
@@ -150,6 +222,22 @@ const CORS = {
 const stripPrices = (t: string) =>
   (t || "").replace(/\$\s?[\d,]+(\.\d{1,2})?/g, "").replace(/\s{2,}/g, " ").trim();
 
+/* Marketplaces append their own name to every page title — "… | eBay",
+   "… - Poshmark". On a card that already says which marketplace the listing
+   is on, that is noise taking up the line. Stripped in a small loop because
+   a few arrive with it twice ("… - Poshmark | Poshmark"). */
+const MARKET_TAIL =
+  /\s*[|\-\u2013\u2014\u00b7]\s*(?:ebay(?:\s+community)?|poshmark|mercari|depop|vinted|offerup|facebook(?:\s+marketplace)?)\s*$/i;
+const cleanTitle = (t: string) => {
+  let out = stripPrices(String(t || ""));
+  for (let i = 0; i < 3 && MARKET_TAIL.test(out); i++) out = out.replace(MARKET_TAIL, "");
+  return out
+    .replace(/\s*\bfor sale online\b\s*$/i, "")
+    .replace(/\s*[|\-\u2013\u2014\u00b7]\s*$/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+};
+
 /* Describes the key without revealing it. Safe to log. */
 function fingerprint(raw: string) {
   const trimmed = raw.trim();
@@ -205,7 +293,17 @@ Deno.serve(async (req: Request) => {
          two passes together are what make an analysis possible: active
          listings measure competition, sold listings measure demand. */
       sold = false,
+      /* "How many do I have left?" — answered without spending one. The
+         Settings screen asks this; nothing else does. */
+      peek = false,
     } = await req.json();
+
+    if (peek) {
+      if (!(await callerIsPro(req))) {
+        return json({ error: "Product Search is a premium feature. Upgrade in Settings to use it.", upgrade: true }, 402);
+      }
+      return json({ quota: await quotaFor(`search:${callerId(req)}`, SEARCH_MAX, SEARCH_WINDOW) });
+    }
 
     if (!query || typeof query !== "string" || !query.trim()) {
       return json({ error: "Missing 'query'." }, 400);
@@ -222,7 +320,10 @@ Deno.serve(async (req: Request) => {
        credit is spent. */
     if (!(await allow(`search:${callerId(req)}`, SEARCH_MAX, SEARCH_WINDOW))) {
       console.warn("product-search: rate limited.");
-      return json({ error: "You've run a lot of searches in the last hour. Try again shortly." }, 429);
+      return json({
+        error: "You've used all your searches for this hour. They refresh shortly.",
+        quota: await quotaFor(`search:${callerId(req)}`, SEARCH_MAX, SEARCH_WINDOW),
+      }, 429);
     }
 
     const pool = mode === "local" ? LOCAL_DOMAINS : ONLINE_DOMAINS;
@@ -259,7 +360,16 @@ Deno.serve(async (req: Request) => {
        derived from what the caller actually asked for rather than being set
        as high as it will go. */
     const wanted = Math.min(Math.max(Number(maxResults) || 10, 5), 40);
-    const perDomain = Math.max(3, Math.min(10, Math.ceil(wanted / domains.length) + 2));
+    /* Ask for considerably more than we intend to show, because the listing
+       filter now discards most of what search returns — category pages and
+       articles outrank individual listings, so the first few hits are
+       usually the ones being thrown away.
+
+       This does not multiply the bill: Tavily charges per search request,
+       not per result, so a request for twenty costs the same as one for
+       five. Worth re-checking against their pricing page if that ever looks
+       wrong, because the whole shape of this line depends on it. */
+    const perDomain = Math.min(20, Math.max(10, Math.ceil(wanted / domains.length) * 3));
 
     /* The sold pass asks for the whole page, not just the snippet.
 
@@ -359,7 +469,7 @@ Deno.serve(async (req: Request) => {
         return true;
       })
       .map((r: any) => ({
-        title: stripPrices(String(r.title)),
+        title: cleanTitle(String(r.title)),
         url: String(r.url),
         market: marketOf(String(r.url)),
         snippet: stripPrices(String(r.content ?? "")).slice(0, 180),
@@ -377,12 +487,24 @@ Deno.serve(async (req: Request) => {
       }))
       .filter((r: any) => r.market);
 
+    /* Two different questions, so two different lists.
+
+       What gets SHOWN must be individual listings — that is the whole point
+       of the filter. But what gets READ FOR SALE DATES must not be, because
+       a marketplace's completed-items page is the richest source of dates
+       there is: one page, dozens of dated sales. Filtering before harvesting
+       would have quietly gutted the sold chart to fix the results list.
+
+       So dates come off everything on a marketplace domain, and only
+       listings are dealt out below. */
+    const listings = kept.filter((r: any) => isListing(r.market, r.url));
+
     /* Deal them out one marketplace at a time, so the first screenful shows
        every board that answered rather than everything from whichever one
        ranked best. Without this the merge would still be sorted by
        marketplace and the page would look exactly as lopsided as before. */
     const lanes = new Map<string, any[]>();
-    for (const r of kept) {
+    for (const r of listings) {
       if (!lanes.has(r.market)) lanes.set(r.market, []);
       lanes.get(r.market)!.push(r);
     }
@@ -483,7 +605,10 @@ Deno.serve(async (req: Request) => {
       (datesByMarket[market] ??= []).push(...dates);
     };
 
-    for (const r of results) addDates(r.market, readSoldDates(r._text));
+    /* `kept`, not `results` — see above. A sold-items page carries more
+       dates than every individual listing put together, and it is exactly
+       the kind of page the display filter throws away. */
+    for (const r of kept) addDates(r.market, readSoldDates(r._text));
 
     /* Then the page the dates actually live on.
 
@@ -540,13 +665,16 @@ Deno.serve(async (req: Request) => {
     /* The working text goes no further. It is unstripped listing copy — full
        of prices this app is careful not to present as its own — and the
        client has no use for it. */
-    for (const r of results) delete r._text;
-    console.log(`product-search: ok — "${query}" (${mode}${sold ? ", sold" : ""}) over ${domains.length} marketplace(s) [${domains.join(", ")}], ${perDomain} each → ${results.length} of ${hits.length} raw kept across ${markets.length} marketplaces.`);
+    for (const r of kept) delete r._text;
+    console.log(`product-search: ok — "${query}" (${mode}${sold ? ", sold" : ""}) over ${domains.length} marketplace(s) [${domains.join(", ")}], ${perDomain} each → ${hits.length} raw, ${listings.length} real listings, ${results.length} shown across ${markets.length} marketplaces. Discarded ${kept.length - listings.length} non-listing pages (still read for sale dates).`);
 
     return json({
       query,
       mode,
       sold,
+      /* Sent back on every search so the counter moves as it is spent,
+         rather than only when Settings is opened. */
+      quota: await quotaFor(`search:${callerId(req)}`, SEARCH_MAX, SEARCH_WINDOW),
       searchedDomains: domains,
       markets,
       marketCounts,

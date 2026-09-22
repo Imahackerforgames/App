@@ -166,6 +166,28 @@ async function fetchEntitlement({ force = false } = {}) {
   }
 }
 
+/* How many searches are left this hour. Costs nothing to ask — the
+   function reads the counter rather than incrementing it.
+
+   Returns null on any failure, which the caller renders as nothing at all.
+   A wrong number here would be worse than no number: somebody who believes
+   they have thirty left and gets refused at ten has been lied to by their
+   own settings screen. */
+async function fetchSearchQuota() {
+  try {
+    const res = await fetch(SEARCH_FN, {
+      method: "POST",
+      headers: await fnHeaders(),
+      body: JSON.stringify({ peek: true }),
+    });
+    if (!res.ok) return null;
+    const d = await res.json();
+    return d?.quota && typeof d.quota.remaining === "number" ? d.quota : null;
+  } catch {
+    return null;
+  }
+}
+
 const AI_FN = `${SUPABASE_URL}/functions/v1/ai-assistant`;
 
 /** The signed-in user's access token, for the JWT-gated Edge Functions.
@@ -4177,9 +4199,23 @@ function ProductCard({ item, idx, onDetail }) {
  {/* The verdict is a call made from counted signals. A live listing has
      none yet, so it says what to do about that rather than shouting
      "NOT ENOUGH DATA" at every card on the screen. */}
+ {/* A live listing has a page you can open. Linking straight to it is
+     the thing a person actually wants from a search result, and it was
+     missing — the only way through was See More, which opens an analysis
+     rather than the item. The verdict line stays where there is no link. */}
+ {item.url ? (
+ <a href={item.url} target="_blank" rel="noopener noreferrer"
+   onClick={(e) => e.stopPropagation()}
+   style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: MONO, fontSize: 10.5,
+     fontWeight: 700, letterSpacing: "0.04em", color: C.accentText, textDecoration: "none" }}>
+   VIEW ON {String(item.market || marketLabel(item.source) || "listing").toUpperCase()}
+   <ExternalLink size={11} />
+ </a>
+ ) : (
  <span style={{ fontFamily: MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: item.vel == null ? C.dead : VERDICT_COLOR[v.tone] }}>
  {item.vel == null ? "TAP TO MEASURE" : v.label}
  </span>
+ )}
  <button onClick={() => onDetail(item)} className="fx fx-chip"
  style={{ display: "flex", alignItems: "center", gap: 5, background: "transparent", border: `1px solid ${C.accentDim}`, borderRadius: 999, padding: "7px 14px", color: C.bone, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
  See More <ChevronRight size={13} />
@@ -5388,6 +5424,17 @@ function Essentials() {
 function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitlement, entLoading, entNote }) {
  /* null | "terms" | "privacy" */
  const [legal, setLegal] = useState(null);
+
+ /* Searches left this hour. Only asked for on a premium account, because a
+    free one has no search allowance to report. Re-read whenever this screen
+    is opened, so it is current rather than whatever it was at sign-in. */
+ const [quota, setQuota] = useState(null);
+ useEffect(() => {
+   if (!isPro) { setQuota(null); return; }
+   let alive = true;
+   fetchSearchQuota().then((q) => alive && setQuota(q));
+   return () => { alive = false; };
+ }, [isPro]);
  const [closing, setClosing] = useState(false);
  const [closeErr, setCloseErr] = useState(null);
 
@@ -5523,6 +5570,31 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  onToggle={() => put("settings", { ...db.settings, notif: { ...db.settings.notif, [k]: !db.settings.notif[k] } })} />
  ))}
  </Group>
+
+ {/* What is left of this hour's searches.
+
+     A limit you cannot see is indistinguishable from the app being broken:
+     you press search, nothing happens, and there is no way to find out why.
+     Shown only on a premium account, and only when the server actually
+     answered — an invented number would be worse than none. */}
+ {isPro && quota && (
+ <Group title="Usage">
+ <Row l="Product searches" r={`${quota.remaining} of ${quota.limit} left`} />
+ <div style={{ height: 6, borderRadius: 999, background: C.raised, overflow: "hidden", marginTop: 4 }}>
+ <div style={{ height: "100%", borderRadius: 999,
+   width: `${Math.round((quota.remaining / Math.max(1, quota.limit)) * 100)}%`,
+   background: quota.remaining === 0 ? C.dead : C.accent, transition: "width .3s" }} />
+ </div>
+ <p style={{ fontSize: 11.5, color: C.dead, marginTop: 10, lineHeight: 1.6 }}>
+ {quota.remaining === 0
+   ? "You've used this hour's searches."
+   : `You've used ${quota.used} this hour.`}
+ {quota.resetsAt
+   ? ` Resets at ${new Date(quota.resetsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`
+   : " The full allowance is available."}
+ </p>
+ </Group>
+ )}
 
  <Group title="Billing">
  <Row l="Plan" r={isPro ? "Premium" : "Free"} />
