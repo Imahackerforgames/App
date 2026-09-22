@@ -166,16 +166,17 @@ async function fetchEntitlement({ force = false } = {}) {
   }
 }
 
-/* How many searches are left this hour. Costs nothing to ask — the
-   function reads the counter rather than incrementing it.
+/* How much of an hourly allowance is left. Costs nothing to ask — the
+   function reads the counter rather than incrementing it. Both the search
+   and the assistant endpoints answer the same `peek` request.
 
    Returns null on any failure, which the caller renders as nothing at all.
    A wrong number here would be worse than no number: somebody who believes
    they have thirty left and gets refused at ten has been lied to by their
    own settings screen. */
-async function fetchSearchQuota() {
+async function fetchQuota(endpoint) {
   try {
-    const res = await fetch(SEARCH_FN, {
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: await fnHeaders(),
       body: JSON.stringify({ peek: true }),
@@ -5556,14 +5557,18 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  /* null | "terms" | "privacy" */
  const [legal, setLegal] = useState(null);
 
- /* Searches left this hour. Only asked for on a premium account, because a
-    free one has no search allowance to report. Re-read whenever this screen
-    is opened, so it is current rather than whatever it was at sign-in. */
- const [quota, setQuota] = useState(null);
+ /* What is left of both hourly allowances. Only asked for on a premium
+    account, because a free one has neither. Re-read whenever this screen is
+    opened, so it is current rather than whatever it was at sign-in.
+
+    Asked in parallel and reported separately: one of the two endpoints
+    being unreachable should cost you that row, not both. */
+ const [quotas, setQuotas] = useState({ search: null, ask: null });
  useEffect(() => {
-   if (!isPro) { setQuota(null); return; }
+   if (!isPro) { setQuotas({ search: null, ask: null }); return; }
    let alive = true;
-   fetchSearchQuota().then((q) => alive && setQuota(q));
+   Promise.all([fetchQuota(SEARCH_FN), fetchQuota(AI_FN)])
+     .then(([search, ask]) => alive && setQuotas({ search, ask }));
    return () => { alive = false; };
  }, [isPro]);
  const [closing, setClosing] = useState(false);
@@ -5708,22 +5713,29 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
      you press search, nothing happens, and there is no way to find out why.
      Shown only on a premium account, and only when the server actually
      answered — an invented number would be worse than none. */}
- {isPro && quota && (
+ {isPro && (quotas.search || quotas.ask) && (
  <Group title="Usage">
- <Row l="Product searches" r={`${quota.remaining} of ${quota.limit} left`} />
+ {[["Product searches", quotas.search, "searches"],
+   ["Assistant questions", quotas.ask, "questions"]]
+   .filter(([, q]) => q)
+   .map(([label, q, noun], i) => (
+ <div key={label} style={{ marginTop: i ? 18 : 0 }}>
+ <Row l={label} r={`${q.remaining} of ${q.limit} left`} />
  <div style={{ height: 6, borderRadius: 999, background: C.raised, overflow: "hidden", marginTop: 4 }}>
  <div style={{ height: "100%", borderRadius: 999,
-   width: `${Math.round((quota.remaining / Math.max(1, quota.limit)) * 100)}%`,
-   background: quota.remaining === 0 ? C.dead : C.accent, transition: "width .3s" }} />
+   width: `${Math.round((q.remaining / Math.max(1, q.limit)) * 100)}%`,
+   background: q.remaining === 0 ? C.dead : C.accent, transition: "width .3s" }} />
  </div>
- <p style={{ fontSize: 11.5, color: C.dead, marginTop: 10, lineHeight: 1.6 }}>
- {quota.remaining === 0
-   ? "You've used this hour's searches."
-   : `You've used ${quota.used} this hour.`}
- {quota.resetsAt
-   ? ` Resets at ${new Date(quota.resetsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`
+ <p style={{ fontSize: 11.5, color: C.dead, marginTop: 8, lineHeight: 1.6 }}>
+ {q.remaining === 0
+   ? `You've used this hour's ${noun}.`
+   : `You've used ${q.used} this hour.`}
+ {q.resetsAt
+   ? ` Resets at ${new Date(q.resetsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`
    : " The full allowance is available."}
  </p>
+ </div>
+ ))}
  </Group>
  )}
 
