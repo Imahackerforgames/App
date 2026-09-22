@@ -43,7 +43,7 @@ async function sheet({ soldResults, soldDates = [], datesByMarket = null, active
   await page.route(/\/functions\/v1\/ai-assistant/, (r) => r.fulfill({ status: 402, contentType: "application/json", body: '{"error":"no"}' }));
   await page.addInitScript(() => {
     localStorage.setItem("ros:session", JSON.stringify({ email: "t@e.com", provider: "email", token: "t", id: "u1", refresh: "r", expiresAt: Math.floor(Date.now()/1000)+3600 }));
-    localStorage.setItem("ros:profile", JSON.stringify({ onboarded: true, theme: "obsidian", state: "CA", zip: "90001", radius: 25 }));
+    localStorage.setItem("ros:profile", JSON.stringify({ username: "tester", onboarded: true, theme: "obsidian", state: "CA", zip: "90001", radius: 25 }));
   });
   await page.goto("http://localhost:4173/", { waitUntil: "networkidle" });
   await page.waitForTimeout(700);

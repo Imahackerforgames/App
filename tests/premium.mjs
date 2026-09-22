@@ -22,7 +22,7 @@ async function appAs(plan) {
       { email: "t@example.com", provider: "email", token: "tok", id: "u1" }));
     // Skip onboarding so we land straight on the tabs.
     localStorage.setItem("ros:profile", JSON.stringify(
-      { onboarded: true, theme: "heat", state: "CA", zip: "90001", radius: 25 }));
+      { username: "tester", onboarded: true, theme: "heat", state: "CA", zip: "90001", radius: 25 }));
   });
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.waitForTimeout(700);

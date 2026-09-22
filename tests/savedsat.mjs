@@ -37,7 +37,7 @@ async function app({ watchlist = [], soldDates = [], datesByMarket = null,
   await page.route(/\/functions\/v1\/ai-assistant/, (r) => r.fulfill({ status: 402, body: '{"error":"no"}' }));
   await page.addInitScript((wl) => {
     localStorage.setItem("ros:session", JSON.stringify({ email:"t@e.com", provider:"email", token:"t", id:"u1", refresh:"r", expiresAt: Math.floor(Date.now()/1000)+3600 }));
-    localStorage.setItem("ros:profile", JSON.stringify({ onboarded:true, theme:"obsidian", state:"CA", zip:"90001", radius:25 }));
+    localStorage.setItem("ros:profile", JSON.stringify({ username: "tester", onboarded: true, theme:"obsidian", state:"CA", zip:"90001", radius:25 }));
     if (wl.length) localStorage.setItem("ros:watchlist", JSON.stringify(wl));
   }, watchlist);
   await page.goto("http://localhost:4173/", { waitUntil: "networkidle" });

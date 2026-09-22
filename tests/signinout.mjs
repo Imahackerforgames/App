@@ -30,7 +30,7 @@ async function app({ storedEmail = "user@example.com", password = "Str0ng!Pass9"
   });
   await page.route(/\/rest\/v1\//, (r) => r.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
   await page.addInitScript(() => localStorage.setItem("ros:profile",
-    JSON.stringify({ onboarded: true, theme: "heat", state: "CA", zip: "90001", radius: 25 })));
+    JSON.stringify({ username: "tester", onboarded: true, theme: "heat", state: "CA", zip: "90001", radius: 25 })));
   await page.goto("http://localhost:4173/", { waitUntil: "networkidle" });
   await page.waitForTimeout(500);
   return { ctx, page, seen };
@@ -78,7 +78,8 @@ console.log("\nSigning up normalises the address too");
   const { ctx, page, seen } = await app();
   await page.getByRole("button", { name: "Sign up", exact: true }).first().click();
   await page.waitForTimeout(200);
-  await page.getByPlaceholder("What should we call you?").fill("Tester");
+  // No username here any more -- sign-up is email and password, and the
+  // username is chosen on the screen after the account exists.
   await page.getByPlaceholder("you@email.com").fill("New.Person@Example.COM");
   await page.getByPlaceholder("Make it a strong one").fill("Str0ng!Pass9");
   await page.getByRole("button", { name: /Create account/ }).click();

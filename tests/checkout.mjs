@@ -10,7 +10,7 @@ await page.route("**://*.supabase.co/**", r => r.abort());
 await page.route(/\/rest\/v1\/entitlements/, r => r.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
 await page.addInitScript(() => {
   localStorage.setItem("ros:session", JSON.stringify({ email: "t@example.com", provider: "email", token: "t", id: "u1" }));
-  localStorage.setItem("ros:profile", JSON.stringify({ onboarded: true, theme: "heat", state: "CA", zip: "90001", radius: 25 }));
+  localStorage.setItem("ros:profile", JSON.stringify({ username: "tester", onboarded: true, theme: "heat", state: "CA", zip: "90001", radius: 25 }));
 });
 
 // Catch the new tab rather than letting it navigate to the real checkout.

@@ -12,7 +12,7 @@ for (const key of KEYS) {
   await page.route(/\/rest\/v1\/entitlements/, (r) => r.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
   await page.addInitScript((k) => {
     localStorage.setItem("ros:session", JSON.stringify({ email: "t@e.com", provider: "email", token: "t", id: "u1" }));
-    localStorage.setItem("ros:profile", JSON.stringify({ onboarded: true, theme: k, state: "CA", zip: "90001", radius: 25 }));
+    localStorage.setItem("ros:profile", JSON.stringify({ username: "tester", onboarded: true, theme: k, state: "CA", zip: "90001", radius: 25 }));
   }, key);
   await page.goto("http://localhost:4173/", { waitUntil: "networkidle" });
   await page.waitForTimeout(800);

@@ -47,14 +47,15 @@ async function app({ hibp = "ok", signupStatus = 200 } = {}) {
   return { ctx, page, asked };
 }
 
-/* Field order on this screen is username, email, password — not the other
-   way round. Getting it wrong makes the email invalid, which makes submit
-   return early, which looks exactly like the breach check failing. */
+/* Two fields now: email then password. The username moved to its own
+   screen after the account is created. Indexing by position is still how
+   this works, so the count matters -- get it wrong and the email is never
+   valid, submit returns early, and it looks exactly like the breach check
+   failing rather than a broken fixture. */
 const fillSignup = async (page, pw) => {
   const boxes = page.locator('input:visible');
-  await boxes.nth(0).fill("newperson");
-  await boxes.nth(1).fill("newperson@example.com");
-  await boxes.nth(2).fill(pw);
+  await boxes.nth(0).fill("newperson@example.com");
+  await boxes.nth(1).fill(pw);
   await page.waitForTimeout(1400);   // past the 500ms debounce
 };
 
@@ -127,9 +128,8 @@ const fillSignup = async (page, pw) => {
   console.log("\n5. Nothing is sent until the password is worth asking about");
   const { ctx, page, asked } = await app();
   const boxes = page.locator('input:visible');
-  await boxes.nth(0).fill("newperson");
-  await boxes.nth(1).fill("newperson@example.com");
-  await boxes.nth(2).fill("abc");          // fails the shape rules
+  await boxes.nth(0).fill("newperson@example.com");
+  await boxes.nth(1).fill("abc");          // fails the shape rules
   await page.waitForTimeout(1200);
   ok("a weak password is never sent to HIBP", asked.length === 0, JSON.stringify(asked.map((a) => a.url)));
   await ctx.close();

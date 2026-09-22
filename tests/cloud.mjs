@@ -38,7 +38,7 @@ async function app({ remote = { inventory: [], sales: [], watchlist: [] }, offli
     if (req.method() === "GET") {
       if (table === "profiles") return route.fulfill({ status: 200, contentType: "application/json",
         body: JSON.stringify([{ id: UID, name: "", state: "CA", zip: "90001", radius: 25,
-          theme: "obsidian", onboarded: true, settings: null }]) });
+          theme: "obsidian", username: "tester", onboarded: true, settings: null }]) });
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(remote[table] || []) });
     }
     if (req.method() === "POST") {
@@ -58,7 +58,7 @@ async function app({ remote = { inventory: [], sales: [], watchlist: [] }, offli
   await page.addInitScript(([uid, loc]) => {
     localStorage.setItem("ros:session", JSON.stringify({ email: "a@b.com", provider: "email",
       token: "t", id: uid, refresh: "r", expiresAt: Math.floor(Date.now() / 1000) + 3600 }));
-    localStorage.setItem(`ros:u:${uid}:profile`, JSON.stringify({ onboarded: true, theme: "obsidian", state: "CA", zip: "90001", radius: 25 }));
+    localStorage.setItem(`ros:u:${uid}:profile`, JSON.stringify({ username: "tester", onboarded: true, theme: "obsidian", state: "CA", zip: "90001", radius: 25 }));
     if (loc) localStorage.setItem(`ros:u:${uid}:inventory`, loc);
   }, [UID, local]);
 

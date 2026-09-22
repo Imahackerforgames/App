@@ -166,6 +166,28 @@ async function fetchEntitlement({ force = false } = {}) {
   }
 }
 
+/* How many searches are left this hour. Costs nothing to ask — the
+   function reads the counter rather than incrementing it.
+
+   Returns null on any failure, which the caller renders as nothing at all.
+   A wrong number here would be worse than no number: somebody who believes
+   they have thirty left and gets refused at ten has been lied to by their
+   own settings screen. */
+async function fetchSearchQuota() {
+  try {
+    const res = await fetch(SEARCH_FN, {
+      method: "POST",
+      headers: await fnHeaders(),
+      body: JSON.stringify({ peek: true }),
+    });
+    if (!res.ok) return null;
+    const d = await res.json();
+    return d?.quota && typeof d.quota.remaining === "number" ? d.quota : null;
+  } catch {
+    return null;
+  }
+}
+
 const AI_FN = `${SUPABASE_URL}/functions/v1/ai-assistant`;
 
 /** The signed-in user's access token, for the JWT-gated Edge Functions.
@@ -816,13 +838,130 @@ const CATEGORIES = [
 ];
 const TICKET = (comp) => comp >= 100 ? "high" : "low";
 
+/* Reference products, by category.
+
+   These are modelled figures, not measurements — the app says so wherever
+   they are shown, and that framing must not be quietly dropped. They exist
+   so Saturation has something to rank when live search is unavailable or
+   has not been run, not to assert what is happening on any marketplace
+   today.
+
+   There were six of these, which is why every category filter showed one
+   item or none and why the same four products appeared under every
+   heading. */
 const CATALOG = [
- { title: "Dior Sauvage EDT 100ml", cat: "Colognes", source: "ebay", comp: 142, vel: 5.8, sellers: 34, comps90: 23, trend: "up" },
+ // Shoes
  { title: "Jordan 1 Low Panda US 9", cat: "Shoes", source: "mercari", comp: 112, vel: 8.1, sellers: 71, comps90: 44, trend: "up" },
+ { title: "Nike Dunk Low Panda US 10", cat: "Shoes", source: "ebay", comp: 118, vel: 9.3, sellers: 96, comps90: 52, trend: "down" },
+ { title: "New Balance 550 White Green", cat: "Shoes", source: "ebay", comp: 95, vel: 5.2, sellers: 38, comps90: 26, trend: "up" },
+ { title: "Adidas Samba OG White", cat: "Shoes", source: "poshmark", comp: 105, vel: 7.4, sellers: 64, comps90: 41, trend: "up" },
+ { title: "Asics Gel-Kayano 14 Silver", cat: "Shoes", source: "mercari", comp: 128, vel: 4.6, sellers: 29, comps90: 19, trend: "up" },
+ { title: "Yeezy Slide Onyx US 10", cat: "Shoes", source: "ebay", comp: 82, vel: 3.1, sellers: 47, comps90: 14, trend: "down" },
+
+ // Clothes
  { title: "Carhartt Detroit Jacket L", cat: "Clothes", source: "depop", comp: 148, vel: 4.2, sellers: 31, comps90: 21, trend: "up" },
- { title: "Casio G-Shock GA-2100", cat: "Accessories", source: "mercari", comp: 104, vel: 6.4, sellers: 55, comps90: 29, trend: "up" },
+ { title: "Nike Tech Fleece Hoodie L", cat: "Clothes", source: "mercari", comp: 74, vel: 6.8, sellers: 83, comps90: 37, trend: "flat" },
+ { title: "Levi's 501 Vintage W32", cat: "Clothes", source: "depop", comp: 58, vel: 5.4, sellers: 52, comps90: 28, trend: "up" },
+ { title: "Patagonia Better Sweater M", cat: "Clothes", source: "poshmark", comp: 89, vel: 4.9, sellers: 36, comps90: 24, trend: "up" },
+ { title: "Stussy Basic Tee L", cat: "Clothes", source: "depop", comp: 46, vel: 3.3, sellers: 58, comps90: 15, trend: "down" },
+ { title: "The North Face Nuptse 700 L", cat: "Clothes", source: "ebay", comp: 165, vel: 3.8, sellers: 27, comps90: 18, trend: "up" },
+
+ // Jewelry
  { title: "Gold plated Cuban chain 18in", cat: "Jewelry", source: "mercari", comp: 74, vel: 3.7, sellers: 88, comps90: 17, trend: "down" },
+ { title: "Pandora Moments charm bracelet", cat: "Jewelry", source: "poshmark", comp: 52, vel: 4.4, sellers: 61, comps90: 22, trend: "flat" },
+ { title: "Sterling silver rope chain 20in", cat: "Jewelry", source: "ebay", comp: 68, vel: 2.9, sellers: 44, comps90: 13, trend: "flat" },
+ { title: "Tennis bracelet 4mm CZ", cat: "Jewelry", source: "mercari", comp: 41, vel: 3.2, sellers: 72, comps90: 11, trend: "down" },
+ { title: "14k gold hoop earrings", cat: "Jewelry", source: "poshmark", comp: 130, vel: 2.6, sellers: 23, comps90: 12, trend: "up" },
+
+ // Accessories
+ { title: "Casio G-Shock GA-2100", cat: "Accessories", source: "mercari", comp: 104, vel: 6.4, sellers: 55, comps90: 29, trend: "up" },
+ { title: "Seiko 5 SNK809 automatic", cat: "Accessories", source: "ebay", comp: 118, vel: 3.9, sellers: 26, comps90: 17, trend: "up" },
+ { title: "Coach Willow Tote pebbled", cat: "Accessories", source: "poshmark", comp: 145, vel: 4.1, sellers: 34, comps90: 20, trend: "up" },
+ { title: "Ray-Ban Wayfarer 2140", cat: "Accessories", source: "ebay", comp: 92, vel: 5.1, sellers: 67, comps90: 26, trend: "flat" },
+ { title: "Apple AirPods Pro 2nd gen", cat: "Accessories", source: "ebay", comp: 155, vel: 9.7, sellers: 104, comps90: 58, trend: "down" },
+ { title: "Louis Vuitton Neverfull MM", cat: "Accessories", source: "poshmark", comp: 980, vel: 1.8, sellers: 19, comps90: 8, trend: "up" },
+
+ // Headwear
  { title: "Supreme Camp Cap", cat: "Headwear", source: "depop", comp: 68, vel: 2.4, sellers: 26, comps90: 9, trend: "flat" },
+ { title: "New Era 59Fifty Yankees 7 1/4", cat: "Headwear", source: "ebay", comp: 38, vel: 4.7, sellers: 79, comps90: 21, trend: "down" },
+ { title: "Carhartt Acrylic Watch Hat", cat: "Headwear", source: "mercari", comp: 22, vel: 5.9, sellers: 91, comps90: 27, trend: "flat" },
+ { title: "Patagonia Trucker Hat", cat: "Headwear", source: "poshmark", comp: 34, vel: 3.4, sellers: 42, comps90: 16, trend: "up" },
+ { title: "Nike Club Cap unstructured", cat: "Headwear", source: "mercari", comp: 24, vel: 3.0, sellers: 63, comps90: 12, trend: "down" },
+
+ // Colognes
+ { title: "Dior Sauvage EDT 100ml", cat: "Colognes", source: "ebay", comp: 142, vel: 5.8, sellers: 34, comps90: 23, trend: "up" },
+ { title: "Bleu de Chanel EDP 100ml", cat: "Colognes", source: "ebay", comp: 158, vel: 4.6, sellers: 29, comps90: 21, trend: "up" },
+ { title: "Versace Eros EDT 100ml", cat: "Colognes", source: "mercari", comp: 78, vel: 5.2, sellers: 57, comps90: 25, trend: "flat" },
+ { title: "YSL Y EDP 100ml", cat: "Colognes", source: "ebay", comp: 112, vel: 3.8, sellers: 38, comps90: 18, trend: "up" },
+ { title: "Creed Aventus 100ml", cat: "Colognes", source: "ebay", comp: 385, vel: 2.1, sellers: 22, comps90: 11, trend: "up" },
+ { title: "Jean Paul Gaultier Le Male 125ml", cat: "Colognes", source: "mercari", comp: 74, vel: 4.3, sellers: 66, comps90: 19, trend: "down" },
+
+ // Other
+ { title: "Nintendo Switch OLED console", cat: "Other", source: "ebay", comp: 265, vel: 6.2, sellers: 61, comps90: 33, trend: "flat" },
+ { title: "Sony WH-1000XM4 headphones", cat: "Other", source: "ebay", comp: 178, vel: 5.5, sellers: 48, comps90: 29, trend: "up" },
+ { title: "Lego Star Wars UCS sealed set", cat: "Other", source: "ebay", comp: 320, vel: 2.7, sellers: 24, comps90: 14, trend: "up" },
+ { title: "Pokemon 151 booster bundle", cat: "Other", source: "ebay", comp: 88, vel: 7.9, sellers: 87, comps90: 45, trend: "down" },
+ { title: "Stanley Quencher 40oz", cat: "Other", source: "mercari", comp: 42, vel: 6.6, sellers: 112, comps90: 31, trend: "down" },
+ { title: "Kindle Paperwhite 11th gen", cat: "Other", source: "ebay", comp: 95, vel: 3.6, sellers: 33, comps90: 17, trend: "flat" },
+];
+
+/* The local catalog, which is a different business.
+
+   Local resale is not online resale with a shorter shipping label. It is
+   the things shipping makes uneconomic — furniture, tools, appliances,
+   exercise equipment — bought and collected within driving distance. So
+   Saturation's Local tab had no business showing the same sneakers and
+   colognes as Online, which is exactly what it was doing: the mode chip
+   was decorative and both tabs read from the same list.
+
+   Same categories as Online so the filter chips still mean something, but
+   every product is one that actually moves locally. */
+const LOCAL_CATALOG = [
+ // Shoes
+ { title: "Red Wing Iron Ranger boots 10", cat: "Shoes", source: "offerup", comp: 165, vel: 1.9, sellers: 12, comps90: 7, trend: "up" },
+ { title: "Soccer cleats youth, mixed sizes", cat: "Shoes", source: "facebook", comp: 25, vel: 3.4, sellers: 41, comps90: 14, trend: "flat" },
+ { title: "Work boots steel toe 11", cat: "Shoes", source: "offerup", comp: 55, vel: 2.6, sellers: 27, comps90: 11, trend: "flat" },
+ { title: "Ski boots 27.5 with bag", cat: "Shoes", source: "facebook", comp: 90, vel: 1.4, sellers: 18, comps90: 6, trend: "down" },
+
+ // Clothes
+ { title: "Kids clothing bulk lot 0-2T", cat: "Clothes", source: "facebook", comp: 35, vel: 5.8, sellers: 74, comps90: 24, trend: "flat" },
+ { title: "Carhartt work coat XL", cat: "Clothes", source: "offerup", comp: 85, vel: 2.9, sellers: 22, comps90: 12, trend: "up" },
+ { title: "Wedding dress size 8", cat: "Clothes", source: "facebook", comp: 220, vel: 0.9, sellers: 15, comps90: 4, trend: "down" },
+ { title: "Winter coats bundle adult", cat: "Clothes", source: "offerup", comp: 60, vel: 2.2, sellers: 33, comps90: 9, trend: "flat" },
+
+ // Jewelry
+ { title: "Estate costume jewelry lot", cat: "Jewelry", source: "facebook", comp: 45, vel: 1.7, sellers: 29, comps90: 7, trend: "flat" },
+ { title: "Scrap gold and silver lot", cat: "Jewelry", source: "offerup", comp: 240, vel: 1.2, sellers: 11, comps90: 5, trend: "up" },
+ { title: "Vintage watch lot untested", cat: "Jewelry", source: "facebook", comp: 75, vel: 1.5, sellers: 19, comps90: 6, trend: "flat" },
+
+ // Accessories
+ { title: "Graco 4Ever car seat", cat: "Accessories", source: "facebook", comp: 110, vel: 4.2, sellers: 48, comps90: 19, trend: "up" },
+ { title: "UPPAbaby Vista stroller", cat: "Accessories", source: "offerup", comp: 340, vel: 2.1, sellers: 16, comps90: 9, trend: "up" },
+ { title: "Yeti Tundra 45 cooler", cat: "Accessories", source: "offerup", comp: 185, vel: 2.4, sellers: 21, comps90: 11, trend: "flat" },
+ { title: "Golf club set with bag", cat: "Accessories", source: "facebook", comp: 150, vel: 3.1, sellers: 37, comps90: 15, trend: "flat" },
+
+ // Headwear
+ { title: "Motorcycle helmet DOT medium", cat: "Headwear", source: "offerup", comp: 80, vel: 1.6, sellers: 17, comps90: 6, trend: "flat" },
+ { title: "Bike helmets kids lot", cat: "Headwear", source: "facebook", comp: 20, vel: 2.3, sellers: 31, comps90: 8, trend: "down" },
+ { title: "Welding helmet auto-darkening", cat: "Headwear", source: "offerup", comp: 65, vel: 1.1, sellers: 9, comps90: 4, trend: "up" },
+
+ // Colognes
+ { title: "Perfume lot partial bottles", cat: "Colognes", source: "facebook", comp: 40, vel: 1.3, sellers: 24, comps90: 5, trend: "down" },
+ { title: "Sealed designer gift set", cat: "Colognes", source: "offerup", comp: 70, vel: 1.8, sellers: 18, comps90: 7, trend: "flat" },
+
+ // Other — the heart of local resale
+ { title: "Peloton Bike original", cat: "Other", source: "facebook", comp: 450, vel: 3.6, sellers: 52, comps90: 22, trend: "down" },
+ { title: "IKEA Kallax 4x4 shelf", cat: "Other", source: "facebook", comp: 70, vel: 6.4, sellers: 88, comps90: 31, trend: "flat" },
+ { title: "DeWalt 20V drill kit", cat: "Other", source: "offerup", comp: 130, vel: 5.1, sellers: 44, comps90: 26, trend: "up" },
+ { title: "Sectional couch grey fabric", cat: "Other", source: "facebook", comp: 280, vel: 4.8, sellers: 96, comps90: 28, trend: "down" },
+ { title: "Weight plates Olympic 45lb pair", cat: "Other", source: "offerup", comp: 95, vel: 4.4, sellers: 39, comps90: 21, trend: "up" },
+ { title: "Craftsman lawn mower self-propelled", cat: "Other", source: "facebook", comp: 175, vel: 3.2, sellers: 34, comps90: 16, trend: "flat" },
+ { title: "Mini fridge 3.2 cu ft", cat: "Other", source: "offerup", comp: 75, vel: 3.9, sellers: 57, comps90: 18, trend: "flat" },
+ { title: "Samsung 55in 4K TV", cat: "Other", source: "facebook", comp: 210, vel: 5.6, sellers: 71, comps90: 29, trend: "down" },
+ { title: "Dining table with 4 chairs", cat: "Other", source: "facebook", comp: 160, vel: 3.4, sellers: 62, comps90: 17, trend: "flat" },
+ { title: "Trek hybrid bike medium frame", cat: "Other", source: "offerup", comp: 240, vel: 2.8, sellers: 26, comps90: 13, trend: "up" },
+ { title: "Honda EU2200i generator", cat: "Other", source: "offerup", comp: 680, vel: 1.7, sellers: 14, comps90: 8, trend: "up" },
+ { title: "Washer and dryer set", cat: "Other", source: "facebook", comp: 420, vel: 2.9, sellers: 41, comps90: 15, trend: "flat" },
 ];
 
 /* Search suggestions. The old list was ten entries, so typing almost
@@ -926,7 +1065,7 @@ const rise = (i = 0) => ({ animationDelay: `${i * 55}ms` });
 const MOTIVATION = ["Let's make some money.", "Let's build this wealth.", "Time to grow the business.", "Let's find the next winner."];
 
 const DEFAULTS = {
- profile: { name: "", state: "", zip: "", radius: 25, onboarded: false, theme: "obsidian" },
+ profile: { name: "", username: "", state: "", zip: "", radius: 25, onboarded: false, theme: "obsidian" },
  settings: { feePct: 13.25, payPct: 2.9, ship: 8, startingBalance: 0,
  notif: { opps: true, satur: true, demand: true, local: true }, aiUseData: true },
  inventory: [], sales: [], watchlist: [], notifications: [], readNotifs: [],
@@ -1066,8 +1205,9 @@ async function loadRemote(userId) {
      sales: (sales || []).map(rowToSale),
      watchlist: (watch || []).map(rowToWatch),
      profile: row
-       ? { name: row.name || "", state: row.state || "", zip: row.zip || "",
-           radius: row.radius ?? 25, onboarded: !!row.onboarded, theme: row.theme || "obsidian" }
+       ? { name: row.name || "", username: row.username || "", state: row.state || "",
+           zip: row.zip || "", radius: row.radius ?? 25, onboarded: !!row.onboarded,
+           theme: row.theme || "obsidian" }
        : null,
      settings: row?.settings || null,
    };
@@ -1906,7 +2046,6 @@ function AuthScreen({ onDone, theme, recovery = null }) {
   const [phase, setPhase] = useState(recovery ? "reset" : "form"); // form | verify | forgot | reset
   const [legal, setLegal] = useState(null); // null | "terms" | "privacy"
   const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
   const [loginWith, setLoginWith] = useState("email"); // email | username
   const [loginId, setLoginId] = useState("");          // whichever of the two they typed
   const [pw, setPw]       = useState("");
@@ -1945,12 +2084,12 @@ function AuthScreen({ onDone, theme, recovery = null }) {
     : loginId.trim().length >= 2;
   const ok = mode === "login"
     ? loginIdOk && pw.length >= 6
-    : emailOk && username.trim().length >= 2 && strength.ok;
+    : emailOk && strength.ok;
 
   const submit = async () => {
     // Spell out why rather than leaving a dead button. The strength gate is
     // the most likely reason someone is stuck here.
-    if (!busy && mode === "signup" && emailOk && username.trim().length >= 2 && !strength.ok) {
+    if (!busy && mode === "signup" && emailOk && !strength.ok) {
       const missing = strength.met.filter((r) => !r.ok).map((r) => r.label.toLowerCase());
       setErr(`Password is too weak${strength.level === "fair" ? " — only fair" : ""}. Still needs ${missing.join(", ")}. Try again.`);
       return;
@@ -1972,12 +2111,14 @@ function AuthScreen({ onDone, theme, recovery = null }) {
     setBusy(true); setErr(null); setNote(null);
     try {
       if (mode === "signup") {
+        /* No username here any more. It is asked for on the next screen,
+           once the account exists — three fields on a sign-up form loses
+           people, and a name chosen before you have seen the product is a
+           name chosen badly. profiles.username stays null until then, which
+           is what PickUsername keys off. */
         const d = await supabaseAuth("signup", {
           email: cleanEmail(email),
           password: pw,
-          // The signup trigger reads full_name/name out of this metadata to
-          // fill in profiles.name, so the username lands in the profile row.
-          data: { username: username.trim(), name: username.trim() },
         });
         if (d.user && !d.access_token) {
           // No note here — the verify screen's own heading already says this,
@@ -1985,7 +2126,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
           setPhase("verify"); setCode("");
           setBusy(false); return;
         }
-        onDone({ email: cleanEmail(email), provider: "email", ...sessionFields(d), id: d.user?.id, username: username.trim() });
+        onDone({ email: cleanEmail(email), provider: "email", ...sessionFields(d), id: d.user?.id });
       } else if (loginWith === "username") {
         // Supabase authenticates by email, so the username is resolved to an
         // account server-side by the username-login function.
@@ -2009,7 +2150,7 @@ function AuthScreen({ onDone, theme, recovery = null }) {
         // The login tab writes to loginId and the sign-up tab to email. Sending
         // the wrong one here handed the app an identity with no address at all.
         const who = mode === "login" ? loginId.trim() : email.trim();
-        setTimeout(() => onDone({ email: who, provider: "demo", username: username.trim() }), 900);
+        setTimeout(() => onDone({ email: who, provider: "demo" }), 900);
       } else setErr(e.message);
     } finally { setBusy(false); }
   };
@@ -2024,11 +2165,11 @@ function AuthScreen({ onDone, theme, recovery = null }) {
     try {
       const d = await supabaseAuth("verify", { type: "signup", email, token });
       if (!d.access_token) { setErr("That code didn't work. Check it and try again."); return; }
-      onDone({ email, provider: "email", ...sessionFields(d), id: d.user?.id, username: username.trim() });
+      onDone({ email, provider: "email", ...sessionFields(d), id: d.user?.id });
     } catch (e) {
       if (/failed to fetch|networkerror|load failed/i.test(e.message)) {
         setNote("Can't reach Supabase from this preview. Continuing in demo mode.");
-        setTimeout(() => onDone({ email, provider: "demo", username: username.trim() }), 900);
+        setTimeout(() => onDone({ email, provider: "demo" }), 900);
       } else setErr(/expired|invalid/i.test(e.message)
         ? "That code is wrong or has expired. Send a new one."
         : e.message);
@@ -2568,18 +2709,6 @@ function AuthScreen({ onDone, theme, recovery = null }) {
               ))}
             </div>
 
-            {mode === "signup" && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim, marginBottom: 8 }}>Username</div>
-                <div className="auth-in" style={{ display: "flex", alignItems: "center", background: t.raised, border: `1px solid ${t.line}`, borderRadius: 14, padding: "0 16px" }}>
-                  <input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
-                    placeholder="What should we call you?" autoComplete="username" maxLength={40}
-                    onKeyDown={(e) => e.key === "Enter" && submit()}
-                    style={{ flex: 1, background: "none", border: "none", outline: "none", color: t.bone, fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
-                </div>
-              </div>
-            )}
-
             <div style={{ marginBottom: 16 }}>
               {mode === "login" ? (
                 /* Pick which credential you're typing. The label is the
@@ -2766,6 +2895,117 @@ function AuthScreen({ onDone, theme, recovery = null }) {
       </div>
 
       {legal && <LegalSheet which={legal} onClose={() => setLegal(null)} />}
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Picking a username, after the account exists rather than before.
+
+   Sign-up used to ask for three things. It now asks for two, and this
+   screen asks for the third once the person is already through the door
+   and far likelier to finish. It is also the shape Google sign-in needs
+   later: an OAuth provider hands over an email and a display name but
+   never a username, so whatever route someone arrives by, they end up
+   here exactly once.
+
+   The database is the only authority on whether this screen is needed —
+   `profiles.username` being empty. Asking the session instead looked
+   tempting and was wrong: signing in by email stores no username, so
+   every returning customer would have been asked to choose one again.
+
+   Usernames are unique, so two people can pick the same one moments
+   apart. The check below is a courtesy that makes the common case
+   pleasant; the unique index is what actually guarantees it, and a 409
+   coming back is handled as "taken" rather than as a crash.
+   ────────────────────────────────────────────────────────────── */
+const USERNAME_RE = /^[a-zA-Z0-9_-]{3,20}$/;
+
+/* A first guess from the email, so most people can press the button
+   without typing. Stripped to the legal character set and padded if the
+   result is too short to be valid. */
+const suggestUsername = (email) => {
+  const base = String(email || "").split("@")[0].replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 20);
+  return base.length >= 3 ? base : "";
+};
+
+function PickUsername({ email, userId, onDone }) {
+  const [name, setName] = useState(() => suggestUsername(email));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const valid = USERNAME_RE.test(name.trim());
+
+  const save = async () => {
+    const want = name.trim();
+    if (!valid || busy) return;
+    setBusy(true); setErr(null);
+
+    /* A demo session has no account behind it, so there is nothing to
+       write. Let it through rather than blocking on a database that was
+       never going to answer. */
+    if (!userId) { onDone(want); return; }
+
+    try {
+      const taken = await sbRest(
+        `profiles?select=id&username=ilike.${encodeURIComponent(want)}&limit=1`);
+      const owner = Array.isArray(taken) && taken.length ? taken[0].id : null;
+      if (owner && owner !== userId) {
+        setErr("That username is taken. Try another.");
+        setBusy(false); return;
+      }
+      if (owner === userId) { onDone(want); return; }
+      await sbRest(`profiles?id=eq.${userId}`,
+        { method: "PATCH", prefer: "return=minimal", body: { username: want } });
+      onDone(want);
+    } catch (e) {
+      /* 23505 is Postgres for "unique violation" — somebody took it in the
+         moment between the check and the write. Worth its own message,
+         because "try again" would be wrong advice. */
+      const msg = String(e?.message || e);
+      setErr(/23505|duplicate|conflict/i.test(msg)
+        ? "That username was just taken. Try another."
+        : "Couldn't save that. Check your connection and try again.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="reseller-root" style={{ minHeight: "100vh", background: C.void, color: C.bone, fontFamily: SANS }}>
+      <Styles theme="obsidian" />
+      <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 20px", minHeight: "100vh",
+        display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <div key="pu" className="rise">
+          <h2 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.035em", margin: 0 }}>
+            Pick a username
+          </h2>
+          <p style={{ fontSize: 14, color: C.dim, margin: "10px 0 24px", lineHeight: 1.6 }}>
+            It's what we'll call you, and you can sign in with it instead of your email.
+          </p>
+
+          <div className="auth-in" style={{ display: "flex", alignItems: "center", background: C.raised,
+            border: `1px solid ${err ? C.accent : C.line}`, borderRadius: 14, padding: "0 16px" }}>
+            <input type="text" value={name} autoFocus autoComplete="username" maxLength={20}
+              aria-label="Username"
+              onChange={(e) => { setName(e.target.value); setErr(null); }}
+              onKeyDown={(e) => e.key === "Enter" && save()}
+              placeholder="yourname"
+              style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.bone,
+                fontFamily: SANS, fontSize: 15, padding: "14px 0" }} />
+          </div>
+
+          <p role={err ? "alert" : undefined}
+            style={{ fontSize: 12, color: err ? C.accentText : C.dead, margin: "10px 0 0", lineHeight: 1.6 }}>
+            {err || "3–20 characters. Letters, numbers, underscores and hyphens."}
+          </p>
+        </div>
+
+        <button disabled={!valid || busy} onClick={save} className={valid && !busy ? "fx fx-accent" : ""}
+          style={{ marginTop: 26, padding: "16px", borderRadius: 999, border: "none", fontSize: 14.5,
+            fontWeight: 800, cursor: valid && !busy ? "pointer" : "not-allowed",
+            background: valid && !busy ? C.accent : C.raised, color: valid && !busy ? C.onAccent : C.dead }}>
+          {busy ? "Saving…" : "Continue"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -3013,6 +3253,20 @@ export default function ResellOS() {
  setStage("app");
  }} />
  );
+
+ /* Before onboarding, because a username is the one thing the app cannot
+    work around: username sign-in needs it, and it is how the person is
+    addressed everywhere. Gated on the profile loaded from the database,
+    so nobody who already has one is asked twice. */
+ if (!db.profile.username && !user?.username) {
+ return <PickUsername email={user?.email} userId={user?.id || null}
+   onDone={(username) => {
+     put("profile", { ...db.profile, username });
+     /* Mirrored onto the session so the greeting and the header pick it
+        up straight away, rather than after the next reload. */
+     setUser((u) => (u ? { ...u, username } : u));
+   }} />;
+ }
 
  if (!db.profile.onboarded) {
  return <Onboard onDone={(loc) => put("profile", { ...db.profile, ...loc, onboarded: true })} />;
@@ -4062,9 +4316,23 @@ function ProductCard({ item, idx, onDetail }) {
  {/* The verdict is a call made from counted signals. A live listing has
      none yet, so it says what to do about that rather than shouting
      "NOT ENOUGH DATA" at every card on the screen. */}
+ {/* A live listing has a page you can open. Linking straight to it is
+     the thing a person actually wants from a search result, and it was
+     missing — the only way through was See More, which opens an analysis
+     rather than the item. The verdict line stays where there is no link. */}
+ {item.url ? (
+ <a href={item.url} target="_blank" rel="noopener noreferrer"
+   onClick={(e) => e.stopPropagation()}
+   style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: MONO, fontSize: 10.5,
+     fontWeight: 700, letterSpacing: "0.04em", color: C.accentText, textDecoration: "none" }}>
+   VIEW ON {String(item.market || marketLabel(item.source) || "listing").toUpperCase()}
+   <ExternalLink size={11} />
+ </a>
+ ) : (
  <span style={{ fontFamily: MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: item.vel == null ? C.dead : VERDICT_COLOR[v.tone] }}>
  {item.vel == null ? "TAP TO MEASURE" : v.label}
  </span>
+ )}
  <button onClick={() => onDetail(item)} className="fx fx-chip"
  style={{ display: "flex", alignItems: "center", gap: 5, background: "transparent", border: `1px solid ${C.accentDim}`, borderRadius: 999, padding: "7px 14px", color: C.bone, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
  See More <ChevronRight size={13} />
@@ -4687,11 +4955,18 @@ function Saturation({ db, go, put }) {
  const [altList, setAltList] = useState([]);
  const [detail, setDetail] = useState(null);
 
- const pool = CATALOG.filter((c) => (cat === "All" || c.cat === cat) && (ticket === "all" || TICKET(c.comp) === ticket));
- const crowded = [...pool].sort((a, b) => b.sellers - a.sellers).slice(0, 4);
- const rising = crowded.filter((c) => c.trend !== "down").slice(0, 2);
- const falling = [...pool].filter((c) => c.trend === "down").slice(0, 2);
- const open = [...pool].sort((a, b) => a.sellers - b.sellers).slice(0, 3);
+ /* The mode chip used to be decorative: both tabs read from CATALOG, so
+    Online and Local showed the same four products. They are different
+    businesses and now read from different lists. */
+ const source = mode === "local" ? LOCAL_CATALOG : CATALOG;
+ const pool = source.filter((c) => (cat === "All" || c.cat === cat) && (ticket === "all" || TICKET(c.comp) === ticket));
+ /* Wider slices than before, because there is finally enough in each
+    category to rank — four out of six was most of the list, which is why
+    every section looked like the same handful of products. */
+ const crowded = [...pool].sort((a, b) => b.sellers - a.sellers).slice(0, 6);
+ const rising = crowded.filter((c) => c.trend !== "down").slice(0, 4);
+ const falling = [...pool].filter((c) => c.trend === "down").slice(0, 4);
+ const open = [...pool].sort((a, b) => a.sellers - b.sellers).slice(0, 5);
 
  const showAlt = async (item) => {
  if (alt === item.title) { setAlt(null); return; }
@@ -4708,9 +4983,16 @@ function Saturation({ db, go, put }) {
  </button>
  ))}
  </div>
+ {/* This used to read "Based on 30106, 25 mile radius", which claimed
+     these figures had been measured in that ZIP. They have not been —
+     they are reference figures for what tends to move locally. Saying so
+     costs a sentence; the alternative is a number the app cannot stand
+     behind. Searching runs against the real radius. */}
  {mode === "local" && (
  <p style={{ fontSize: 12.5, color: C.dim, margin: "0 4px 12px", lineHeight: 1.5 }}>
- Based on {db.profile.zip || db.profile.state || "your area"}, {db.profile.radius} mile radius.
+ What tends to move locally — bulky things shipping makes uneconomic. Figures
+ are estimates, not measured for {db.profile.zip || db.profile.state || "your area"};
+ searches use your {db.profile.radius} mile radius.
  </p>
  )}
 
@@ -5273,6 +5555,17 @@ function Essentials() {
 function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitlement, entLoading, entNote }) {
  /* null | "terms" | "privacy" */
  const [legal, setLegal] = useState(null);
+
+ /* Searches left this hour. Only asked for on a premium account, because a
+    free one has no search allowance to report. Re-read whenever this screen
+    is opened, so it is current rather than whatever it was at sign-in. */
+ const [quota, setQuota] = useState(null);
+ useEffect(() => {
+   if (!isPro) { setQuota(null); return; }
+   let alive = true;
+   fetchSearchQuota().then((q) => alive && setQuota(q));
+   return () => { alive = false; };
+ }, [isPro]);
  const [closing, setClosing] = useState(false);
  const [closeErr, setCloseErr] = useState(null);
 
@@ -5408,6 +5701,31 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  onToggle={() => put("settings", { ...db.settings, notif: { ...db.settings.notif, [k]: !db.settings.notif[k] } })} />
  ))}
  </Group>
+
+ {/* What is left of this hour's searches.
+
+     A limit you cannot see is indistinguishable from the app being broken:
+     you press search, nothing happens, and there is no way to find out why.
+     Shown only on a premium account, and only when the server actually
+     answered — an invented number would be worse than none. */}
+ {isPro && quota && (
+ <Group title="Usage">
+ <Row l="Product searches" r={`${quota.remaining} of ${quota.limit} left`} />
+ <div style={{ height: 6, borderRadius: 999, background: C.raised, overflow: "hidden", marginTop: 4 }}>
+ <div style={{ height: "100%", borderRadius: 999,
+   width: `${Math.round((quota.remaining / Math.max(1, quota.limit)) * 100)}%`,
+   background: quota.remaining === 0 ? C.dead : C.accent, transition: "width .3s" }} />
+ </div>
+ <p style={{ fontSize: 11.5, color: C.dead, marginTop: 10, lineHeight: 1.6 }}>
+ {quota.remaining === 0
+   ? "You've used this hour's searches."
+   : `You've used ${quota.used} this hour.`}
+ {quota.resetsAt
+   ? ` Resets at ${new Date(quota.resetsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`
+   : " The full allowance is available."}
+ </p>
+ </Group>
+ )}
 
  <Group title="Billing">
  <Row l="Plan" r={isPro ? "Premium" : "Free"} />
