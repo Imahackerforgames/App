@@ -228,6 +228,48 @@ function callerUserId(req: Request): string | null {
    case per account per hour becomes a number you can actually budget for. */
 const ASK_MAX = 40, ASK_WINDOW = 60 * 60;
 
+/* What is left, without spending any of it.
+
+   A cap nobody can see is indistinguishable from the app being broken: you
+   ask a question, nothing comes back, and there is no way to learn why. So
+   the count is readable and Settings shows it, the same way it shows the
+   search allowance.
+
+   Read straight from the table rather than through consume_rate_limit,
+   whose whole job is to increment — checking your own balance must not
+   cost you one of them. */
+type Quota = { limit: number; used: number; remaining: number; resetsAt: string | null };
+async function quotaFor(bucket: string, max: number, windowSeconds: number): Promise<Quota | null> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return null;
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/rate_limits?select=count,window_start&bucket=eq.${encodeURIComponent(bucket)}&limit=1`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } },
+    );
+    if (!res.ok) return null;
+    const rows = await res.json();
+    const row = Array.isArray(rows) ? rows[0] : null;
+
+    const startedAt = row?.window_start ? new Date(row.window_start).getTime() : 0;
+    const endsAt = startedAt + windowSeconds * 1000;
+    /* A lapsed window is a fresh allowance, so it reads as nothing used and
+       no reset pending — not as a reset time in the past. */
+    const live = !!row && endsAt > Date.now();
+    const used = live ? Number(row.count) || 0 : 0;
+    return {
+      limit: max,
+      used: Math.min(used, max),
+      remaining: Math.max(0, max - used),
+      resetsAt: live ? new Date(endsAt).toISOString() : null,
+    };
+  } catch (e) {
+    console.error("ai-assistant: quota read failed:", String(e));
+    return null;
+  }
+}
+
 /* Counted in Postgres, because Edge Functions run on many instances and an
    in-process counter is bypassed by whoever lands on a different one.
 
@@ -305,13 +347,25 @@ Deno.serve(async (req: Request) => {
     return json({ error: "The assistant is a premium feature. Upgrade in Settings to use it.", upgrade: true }, 402);
   }
 
+  const asker = callerUserId(req);
+
+  /* "How many questions do I have left?" — answered without spending one.
+     Read before the body is examined for messages, because a peek carries
+     none and would otherwise be rejected as an empty conversation. */
+  const peeking = await req.clone().json().then((b) => b?.peek === true).catch(() => false);
+  if (peeking) {
+    return json({ quota: await quotaFor(`ask:${asker ?? "unknown"}`, ASK_MAX, ASK_WINDOW) });
+  }
+
   /* After the premium check, so a free account hammering the endpoint cannot
      burn through somebody else's allowance, and before the model is called,
      so a refusal costs nothing. */
-  const asker = callerUserId(req);
   if (!(await allow(`ask:${asker ?? "unknown"}`, ASK_MAX, ASK_WINDOW))) {
     console.warn("ai-assistant: rate limited.");
-    return json({ error: "You've asked a lot in the last hour. Try again shortly." }, 429);
+    return json({
+      error: "You've asked all your questions for this hour. They refresh shortly.",
+      quota: await quotaFor(`ask:${asker ?? "unknown"}`, ASK_MAX, ASK_WINDOW),
+    }, 429);
   }
 
   if (!Deno.env.get("ANTHROPIC_API_KEY")) {
@@ -368,6 +422,9 @@ Deno.serve(async (req: Request) => {
     return json({
       answer,
       sources,
+      /* Sent back on every answer so a caller can track the balance as it is
+         spent, rather than only when Settings is opened. */
+      quota: await quotaFor(`ask:${asker ?? "unknown"}`, ASK_MAX, ASK_WINDOW),
       meta: {
         model: response.model ?? MODEL,
         stopReason: response.stop_reason,
