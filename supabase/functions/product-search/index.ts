@@ -101,6 +101,43 @@ function callerId(req: Request): string {
   return `ip:${(req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown"}`;
 }
 
+/* Whether this account has paid. Product Search is premium, but until now
+   only the interface said so — the server took anyone with a valid token.
+   Hiding a button is not enforcing it: a free account could call this
+   endpoint directly and spend search credits fifteen times an hour.
+
+   Every failure answers false, exactly as in ai-assistant. The entitlements
+   table is read with the service role because the browser cannot read
+   anyone's row but its own, and the only way through is a live row that
+   says pro. */
+async function callerIsPro(req: Request): Promise<boolean> {
+  try {
+    const id = callerId(req);
+    if (!id.startsWith("user:")) return false;
+    const userId = id.slice(5);
+
+    const url = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !serviceKey) {
+      console.error("product-search: cannot check entitlement, SUPABASE_URL or service role key missing.");
+      return false;
+    }
+    const res = await fetch(
+      `${url}/rest/v1/entitlements?select=plan,expires_at&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
+      { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+    );
+    if (!res.ok) return false;
+    const rows = await res.json();
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row || row.plan !== "pro") return false;
+    if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return false;
+    return true;
+  } catch (e) {
+    console.error("product-search: entitlement check failed:", String(e));
+    return false;
+  }
+}
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -172,6 +209,13 @@ Deno.serve(async (req: Request) => {
 
     if (!query || typeof query !== "string" || !query.trim()) {
       return json({ error: "Missing 'query'." }, 400);
+    }
+
+    /* Premium first, then the rate limit — a free account must not be able
+       to eat into the allowance, and neither check may cost a Tavily credit
+       to fail. */
+    if (!(await callerIsPro(req))) {
+      return json({ error: "Product Search is a premium feature. Upgrade in Settings to use it.", upgrade: true }, 402);
     }
 
     /* Checked after the request is understood but before a single Tavily

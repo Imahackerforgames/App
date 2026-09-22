@@ -197,28 +197,76 @@ async function askClaude(
   return response;
 }
 
+/* The account making the request, from the token the gateway has already
+   verified. Decoding it here is for identifying the caller, not for
+   trusting them — an unverified token never reaches this function. */
+function callerUserId(req: Request): string | null {
+  try {
+    const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+    const payload = jwt.split(".")[1];
+    if (!payload) return null;
+    /* base64url, and JWT strips the padding. atob wants standard base64 with
+       padding intact, so put both back before decoding. */
+    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/")
+      .padEnd(payload.length + ((4 - (payload.length % 4)) % 4), "=");
+    return JSON.parse(atob(b64))?.sub || null;
+  } catch {
+    return null;
+  }
+}
+
+/* How many questions an account may ask in an hour.
+
+   The assistant had no limit at all, which was the largest uncapped cost in
+   the product: premium is checked, and a premium account could then ask
+   without end, each answer allowed up to 16k tokens on the largest model.
+   One person could run up a serious bill in an afternoon, deliberately or
+   by leaving something looping.
+
+   Forty is chosen to be invisible. A real conversation is five to fifteen
+   messages, so nobody using this normally will ever see it, while the worst
+   case per account per hour becomes a number you can actually budget for. */
+const ASK_MAX = 40, ASK_WINDOW = 60 * 60;
+
+/* Counted in Postgres, because Edge Functions run on many instances and an
+   in-process counter is bypassed by whoever lands on a different one.
+
+   Fails open, like the other two limiters: if the database cannot be
+   reached, questions still get answered. A limiter that silences the
+   product when it breaks is worse than the spending it prevents. */
+async function allow(bucket: string, max: number, windowSeconds: number): Promise<boolean> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) return true;
+  try {
+    const res = await fetch(`${url}/rest/v1/rpc/consume_rate_limit`, {
+      method: "POST",
+      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_bucket: bucket, p_max: max, p_window_seconds: windowSeconds }),
+    });
+    if (!res.ok) {
+      console.error("ai-assistant: rate limit check failed:", res.status, (await res.text()).slice(0, 200));
+      return true;
+    }
+    return (await res.json()) !== false;
+  } catch (e) {
+    console.error("ai-assistant: rate limit check threw:", String(e));
+    return true;
+  }
+}
+
 /* Has this caller paid?
 
-   The gateway has already verified the JWT by the time this runs, so the
-   payload can be read for its subject without re-verifying. The entitlement
-   itself is then read with the service role, because the entitlements table
-   is deliberately unreadable and unwritable by the browser except for the
-   caller's own row.
+   The entitlement is read with the service role, because the entitlements
+   table is deliberately unreadable and unwritable by the browser except for
+   the caller's own row.
 
    Every failure answers false. A malformed token, a missing row, an expired
    plan, a database that will not answer — all of it is "not premium". The
    only way through is a live row that says otherwise. */
 async function callerIsPro(req: Request): Promise<boolean> {
   try {
-    const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-    const payload = jwt.split(".")[1];
-    if (!payload) return false;
-    /* base64url, and JWT strips the padding. atob wants standard base64 with
-       padding intact, so put both back before decoding. */
-    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/")
-      .padEnd(payload.length + ((4 - (payload.length % 4)) % 4), "=");
-    const claims = JSON.parse(atob(b64));
-    const userId = claims?.sub;
+    const userId = callerUserId(req);
     if (!userId) return false;
 
     const url = Deno.env.get("SUPABASE_URL");
@@ -255,6 +303,15 @@ Deno.serve(async (req: Request) => {
      not enforcing — this is the half that holds if someone edits the page. */
   if (!(await callerIsPro(req))) {
     return json({ error: "The assistant is a premium feature. Upgrade in Settings to use it.", upgrade: true }, 402);
+  }
+
+  /* After the premium check, so a free account hammering the endpoint cannot
+     burn through somebody else's allowance, and before the model is called,
+     so a refusal costs nothing. */
+  const asker = callerUserId(req);
+  if (!(await allow(`ask:${asker ?? "unknown"}`, ASK_MAX, ASK_WINDOW))) {
+    console.warn("ai-assistant: rate limited.");
+    return json({ error: "You've asked a lot in the last hour. Try again shortly." }, 429);
   }
 
   if (!Deno.env.get("ANTHROPIC_API_KEY")) {

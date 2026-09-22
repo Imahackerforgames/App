@@ -12,8 +12,15 @@ const src = readFileSync("/home/user/App/supabase/functions/product-search/index
   .replace(/^import "jsr:[^"]*";\s*$/m, "");   // Deno-only type import
 const js = transformSync(src, { loader: "ts", target: "es2022", format: "esm" }).code;
 
+/* A token shaped like the one the gateway hands this function. Only the
+   subject claim is read — the signature is never checked here, because by
+   the time the function runs the gateway has already verified it. */
+const TOKEN = (sub) =>
+  `x.${Buffer.from(JSON.stringify({ sub })).toString("base64")}.y`;
+
 /* Load the module once per scenario with its own stubs. */
-async function runHandler({ body, tavily, extract = null, rateLimitAllows = true, rateLimitBroken = false }) {
+async function runHandler({ body, tavily, extract = null, rateLimitAllows = true,
+                            rateLimitBroken = false, pro = true, signedIn = true }) {
   let handler;
   const calls = [];
   const rpcCalls = [];
@@ -21,6 +28,12 @@ async function runHandler({ body, tavily, extract = null, rateLimitAllows = true
                 SUPABASE_URL: "https://stub.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-stub" };
   globalThis.Deno = { env: { get: (k) => ENV[k] }, serve: (h) => { handler = h; } };
   globalThis.fetch = async (url, init) => {
+    /* The entitlement lookup is a GET with no body, so it has to be handled
+       before anything tries to parse one. */
+    if (String(url).includes("/rest/v1/entitlements")) {
+      return new Response(JSON.stringify(pro ? [{ plan: "pro", expires_at: null }] : []),
+        { status: 200, headers: { "Content-Type": "application/json" } });
+    }
     const sent = JSON.parse(init.body);
     if (String(url).includes("/rpc/consume_rate_limit")) {
       rpcCalls.push(sent);
@@ -38,7 +51,12 @@ async function runHandler({ body, tavily, extract = null, rateLimitAllows = true
   const mod = `data:text/javascript;base64,${Buffer.from(js).toString("base64")}`;
   await import(mod + `#${Math.random()}`);
   const res = await handler(new Request("https://x/functions/v1/product-search", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(signedIn ? { Authorization: `Bearer ${TOKEN("u-test")}` } : {}),
+    },
+    body: JSON.stringify(body),
   }));
   return { res, data: await res.json(), rpcCalls,
            calls: calls.filter((c) => c._endpoint === "search"),
@@ -321,6 +339,35 @@ const okReply = (sent) => new Response(JSON.stringify({
   ok("still a 200 rather than a lockout", res.status === 200, String(res.status));
   ok("the search actually ran", calls.length > 0, String(calls.length));
   ok("and results came back", data.count > 0, String(data.count));
+}
+
+/* ── the premium gate ───────────────────────────────────────────────────
+   Product Search is premium, and the interface saying so is not enough:
+   the endpoint is reachable with any signed-in token. These check the
+   server refuses, and — the part that matters for the bill — that it
+   refuses before spending a Tavily credit. */
+console.log("\nPremium is enforced by the server, not just the interface");
+{
+  const { res, data, calls } = await runHandler({
+    body: { query: "airpods" }, tavily: okReply, pro: false,
+  });
+  ok("a free account is refused", res.status === 402, String(res.status));
+  ok("and told why", /premium/i.test(String(data.error)), JSON.stringify(data.error));
+  ok("no Tavily credit was spent", calls.length === 0, String(calls.length));
+}
+{
+  const { res, calls } = await runHandler({
+    body: { query: "airpods" }, tavily: okReply, signedIn: false,
+  });
+  ok("a caller with no token is refused", res.status === 402, String(res.status));
+  ok("and spends nothing either", calls.length === 0, String(calls.length));
+}
+{
+  const { res, calls } = await runHandler({
+    body: { query: "airpods" }, tavily: okReply, pro: true,
+  });
+  ok("a premium account still gets through", res.status === 200, String(res.status));
+  ok("and the search actually runs", calls.length > 0, String(calls.length));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
