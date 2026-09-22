@@ -838,13 +838,130 @@ const CATEGORIES = [
 ];
 const TICKET = (comp) => comp >= 100 ? "high" : "low";
 
+/* Reference products, by category.
+
+   These are modelled figures, not measurements — the app says so wherever
+   they are shown, and that framing must not be quietly dropped. They exist
+   so Saturation has something to rank when live search is unavailable or
+   has not been run, not to assert what is happening on any marketplace
+   today.
+
+   There were six of these, which is why every category filter showed one
+   item or none and why the same four products appeared under every
+   heading. */
 const CATALOG = [
- { title: "Dior Sauvage EDT 100ml", cat: "Colognes", source: "ebay", comp: 142, vel: 5.8, sellers: 34, comps90: 23, trend: "up" },
+ // Shoes
  { title: "Jordan 1 Low Panda US 9", cat: "Shoes", source: "mercari", comp: 112, vel: 8.1, sellers: 71, comps90: 44, trend: "up" },
+ { title: "Nike Dunk Low Panda US 10", cat: "Shoes", source: "ebay", comp: 118, vel: 9.3, sellers: 96, comps90: 52, trend: "down" },
+ { title: "New Balance 550 White Green", cat: "Shoes", source: "ebay", comp: 95, vel: 5.2, sellers: 38, comps90: 26, trend: "up" },
+ { title: "Adidas Samba OG White", cat: "Shoes", source: "poshmark", comp: 105, vel: 7.4, sellers: 64, comps90: 41, trend: "up" },
+ { title: "Asics Gel-Kayano 14 Silver", cat: "Shoes", source: "mercari", comp: 128, vel: 4.6, sellers: 29, comps90: 19, trend: "up" },
+ { title: "Yeezy Slide Onyx US 10", cat: "Shoes", source: "ebay", comp: 82, vel: 3.1, sellers: 47, comps90: 14, trend: "down" },
+
+ // Clothes
  { title: "Carhartt Detroit Jacket L", cat: "Clothes", source: "depop", comp: 148, vel: 4.2, sellers: 31, comps90: 21, trend: "up" },
- { title: "Casio G-Shock GA-2100", cat: "Accessories", source: "mercari", comp: 104, vel: 6.4, sellers: 55, comps90: 29, trend: "up" },
+ { title: "Nike Tech Fleece Hoodie L", cat: "Clothes", source: "mercari", comp: 74, vel: 6.8, sellers: 83, comps90: 37, trend: "flat" },
+ { title: "Levi's 501 Vintage W32", cat: "Clothes", source: "depop", comp: 58, vel: 5.4, sellers: 52, comps90: 28, trend: "up" },
+ { title: "Patagonia Better Sweater M", cat: "Clothes", source: "poshmark", comp: 89, vel: 4.9, sellers: 36, comps90: 24, trend: "up" },
+ { title: "Stussy Basic Tee L", cat: "Clothes", source: "depop", comp: 46, vel: 3.3, sellers: 58, comps90: 15, trend: "down" },
+ { title: "The North Face Nuptse 700 L", cat: "Clothes", source: "ebay", comp: 165, vel: 3.8, sellers: 27, comps90: 18, trend: "up" },
+
+ // Jewelry
  { title: "Gold plated Cuban chain 18in", cat: "Jewelry", source: "mercari", comp: 74, vel: 3.7, sellers: 88, comps90: 17, trend: "down" },
+ { title: "Pandora Moments charm bracelet", cat: "Jewelry", source: "poshmark", comp: 52, vel: 4.4, sellers: 61, comps90: 22, trend: "flat" },
+ { title: "Sterling silver rope chain 20in", cat: "Jewelry", source: "ebay", comp: 68, vel: 2.9, sellers: 44, comps90: 13, trend: "flat" },
+ { title: "Tennis bracelet 4mm CZ", cat: "Jewelry", source: "mercari", comp: 41, vel: 3.2, sellers: 72, comps90: 11, trend: "down" },
+ { title: "14k gold hoop earrings", cat: "Jewelry", source: "poshmark", comp: 130, vel: 2.6, sellers: 23, comps90: 12, trend: "up" },
+
+ // Accessories
+ { title: "Casio G-Shock GA-2100", cat: "Accessories", source: "mercari", comp: 104, vel: 6.4, sellers: 55, comps90: 29, trend: "up" },
+ { title: "Seiko 5 SNK809 automatic", cat: "Accessories", source: "ebay", comp: 118, vel: 3.9, sellers: 26, comps90: 17, trend: "up" },
+ { title: "Coach Willow Tote pebbled", cat: "Accessories", source: "poshmark", comp: 145, vel: 4.1, sellers: 34, comps90: 20, trend: "up" },
+ { title: "Ray-Ban Wayfarer 2140", cat: "Accessories", source: "ebay", comp: 92, vel: 5.1, sellers: 67, comps90: 26, trend: "flat" },
+ { title: "Apple AirPods Pro 2nd gen", cat: "Accessories", source: "ebay", comp: 155, vel: 9.7, sellers: 104, comps90: 58, trend: "down" },
+ { title: "Louis Vuitton Neverfull MM", cat: "Accessories", source: "poshmark", comp: 980, vel: 1.8, sellers: 19, comps90: 8, trend: "up" },
+
+ // Headwear
  { title: "Supreme Camp Cap", cat: "Headwear", source: "depop", comp: 68, vel: 2.4, sellers: 26, comps90: 9, trend: "flat" },
+ { title: "New Era 59Fifty Yankees 7 1/4", cat: "Headwear", source: "ebay", comp: 38, vel: 4.7, sellers: 79, comps90: 21, trend: "down" },
+ { title: "Carhartt Acrylic Watch Hat", cat: "Headwear", source: "mercari", comp: 22, vel: 5.9, sellers: 91, comps90: 27, trend: "flat" },
+ { title: "Patagonia Trucker Hat", cat: "Headwear", source: "poshmark", comp: 34, vel: 3.4, sellers: 42, comps90: 16, trend: "up" },
+ { title: "Nike Club Cap unstructured", cat: "Headwear", source: "mercari", comp: 24, vel: 3.0, sellers: 63, comps90: 12, trend: "down" },
+
+ // Colognes
+ { title: "Dior Sauvage EDT 100ml", cat: "Colognes", source: "ebay", comp: 142, vel: 5.8, sellers: 34, comps90: 23, trend: "up" },
+ { title: "Bleu de Chanel EDP 100ml", cat: "Colognes", source: "ebay", comp: 158, vel: 4.6, sellers: 29, comps90: 21, trend: "up" },
+ { title: "Versace Eros EDT 100ml", cat: "Colognes", source: "mercari", comp: 78, vel: 5.2, sellers: 57, comps90: 25, trend: "flat" },
+ { title: "YSL Y EDP 100ml", cat: "Colognes", source: "ebay", comp: 112, vel: 3.8, sellers: 38, comps90: 18, trend: "up" },
+ { title: "Creed Aventus 100ml", cat: "Colognes", source: "ebay", comp: 385, vel: 2.1, sellers: 22, comps90: 11, trend: "up" },
+ { title: "Jean Paul Gaultier Le Male 125ml", cat: "Colognes", source: "mercari", comp: 74, vel: 4.3, sellers: 66, comps90: 19, trend: "down" },
+
+ // Other
+ { title: "Nintendo Switch OLED console", cat: "Other", source: "ebay", comp: 265, vel: 6.2, sellers: 61, comps90: 33, trend: "flat" },
+ { title: "Sony WH-1000XM4 headphones", cat: "Other", source: "ebay", comp: 178, vel: 5.5, sellers: 48, comps90: 29, trend: "up" },
+ { title: "Lego Star Wars UCS sealed set", cat: "Other", source: "ebay", comp: 320, vel: 2.7, sellers: 24, comps90: 14, trend: "up" },
+ { title: "Pokemon 151 booster bundle", cat: "Other", source: "ebay", comp: 88, vel: 7.9, sellers: 87, comps90: 45, trend: "down" },
+ { title: "Stanley Quencher 40oz", cat: "Other", source: "mercari", comp: 42, vel: 6.6, sellers: 112, comps90: 31, trend: "down" },
+ { title: "Kindle Paperwhite 11th gen", cat: "Other", source: "ebay", comp: 95, vel: 3.6, sellers: 33, comps90: 17, trend: "flat" },
+];
+
+/* The local catalog, which is a different business.
+
+   Local resale is not online resale with a shorter shipping label. It is
+   the things shipping makes uneconomic — furniture, tools, appliances,
+   exercise equipment — bought and collected within driving distance. So
+   Saturation's Local tab had no business showing the same sneakers and
+   colognes as Online, which is exactly what it was doing: the mode chip
+   was decorative and both tabs read from the same list.
+
+   Same categories as Online so the filter chips still mean something, but
+   every product is one that actually moves locally. */
+const LOCAL_CATALOG = [
+ // Shoes
+ { title: "Red Wing Iron Ranger boots 10", cat: "Shoes", source: "offerup", comp: 165, vel: 1.9, sellers: 12, comps90: 7, trend: "up" },
+ { title: "Soccer cleats youth, mixed sizes", cat: "Shoes", source: "facebook", comp: 25, vel: 3.4, sellers: 41, comps90: 14, trend: "flat" },
+ { title: "Work boots steel toe 11", cat: "Shoes", source: "offerup", comp: 55, vel: 2.6, sellers: 27, comps90: 11, trend: "flat" },
+ { title: "Ski boots 27.5 with bag", cat: "Shoes", source: "facebook", comp: 90, vel: 1.4, sellers: 18, comps90: 6, trend: "down" },
+
+ // Clothes
+ { title: "Kids clothing bulk lot 0-2T", cat: "Clothes", source: "facebook", comp: 35, vel: 5.8, sellers: 74, comps90: 24, trend: "flat" },
+ { title: "Carhartt work coat XL", cat: "Clothes", source: "offerup", comp: 85, vel: 2.9, sellers: 22, comps90: 12, trend: "up" },
+ { title: "Wedding dress size 8", cat: "Clothes", source: "facebook", comp: 220, vel: 0.9, sellers: 15, comps90: 4, trend: "down" },
+ { title: "Winter coats bundle adult", cat: "Clothes", source: "offerup", comp: 60, vel: 2.2, sellers: 33, comps90: 9, trend: "flat" },
+
+ // Jewelry
+ { title: "Estate costume jewelry lot", cat: "Jewelry", source: "facebook", comp: 45, vel: 1.7, sellers: 29, comps90: 7, trend: "flat" },
+ { title: "Scrap gold and silver lot", cat: "Jewelry", source: "offerup", comp: 240, vel: 1.2, sellers: 11, comps90: 5, trend: "up" },
+ { title: "Vintage watch lot untested", cat: "Jewelry", source: "facebook", comp: 75, vel: 1.5, sellers: 19, comps90: 6, trend: "flat" },
+
+ // Accessories
+ { title: "Graco 4Ever car seat", cat: "Accessories", source: "facebook", comp: 110, vel: 4.2, sellers: 48, comps90: 19, trend: "up" },
+ { title: "UPPAbaby Vista stroller", cat: "Accessories", source: "offerup", comp: 340, vel: 2.1, sellers: 16, comps90: 9, trend: "up" },
+ { title: "Yeti Tundra 45 cooler", cat: "Accessories", source: "offerup", comp: 185, vel: 2.4, sellers: 21, comps90: 11, trend: "flat" },
+ { title: "Golf club set with bag", cat: "Accessories", source: "facebook", comp: 150, vel: 3.1, sellers: 37, comps90: 15, trend: "flat" },
+
+ // Headwear
+ { title: "Motorcycle helmet DOT medium", cat: "Headwear", source: "offerup", comp: 80, vel: 1.6, sellers: 17, comps90: 6, trend: "flat" },
+ { title: "Bike helmets kids lot", cat: "Headwear", source: "facebook", comp: 20, vel: 2.3, sellers: 31, comps90: 8, trend: "down" },
+ { title: "Welding helmet auto-darkening", cat: "Headwear", source: "offerup", comp: 65, vel: 1.1, sellers: 9, comps90: 4, trend: "up" },
+
+ // Colognes
+ { title: "Perfume lot partial bottles", cat: "Colognes", source: "facebook", comp: 40, vel: 1.3, sellers: 24, comps90: 5, trend: "down" },
+ { title: "Sealed designer gift set", cat: "Colognes", source: "offerup", comp: 70, vel: 1.8, sellers: 18, comps90: 7, trend: "flat" },
+
+ // Other — the heart of local resale
+ { title: "Peloton Bike original", cat: "Other", source: "facebook", comp: 450, vel: 3.6, sellers: 52, comps90: 22, trend: "down" },
+ { title: "IKEA Kallax 4x4 shelf", cat: "Other", source: "facebook", comp: 70, vel: 6.4, sellers: 88, comps90: 31, trend: "flat" },
+ { title: "DeWalt 20V drill kit", cat: "Other", source: "offerup", comp: 130, vel: 5.1, sellers: 44, comps90: 26, trend: "up" },
+ { title: "Sectional couch grey fabric", cat: "Other", source: "facebook", comp: 280, vel: 4.8, sellers: 96, comps90: 28, trend: "down" },
+ { title: "Weight plates Olympic 45lb pair", cat: "Other", source: "offerup", comp: 95, vel: 4.4, sellers: 39, comps90: 21, trend: "up" },
+ { title: "Craftsman lawn mower self-propelled", cat: "Other", source: "facebook", comp: 175, vel: 3.2, sellers: 34, comps90: 16, trend: "flat" },
+ { title: "Mini fridge 3.2 cu ft", cat: "Other", source: "offerup", comp: 75, vel: 3.9, sellers: 57, comps90: 18, trend: "flat" },
+ { title: "Samsung 55in 4K TV", cat: "Other", source: "facebook", comp: 210, vel: 5.6, sellers: 71, comps90: 29, trend: "down" },
+ { title: "Dining table with 4 chairs", cat: "Other", source: "facebook", comp: 160, vel: 3.4, sellers: 62, comps90: 17, trend: "flat" },
+ { title: "Trek hybrid bike medium frame", cat: "Other", source: "offerup", comp: 240, vel: 2.8, sellers: 26, comps90: 13, trend: "up" },
+ { title: "Honda EU2200i generator", cat: "Other", source: "offerup", comp: 680, vel: 1.7, sellers: 14, comps90: 8, trend: "up" },
+ { title: "Washer and dryer set", cat: "Other", source: "facebook", comp: 420, vel: 2.9, sellers: 41, comps90: 15, trend: "flat" },
 ];
 
 /* Search suggestions. The old list was ten entries, so typing almost
@@ -4838,11 +4955,18 @@ function Saturation({ db, go, put }) {
  const [altList, setAltList] = useState([]);
  const [detail, setDetail] = useState(null);
 
- const pool = CATALOG.filter((c) => (cat === "All" || c.cat === cat) && (ticket === "all" || TICKET(c.comp) === ticket));
- const crowded = [...pool].sort((a, b) => b.sellers - a.sellers).slice(0, 4);
- const rising = crowded.filter((c) => c.trend !== "down").slice(0, 2);
- const falling = [...pool].filter((c) => c.trend === "down").slice(0, 2);
- const open = [...pool].sort((a, b) => a.sellers - b.sellers).slice(0, 3);
+ /* The mode chip used to be decorative: both tabs read from CATALOG, so
+    Online and Local showed the same four products. They are different
+    businesses and now read from different lists. */
+ const source = mode === "local" ? LOCAL_CATALOG : CATALOG;
+ const pool = source.filter((c) => (cat === "All" || c.cat === cat) && (ticket === "all" || TICKET(c.comp) === ticket));
+ /* Wider slices than before, because there is finally enough in each
+    category to rank — four out of six was most of the list, which is why
+    every section looked like the same handful of products. */
+ const crowded = [...pool].sort((a, b) => b.sellers - a.sellers).slice(0, 6);
+ const rising = crowded.filter((c) => c.trend !== "down").slice(0, 4);
+ const falling = [...pool].filter((c) => c.trend === "down").slice(0, 4);
+ const open = [...pool].sort((a, b) => a.sellers - b.sellers).slice(0, 5);
 
  const showAlt = async (item) => {
  if (alt === item.title) { setAlt(null); return; }
@@ -4859,9 +4983,16 @@ function Saturation({ db, go, put }) {
  </button>
  ))}
  </div>
+ {/* This used to read "Based on 30106, 25 mile radius", which claimed
+     these figures had been measured in that ZIP. They have not been —
+     they are reference figures for what tends to move locally. Saying so
+     costs a sentence; the alternative is a number the app cannot stand
+     behind. Searching runs against the real radius. */}
  {mode === "local" && (
  <p style={{ fontSize: 12.5, color: C.dim, margin: "0 4px 12px", lineHeight: 1.5 }}>
- Based on {db.profile.zip || db.profile.state || "your area"}, {db.profile.radius} mile radius.
+ What tends to move locally — bulky things shipping makes uneconomic. Figures
+ are estimates, not measured for {db.profile.zip || db.profile.state || "your area"};
+ searches use your {db.profile.radius} mile radius.
  </p>
  )}
 
