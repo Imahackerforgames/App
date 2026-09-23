@@ -111,10 +111,25 @@ function safeUrl(u) {
 }
 const stripPrices = (t) => (t || "").replace(/\$\s?[\d,]+(\.\d{1,2})?/g, "").replace(/\s{2,}/g, " ").trim();
 
-/* Where "Upgrade to premium" sends people. A Commas checkout link — paste
-   yours here. Leaving it empty is safe: the button explains itself and does
-   nothing rather than opening a broken tab. */
-const COMMAS_CHECKOUT_URL = "https://commas.com/checkout/Kk21xLu7i0siFBoV";
+/* Where "Upgrade to premium" sends people: a Stripe Payment Link.
+
+   Paste yours from the Stripe dashboard (Product catalogue → your product →
+   Create payment link). Leaving it empty is safe — the button says so and
+   does nothing, rather than opening a broken tab at somebody who is trying
+   to give you money.
+
+   This is a public URL by design. It is not a key and carries no secret;
+   the secret key lives only in the Edge Function's environment. */
+const STRIPE_CHECKOUT_URL = "";
+
+/* The signed-in account, kept here so openCheckout can read it without a
+   round trip.
+
+   It has to be synchronous: reading storage first would put an await
+   between the click and window.open, and Safari blocks popups that are not
+   opened directly inside the click handler. A module-level value that the
+   app keeps current is the honest way to have it to hand. */
+let checkoutUserId = null;
 
 /* Whether this account has paid, read from the entitlements table.
 
@@ -3231,10 +3246,32 @@ export default function ResellOS() {
  /* Tied to the user, so signing out drops back to free immediately rather
     than leaving the previous person's plan on screen. */
  useEffect(() => {
+   /* Kept current for openCheckout, which needs it synchronously inside a
+      click handler and cannot go and look it up. */
+   checkoutUserId = user?.id || null;
    if (!user) { setEnt({ plan: "free", expiresAt: null }); return; }
    let alive = true;
    fetchEntitlement().then((e) => alive && setEnt(e));
    return () => { alive = false; };
+ }, [user]);
+
+ /* Checkout opens in another tab. Coming back to this one is the moment the
+    payment has most likely just landed, so that is when to ask again —
+    otherwise somebody pays, returns, still sees Free, and concludes it did
+    not work. The webhook has usually written the row within a second or
+    two; the manual button remains for the times it has not. */
+ useEffect(() => {
+   if (!user) return;
+   const recheck = () => {
+     if (document.visibilityState !== "visible") return;
+     fetchEntitlement({ force: true }).then((e) => {
+       /* Only ever promotes. A failed check must not knock a paying
+          customer down to Free because their connection blinked. */
+       if (e.plan === "pro") setEnt(e);
+     });
+   };
+   document.addEventListener("visibilitychange", recheck);
+   return () => document.removeEventListener("visibilitychange", recheck);
  }, [user]);
 
  const theme = db.profile.theme || "obsidian";
@@ -3848,11 +3885,26 @@ function PremiumGate({ title, blurb, onUpgrade }) {
    drift apart, and so an unset link fails visibly here rather than opening a
    blank tab for a customer. */
 function openCheckout() {
-  if (!COMMAS_CHECKOUT_URL) {
-    alert("The checkout link hasn't been set yet. Add your Commas link to COMMAS_CHECKOUT_URL in src/App.jsx.");
+  if (!STRIPE_CHECKOUT_URL) {
+    alert("The checkout link hasn't been set yet. Add your Stripe payment link to STRIPE_CHECKOUT_URL in src/App.jsx.");
     return;
   }
-  window.open(COMMAS_CHECKOUT_URL, "_blank", "noopener,noreferrer");
+
+  /* The account id rides along as client_reference_id, and Stripe hands it
+     back on the webhook. It is the entire mechanism by which a payment is
+     matched to an account — without it money arrives attached to nobody and
+     somebody has to reconcile it by hand.
+
+     Sending someone to checkout signed out would therefore take their money
+     and be unable to upgrade them, so that does not happen. */
+  if (!checkoutUserId) {
+    alert("Sign in first, so your payment can be matched to your account.");
+    return;
+  }
+
+  const url = new URL(STRIPE_CHECKOUT_URL);
+  url.searchParams.set("client_reference_id", checkoutUserId);
+  window.open(url.toString(), "_blank", "noopener,noreferrer");
 }
 
 function Discover({ db, put, jump, go, isPro, requirePro }) {
@@ -5754,9 +5806,10 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  <Sparkles size={16} /> Upgrade to premium
  </button>
  <p style={{ fontSize: 11.5, color: C.dead, marginTop: 10, lineHeight: 1.6 }}>
- Premium unlocks the AI assistant and AI Discover. Payment is handled by
- Commas — this app never sees your card. Activation is manual at the moment,
- so allow a few hours after paying, then press the button below.
+ Premium unlocks the AI assistant, AI Discover and Product Search. Payment
+ is handled by Stripe — this app never sees your card. Your account is
+ upgraded as soon as the payment goes through; if it hasn't appeared after
+ a minute, press the button below.
  </p>
  </>
  )}
@@ -5782,7 +5835,7 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  onChange={(v) => put("settings", { ...db.settings, startingBalance: +v || 0 })} />
  <p style={{ fontSize: 11.5, color: C.dead, marginTop: 6, lineHeight: 1.6 }}>
  Current Balance on Home = this number + realized profit from every sale you've logged.
- Card details are entered on Commas, never here.
+ Card details are entered on Stripe, never here.
  </p>
  </Group>
 
