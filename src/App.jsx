@@ -120,7 +120,7 @@ const stripPrices = (t) => (t || "").replace(/\$\s?[\d,]+(\.\d{1,2})?/g, "").rep
 
    This is a public URL by design. It is not a key and carries no secret;
    the secret key lives only in the Edge Function's environment. */
-const STRIPE_CHECKOUT_URL = "";
+const STRIPE_CHECKOUT_URL = "https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00";
 
 /* The signed-in account, kept here so openCheckout can read it without a
    round trip.
