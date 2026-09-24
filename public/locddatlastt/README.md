@@ -31,10 +31,23 @@ var SHOP = {
   phone:       "6786655663",
   email:       "naturallyinterwinned@gmail.com",
   instagram:   "Locddatlastt",
-  depositRate: 0.5,   // deposit is half the service total
-  openDay:     27     // next month's calendar opens on the 27th
+  depositRate: 0.5,        // deposit is half the service total
+  openDay:     27,         // next month's calendar opens on the 27th
+  slotStep:    60,         // minutes between start times
+  mustFinishByClose: true  // false = also offer late starts that run past closing
 };
 ```
+
+### `mustFinishByClose`
+
+**This one needs a decision.** Left `true`, a start time is only offered if the
+whole service lands inside opening hours, so a five-hour style stops being
+offered after 1pm. Nobody can book a slot that can't be served.
+
+Set it `false` and the last start is simply one slot before close (5pm), the
+way the live Acuity page appears to behave — a long style then runs past six.
+That fills more of the day but means finishing late.
+
 
 ## Hours
 

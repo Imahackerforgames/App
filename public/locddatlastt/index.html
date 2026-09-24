@@ -658,7 +658,9 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
     email: "naturallyinterwinned@gmail.com",
     instagram: "Locddatlastt",
     depositRate: 0.5,        // deposit is half of the service total
-    openDay: 27              // next month's calendar opens on the 27th
+    openDay: 27,             // next month's calendar opens on the 27th
+    slotStep: 60,            // minutes between start times
+    mustFinishByClose: true  // false = also offer late starts that run past closing
   };
 
   /* Business hours by weekday (0 = Sunday). [open, close] in 24h, null = closed. */
@@ -901,7 +903,10 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
     var open = h[0] * 60, close = h[1] * 60, out = [];
     var now = new Date();
     var earliest = sameDay(date, now) ? now.getHours() * 60 + now.getMinutes() + 180 : 0;
-    for (var t = open; t + mins <= close; t += 30) if (t >= earliest) out.push(t);
+    /* Either the whole service has to land inside opening hours, or the last
+       start is simply one slot before close and a long style runs over. */
+    var last = SHOP.mustFinishByClose ? close - mins : close - SHOP.slotStep;
+    for (var t = open; t <= last; t += SHOP.slotStep) if (t >= earliest) out.push(t);
     return out;
   }
 
