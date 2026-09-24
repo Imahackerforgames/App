@@ -672,17 +672,24 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
     { id: "retwist",  label: "Loc Retwist" },
     { id: "starters", label: "Starters" },
     { id: "natural",  label: "Natural Hairstyles" },
-    { id: "extended", label: "Extended Loc Hairstyles — hair included" }
+    { id: "extended", label: "Extended Loc Hairstyles — hair included" },
+    { id: "shampoo",  label: "Shampoo Only" }
   ];
 
   /* p = price, m = minutes, len = length add-on applies, consult = consultation required first */
+  /* marks for the two services that have no photo of their own */
+  var GLYPHS = {
+    chat: '<path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 3.4v-3.4A2.5 2.5 0 0 1 4 13.5z"/>',
+    drop: '<path d="M12 3.2c3.4 4 6 6.9 6 10a6 6 0 0 1-12 0c0-3.1 2.6-6 6-10z"/><path d="M9.2 13.4a2.9 2.9 0 0 0 2.6 3"/>'
+  };
+
   var SERVICES = [
     { g: "retwist", n: "Standard Retwist", p: 125, m: 180, img: "svc-retwist.jpg", len: 1,
       d: "Included with a shampoo. Appointment time is just an estimate. Please be sure to select all add-ons for your appointment." },
     { g: "retwist", n: "Retwist & Style", p: 150, m: 210, img: "svc-retwist-style.jpg", len: 1,
       d: "Included with a shampoo. Appointment time is just an estimate. Please be sure to select all add-ons for your appointment." },
 
-    { g: "starters", n: "Consultation", p: 10, m: 10, glyph: 1, len: 0,
+    { g: "starters", n: "Consultation", p: 10, m: 10, glyph: "chat", len: 0,
       d: "Book me first. Starting your loc journey? We go over sizing, parting, hair texture and density. This is a virtual consultation." },
     { g: "starters", n: "Starter Loc Coils", p: 320, m: 240, img: "svc-starter-coils.jpg", len: 1, consult: 1,
       d: "Included with a shampoo. Please book a consultation before booking this appointment. Select all add-ons including parting shape." },
@@ -695,7 +702,10 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
 
     { g: "extended", n: "Two Strand Twist Extended", p: 280, m: 300, img: "svc-extended.jpg", len: 1,
       flag: "8+ months locked",
-      d: "Your locs must be 8+ months locked and healthy to book this style. Hair is provided with your service. Please select all correct add-ons and lengths." }
+      d: "Your locs must be 8+ months locked and healthy to book this style. Hair is provided with your service. Please select all correct add-ons and lengths." },
+
+    { g: "shampoo", n: "Shampoo", p: 50, m: 30, glyph: "drop", len: 0,
+      d: "For those who need a good cleansing to their scalp in between retwists." }
   ];
 
   /* Length add-ons. Waist (+$20 / +20 min) is taken from the live booking page;
@@ -820,7 +830,8 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
         var i = SERVICES.indexOf(s);
         var pic = s.img
           ? '<img src="img/' + s.img + '" alt="' + esc(s.n) + '" loading="lazy" />'
-          : '<span class="tile-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v7a4 4 0 0 0 8 0V3"/><circle cx="12" cy="17.5" r="3.5"/></svg></span>';
+          : '<span class="tile-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+            (GLYPHS[s.glyph] || GLYPHS.chat) + "</svg></span>";
         return '<button class="tile" type="button" data-svc="' + i + '" aria-pressed="false">' +
           '<span class="tile-img">' + pic + "</span>" +
           '<span class="tile-body"><span class="tile-n">' + esc(s.n) + "</span>" +

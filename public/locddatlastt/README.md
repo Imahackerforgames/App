@@ -53,11 +53,11 @@ the hours table and the bookable start times are all generated from this.
 
 | key | meaning |
 |---|---|
-| `g` | group — `retwist`, `starters`, `natural`, `extended` |
+| `g` | group — `retwist`, `starters`, `natural`, `extended`, `shampoo` |
 | `n` | name |
 | `p` | price in dollars |
 | `m` | minutes |
-| `img` | filename in `img/`, or `glyph:1` for a drawn icon instead |
+| `img` | filename in `img/`, or `glyph:"chat"` / `glyph:"drop"` for a drawn mark instead |
 | `len` | `1` if the length add-on applies, `0` if not (the consultation) |
 | `consult` | `1` to show "book a consultation first" on the review step |
 | `flag` | small badge on the tile, e.g. "8+ months locked" |
