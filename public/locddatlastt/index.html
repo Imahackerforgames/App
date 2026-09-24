@@ -1,0 +1,1164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<!--ARTIFACT-BEGIN-->
+<title>Locddatlastt</title>
+<meta name="description" content="Loc retwists, starter locs and natural styles in Lithonia, GA. Book your appointment in a couple of taps." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Karla:wght@400;500;600;700&display=swap" />
+<style>
+:root{
+  --paper:#e9e5de;
+  --paper-2:#e0dbd2;
+  --card:#f7f5f1;
+  --card-2:#efece6;
+  --ink:#1a1713;
+  --ink-2:#3b352d;
+  --muted:#756e63;
+  --line:rgba(26,23,19,.13);
+  --line-2:rgba(26,23,19,.26);
+  --accent:#8a7a63;
+  --accent-deep:#6d5f4c;
+  --good:#4f7a5b;
+  --champagne:linear-gradient(100deg,#9d907c 0%,#c4b8a3 18%,#efe8da 34%,#c4b8a3 52%,#9d907c 78%);
+  --f-display:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-body:"Karla","Helvetica Neue",Arial,sans-serif;
+  --wrap:760px;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html{background:var(--paper);-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+section[id]{scroll-margin-top:16px}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font:400 16px/1.65 var(--f-body);overflow-x:hidden;
+}
+/* a faint linen tooth, so the paper reads as paper */
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.35;
+  mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.055'/%3E%3C/svg%3E");
+}
+.wrap{width:100%;max-width:var(--wrap);margin-inline:auto;padding-inline:20px;position:relative;z-index:1}
+img{max-width:100%;height:auto;display:block}
+[hidden]{display:none!important}
+:focus-visible{outline:2px solid var(--accent-deep);outline-offset:3px;border-radius:5px}
+
+/* ---------- champagne pill: her section-header motif ---------- */
+.pill{
+  display:block;width:100%;background:var(--champagne);background-size:230% 100%;
+  color:#fffdf8;text-align:center;border-radius:999px;padding:10px 22px;
+  font:600 .78rem/1.3 var(--f-body);letter-spacing:.22em;text-transform:uppercase;
+  text-shadow:0 1px 2px rgba(60,48,32,.4);
+  box-shadow:0 2px 10px rgba(80,66,46,.18);
+}
+@media (prefers-reduced-motion:no-preference){
+  .pill{animation:sheen 11s linear infinite}
+  @keyframes sheen{from{background-position:180% 0}to{background-position:-180% 0}}
+}
+.framed{
+  border:1px solid var(--line-2);border-radius:20px;padding:30px 20px 24px;margin-top:-20px;
+  background:rgba(255,255,255,.34);
+}
+.pill-wrap{display:flex;justify-content:center;position:relative;z-index:2}
+.pill-wrap .pill{max-width:340px}
+
+/* ---------- top strip + hero ---------- */
+.strip{
+  background:var(--ink);color:#efe9df;text-align:center;padding:9px 16px;
+  font:600 .7rem/1.3 var(--f-body);letter-spacing:.2em;text-transform:uppercase;
+}
+.strip span{color:#cdbfa6}
+.hero{padding-block:30px 8px;text-align:center}
+.wordmark{width:min(360px,80%);height:auto;margin:0 auto;filter:drop-shadow(0 2px 6px rgba(40,32,20,.1))}
+.tagline{
+  font:400 1.22rem/1.45 var(--f-display);font-style:italic;color:var(--ink-2);
+  margin:14px auto 0;max-width:32ch;
+}
+.hero-note{color:var(--muted);margin:12px auto 0;max-width:44ch;font-size:.97rem}
+.band{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:24px;
+}
+.band figure{margin:0;overflow:hidden;border-radius:10px;aspect-ratio:3/4;background:var(--paper-2)}
+.band img{width:100%;height:100%;object-fit:cover;transition:transform .7s cubic-bezier(.2,.7,.3,1)}
+.band figure:hover img{transform:scale(1.05)}
+.hero-cta{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:24px}
+.facts{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-top:20px}
+.fact{
+  border:1px solid var(--line);border-radius:999px;padding:7px 14px;background:rgba(255,255,255,.5);
+  font:600 .72rem/1 var(--f-body);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
+}
+.fact b{color:var(--accent-deep);font-weight:700}
+
+/* ---------- buttons ---------- */
+.btn{
+  appearance:none;border:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  gap:8px;padding:14px 24px;border-radius:999px;text-decoration:none;
+  font:600 .78rem/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;
+  transition:transform .14s ease,box-shadow .2s ease,background .2s ease,color .2s ease;
+}
+.btn-solid{background:var(--ink);color:#f6f2ea;box-shadow:0 6px 18px rgba(26,23,19,.2)}
+.btn-solid:hover{background:#2a251e;transform:translateY(-2px);box-shadow:0 10px 26px rgba(26,23,19,.26)}
+.btn-solid:active{transform:translateY(0) scale(.985)}
+.btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--line-2)}
+.btn-ghost:hover{background:rgba(255,255,255,.7);transform:translateY(-2px)}
+.btn-ghost:active{transform:translateY(0) scale(.985)}
+.btn[disabled]{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-wide{width:100%}
+
+/* ---------- section furniture ---------- */
+section{position:relative;z-index:1}
+.sec{padding-block:42px}
+.eyebrow{
+  font:600 .7rem/1 var(--f-body);letter-spacing:.22em;text-transform:uppercase;
+  color:var(--accent-deep);margin:0 0 10px;
+}
+h2{
+  font:500 clamp(1.8rem,6vw,2.5rem)/1.12 var(--f-display);letter-spacing:-.01em;
+  margin:0;text-wrap:balance;
+}
+h2 em{font-style:italic;color:var(--accent-deep)}
+.sec-sub{color:var(--muted);margin:12px 0 0;max-width:58ch}
+
+/* ---------- booking card ---------- */
+.book{
+  background:var(--card);border:1px solid var(--line);border-radius:20px;
+  box-shadow:0 18px 44px rgba(60,48,32,.11);overflow:hidden;margin-top:22px;
+}
+.book-top{padding:18px 18px 0}
+.steps{display:flex;gap:4px;list-style:none;margin:0 0 4px;padding:0}
+.steps li{
+  flex:1;font:600 .6rem/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);text-align:center;padding-bottom:10px;transition:color .3s ease;
+}
+.steps li[data-on="1"]{color:var(--ink)}
+.steps li[data-done="1"]{color:var(--accent-deep)}
+.track{height:2px;background:var(--line);border-radius:2px;overflow:hidden;margin-bottom:16px}
+.track i{
+  display:block;height:100%;width:25%;background:var(--ink);border-radius:2px;
+  transition:width .42s cubic-bezier(.4,.9,.3,1);
+}
+.panel{padding:4px 18px 20px}
+.panel-h{font:500 1.35rem/1.25 var(--f-display);margin:0 0 5px}
+.panel-p{color:var(--muted);font-size:.9rem;margin:0 0 16px}
+.panel-p b{color:var(--ink-2)}
+
+/* service tiles */
+.group-h{
+  font:600 .66rem/1 var(--f-body);letter-spacing:.18em;text-transform:uppercase;
+  color:var(--accent-deep);margin:18px 0 9px;display:flex;align-items:center;gap:10px;
+}
+.group-h:first-child{margin-top:0}
+.group-h::after{content:"";flex:1;height:1px;background:var(--line)}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media (min-width:620px){.tiles{grid-template-columns:repeat(3,1fr)}}
+.tile{
+  cursor:pointer;background:var(--card-2);border:1px solid var(--line);border-radius:var(--r);
+  padding:0;overflow:hidden;text-align:left;color:var(--ink);font:inherit;
+  display:flex;flex-direction:column;
+  transition:transform .18s ease,box-shadow .22s ease,border-color .18s ease;
+}
+.tile:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(60,48,32,.15);border-color:var(--line-2)}
+.tile:active{transform:translateY(-1px) scale(.99)}
+.tile[aria-pressed="true"]{border-color:var(--ink);box-shadow:0 0 0 2px var(--ink) inset,0 10px 24px rgba(60,48,32,.16)}
+.tile-img{aspect-ratio:1/1;overflow:hidden;background:var(--paper-2);position:relative}
+.tile-img img{width:100%;height:100%;object-fit:cover;transition:transform .7s cubic-bezier(.2,.7,.3,1)}
+.tile:hover .tile-img img{transform:scale(1.07)}
+.tile-glyph{
+  width:100%;height:100%;display:grid;place-items:center;background:var(--champagne);
+  background-size:200% 100%;
+}
+.tile-glyph svg{width:42%;height:42%;color:#fffdf8;opacity:.92}
+.tile-body{padding:11px 12px 13px;display:flex;flex-direction:column;gap:3px;flex:1}
+.tile-n{font:600 .88rem/1.28 var(--f-body)}
+.tile-m{font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.tile-p{
+  font:500 1.02rem/1 var(--f-display);color:var(--accent-deep);margin-top:auto;padding-top:6px;
+  font-variant-numeric:tabular-nums;
+}
+.tile-flag{
+  display:inline-block;margin-top:4px;background:rgba(138,122,99,.14);color:var(--accent-deep);
+  border-radius:4px;padding:2px 6px;font:600 .58rem/1.5 var(--f-body);letter-spacing:.09em;text-transform:uppercase;
+}
+
+/* length picker */
+.lengths{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px}
+.len{
+  cursor:pointer;background:var(--card-2);border:1px solid var(--line);border-radius:999px;
+  padding:10px 15px;color:var(--ink);font:500 .84rem/1 var(--f-body);
+  transition:transform .15s ease,border-color .15s ease,background .15s ease;
+}
+.len:hover{border-color:var(--line-2);transform:translateY(-2px)}
+.len[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#f6f2ea}
+.len span{color:var(--muted);font-size:.76rem}
+.len[aria-pressed="true"] span{color:#c9bda6}
+.hint{
+  font-size:.84rem;color:var(--muted);margin:12px 0 0;padding-left:12px;
+  border-left:2px solid var(--line-2);
+}
+.hint a{color:var(--accent-deep)}
+
+/* day + time */
+.monthbar{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;
+}
+.monthbar h4{font:500 1.05rem/1 var(--f-display);margin:0}
+.days{display:flex;gap:7px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
+.days::-webkit-scrollbar{display:none}
+.day{
+  flex:0 0 auto;width:60px;cursor:pointer;background:var(--card-2);color:var(--ink);
+  border:1px solid var(--line);border-radius:12px;padding:9px 0;text-align:center;font:inherit;
+  transition:transform .15s ease,border-color .15s ease,background .15s ease;
+}
+.day:hover:not([disabled]){transform:translateY(-2px);border-color:var(--line-2)}
+.day[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#f6f2ea}
+.day[disabled]{opacity:.34;cursor:not-allowed}
+.day-w{display:block;font:600 .6rem/1 var(--f-body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.day[aria-pressed="true"] .day-w,.day[aria-pressed="true"] .day-m{color:#c9bda6}
+.day-d{display:block;font:500 1.22rem/1.2 var(--f-display);margin-top:4px;font-variant-numeric:tabular-nums}
+.day-m{display:block;font:600 .56rem/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.times{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:7px}
+.time{
+  cursor:pointer;background:var(--card-2);color:var(--ink);border:1px solid var(--line);
+  border-radius:11px;padding:13px 6px;font:500 .92rem/1 var(--f-display);
+  font-variant-numeric:tabular-nums;transition:transform .15s ease,border-color .15s ease,background .15s ease;
+}
+.time:hover{transform:translateY(-2px);border-color:var(--line-2)}
+.time[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#f6f2ea}
+@media (prefers-reduced-motion:no-preference){
+  .time{animation:rise .34s both cubic-bezier(.2,.8,.3,1)}
+  @keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+}
+.notice{
+  background:rgba(138,122,99,.1);border:1px solid rgba(138,122,99,.3);border-radius:12px;
+  padding:13px 15px;color:var(--ink-2);font-size:.88rem;
+}
+.notice b{color:var(--accent-deep)}
+
+/* form */
+.fields{display:grid;gap:13px}
+.field label{
+  display:block;font:600 .66rem/1 var(--f-body);letter-spacing:.15em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:7px;
+}
+.field label i{font-style:normal;text-transform:none;letter-spacing:0;font-weight:400}
+.field input,.field textarea{
+  width:100%;background:#fff;border:1px solid var(--line);border-radius:11px;
+  padding:13px 15px;color:var(--ink);font:400 .97rem var(--f-body);
+}
+.field textarea{resize:vertical;min-height:76px}
+.field input::placeholder,.field textarea::placeholder{color:#a49c90}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(138,122,99,.16)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+@media (max-width:470px){.two{grid-template-columns:1fr}}
+
+/* review */
+.receipt{background:var(--card-2);border:1px solid var(--line);border-radius:var(--r);padding:6px 16px;margin-bottom:14px}
+.rrow{display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px solid var(--line)}
+.rrow:last-child{border-bottom:0}
+.rk{font:600 .66rem/1.6 var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);flex:0 0 auto}
+.rv{text-align:right;font-weight:600;font-size:.93rem;min-width:0;overflow-wrap:anywhere}
+.rv small{display:block;color:var(--muted);font-weight:400;font-size:.78rem;margin-top:1px}
+.rrow.total{border-top:1px solid var(--line-2);margin-top:2px}
+.rrow.total .rv{font:500 1.3rem/1.1 var(--f-display);color:var(--ink)}
+.rrow.dep .rv{font:500 1.3rem/1.1 var(--f-display);color:var(--accent-deep)}
+.ack{display:flex;gap:11px;align-items:flex-start;margin:4px 0 16px;cursor:pointer}
+.ack input{margin:2px 0 0;width:19px;height:19px;accent-color:var(--ink);flex:0 0 auto}
+.ack span{font-size:.86rem;color:var(--muted);line-height:1.55}
+.ack b{color:var(--ink-2)}
+.sends{display:grid;gap:9px}
+.nav{display:flex;gap:10px;align-items:center;margin-top:16px}
+.nav .btn{flex:1}
+.link-back{
+  background:none;border:0;cursor:pointer;color:var(--muted);font:600 .7rem/1 var(--f-body);
+  letter-spacing:.13em;text-transform:uppercase;padding:14px 4px;flex:0 0 auto!important;
+}
+.link-back:hover{color:var(--ink)}
+
+/* confirmation */
+.sent{text-align:center;padding:6px 0 2px}
+.check{width:62px;height:62px;margin:0 auto 14px;display:block}
+.check circle{fill:none;stroke:var(--good);stroke-width:3;opacity:.28}
+.check path{fill:none;stroke:var(--good);stroke-width:4;stroke-linecap:round;stroke-linejoin:round}
+@media (prefers-reduced-motion:no-preference){
+  .check path{stroke-dasharray:40;stroke-dashoffset:40;animation:draw .55s .12s forwards cubic-bezier(.6,0,.3,1)}
+  .check circle{stroke-dasharray:170;stroke-dashoffset:170;animation:draw .7s forwards ease-out}
+  @keyframes draw{to{stroke-dashoffset:0}}
+}
+.copy-out{
+  width:100%;background:#fff;border:1px solid var(--line);border-radius:11px;padding:12px;
+  color:var(--ink-2);font:400 .82rem/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
+  min-height:160px;resize:vertical;
+}
+.saved{
+  display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  background:rgba(79,122,91,.09);border:1px solid rgba(79,122,91,.3);border-radius:12px;
+  padding:12px 15px;margin:0 18px 14px;
+}
+.saved p{margin:0;font-size:.85rem;color:#3a5c43}
+.saved b{color:#2f5237}
+.saved button{
+  background:none;border:0;cursor:pointer;color:var(--muted);font:600 .64rem/1 var(--f-body);
+  letter-spacing:.11em;text-transform:uppercase;padding:6px;
+}
+.saved button:hover{color:var(--ink)}
+
+/* ---------- policy / info blocks ---------- */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px}
+@media (max-width:600px){.cols{grid-template-columns:1fr}}
+.note{background:rgba(255,255,255,.52);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.note h3{font:500 1.06rem/1.25 var(--f-display);margin:0 0 10px}
+.note ul{margin:0;padding-left:18px;display:grid;gap:7px}
+.note li{font-size:.9rem;color:var(--ink-2);line-height:1.5}
+.note li b{color:var(--ink)}
+.note.warn{background:rgba(160,80,60,.05);border-color:rgba(160,80,60,.25)}
+.note.warn h3{color:#8a3f2c}
+.nope li{color:var(--muted)}
+.nope li::marker{color:#a8543f}
+
+/* length chart */
+.chart{
+  display:grid;grid-template-columns:150px 1fr;gap:22px;align-items:center;margin-top:22px;
+  background:rgba(255,255,255,.52);border:1px solid var(--line);border-radius:var(--r);padding:20px;
+}
+@media (max-width:520px){.chart{grid-template-columns:1fr;gap:16px;justify-items:center}}
+.chart svg{width:100%;max-width:150px;height:auto}
+.chart-key{list-style:none;margin:0;padding:0;display:grid;gap:9px;width:100%}
+.chart-key li{display:flex;align-items:baseline;gap:9px;font-size:.9rem}
+.chart-key .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex:0 0 auto;transform:translateY(-1px)}
+.chart-key b{font-weight:600}
+.chart-key span{color:var(--muted);font-size:.82rem}
+
+/* price menu */
+.menu{margin-top:22px;display:grid;gap:10px}
+details.grp{background:rgba(255,255,255,.52);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+details.grp summary{
+  cursor:pointer;list-style:none;padding:15px 18px;display:flex;justify-content:space-between;
+  align-items:center;gap:12px;font:600 .74rem/1.3 var(--f-body);letter-spacing:.14em;text-transform:uppercase;
+}
+details.grp summary::-webkit-details-marker{display:none}
+details.grp summary::after{content:"+";color:var(--accent-deep);font-size:1.25rem;line-height:1;font-weight:400}
+details.grp[open] summary::after{content:"\2013"}
+.menu-list{list-style:none;margin:0;padding:0 18px 16px;display:grid;gap:12px}
+.menu-list li{display:flex;align-items:baseline;gap:9px}
+.menu-list .mn{font:500 1rem/1.3 var(--f-display)}
+.menu-list .mn small{display:block;font:400 .78rem/1.45 var(--f-body);color:var(--muted);margin-top:2px}
+.menu-list .dots{flex:1;border-bottom:1px dotted var(--line-2);transform:translateY(-4px);min-width:14px}
+.menu-list .mp{font:500 1rem/1 var(--f-display);white-space:nowrap;font-variant-numeric:tabular-nums}
+.menu-list .mp small{display:block;font:400 .72rem/1.4 var(--f-body);color:var(--muted);text-align:right}
+
+/* hours + pay + contact */
+.hours{display:grid;gap:7px;margin-top:20px}
+.hrow{
+  display:flex;justify-content:space-between;gap:14px;padding:12px 16px;border-radius:11px;
+  background:rgba(255,255,255,.52);border:1px solid var(--line);
+}
+.hrow[data-closed="1"]{opacity:.5}
+.hrow[data-today="1"]{border-color:var(--ink);background:#fff}
+.hrow .hd{font:600 .72rem/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;align-self:center}
+.hrow .ht{font:500 .98rem/1 var(--f-display);font-variant-numeric:tabular-nums;align-self:center}
+.hrow .today-tag{
+  font:600 .56rem/1 var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:#fff;
+  background:var(--ink);border-radius:999px;padding:4px 8px;margin-left:8px;
+}
+.pays{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px}
+.pay{
+  border:1px solid var(--line);background:rgba(255,255,255,.52);border-radius:999px;padding:9px 15px;
+  font:600 .74rem/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);
+}
+.contacts{display:grid;gap:9px;margin-top:20px}
+.contact{
+  display:flex;align-items:center;gap:13px;text-decoration:none;color:var(--ink);
+  background:rgba(255,255,255,.52);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;
+  transition:transform .16s ease,border-color .16s ease,background .16s ease;
+}
+.contact:hover{transform:translateY(-2px);border-color:var(--line-2);background:#fff}
+.contact svg{width:20px;height:20px;flex:0 0 auto;color:var(--accent-deep)}
+.contact b{display:block;font:600 .92rem/1.25 var(--f-body)}
+.contact small{color:var(--muted);font-size:.76rem}
+
+footer{padding:36px 0 118px;text-align:center;color:var(--muted);font-size:.8rem}
+footer img{width:160px;margin:0 auto 12px;opacity:.6}
+
+/* sticky book bar */
+.bar{
+  position:fixed;left:0;right:0;bottom:0;z-index:40;
+  background:rgba(233,229,222,.94);backdrop-filter:blur(12px);border-top:1px solid var(--line);
+  padding:12px 20px calc(12px + env(safe-area-inset-bottom,0px));
+  display:flex;gap:12px;align-items:center;justify-content:center;
+  transform:translateY(125%);transition:transform .3s ease;
+}
+.bar[data-show="1"]{transform:translateY(0)}
+.bar .btn{flex:1;max-width:430px}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+<!--ARTIFACT-SPLIT-->
+</head>
+<body>
+<!--ARTIFACT-RESUME-->
+
+<div class="strip">Based in <span>Lithonia, GA</span> &nbsp;&middot;&nbsp; By appointment only</div>
+
+<header class="wrap hero">
+  <img class="wordmark" src="img/wordmark.png" alt="Locddatlastt" width="1000" height="355" />
+  <p class="tagline">Retwists, starter locs and natural styles &mdash; done clean, done healthy.</p>
+  <p class="hero-note">Every service includes a complimentary wash. Snacks and drinks are on me. Read the policies before you book &mdash; then it&rsquo;s four taps.</p>
+  <div class="band">
+    <figure><img src="img/work-1.jpg" alt="Loc retwist with a styled updo" width="355" height="498" /></figure>
+    <figure><img src="img/work-2.jpg" alt="Freshly retwisted locs, parted in a grid" width="360" height="498" /></figure>
+    <figure><img src="img/work-3.jpg" alt="Retwist and barrel-curl style" width="357" height="498" /></figure>
+  </div>
+  <div class="hero-cta">
+    <a class="btn btn-solid" href="#book">Book an appointment</a>
+    <a class="btn btn-ghost" href="#policies">Read the policies</a>
+  </div>
+  <div class="facts">
+    <span class="fact"><b>Wash</b> included</span>
+    <span class="fact"><b>Tue&ndash;Sat</b> 10&ndash;6</span>
+    <span class="fact">Deposit is <b>half</b></span>
+  </div>
+</header>
+
+<!-- ================= BOOKING ================= -->
+<section class="sec wrap" id="book" style="padding-top:18px">
+  <div class="pill-wrap"><span class="pill">Book an appointment</span></div>
+  <div class="framed">
+    <p class="sec-sub" style="margin:6px 0 0;text-align:center;max-width:46ch;margin-inline:auto">
+      Pick your service, pick your time, send your deposit. All times are Eastern.
+    </p>
+
+    <div class="book">
+      <div class="saved" id="savedBox" hidden>
+        <p id="savedTxt"></p>
+        <button type="button" id="savedClear">Clear</button>
+      </div>
+
+      <div class="book-top">
+        <ol class="steps" id="steps">
+          <li data-on="1">Service</li>
+          <li>Date</li>
+          <li>Details</li>
+          <li>Confirm</li>
+        </ol>
+        <div class="track"><i id="trackFill"></i></div>
+      </div>
+
+      <!-- step 1 -->
+      <div class="panel" id="p1">
+        <h3 class="panel-h">What are we booking?</h3>
+        <p class="panel-p">Every service below includes a shampoo. Times are an estimate &mdash; your final price is set by your length and add-ons.</p>
+        <div id="tiles"></div>
+        <div id="lenWrap" hidden>
+          <p class="group-h" style="margin-top:22px">Your loc length</p>
+          <div class="lengths" id="lengths" role="group" aria-label="Loc length"></div>
+          <p class="hint">Not sure? <a href="#lengthchart">Check the length chart</a> &mdash; measure to where your locs fall when they hang loose.</p>
+        </div>
+        <div class="nav" id="p1nav" hidden>
+          <button class="btn btn-solid btn-wide" type="button" id="toDate">Choose a date</button>
+        </div>
+      </div>
+
+      <!-- step 2 -->
+      <div class="panel" id="p2" hidden>
+        <h3 class="panel-h">Pick your day</h3>
+        <p class="panel-p" id="p2sub"></p>
+        <div class="monthbar"><h4 id="monthLbl"></h4></div>
+        <div class="days" id="days" role="group" aria-label="Pick a day"></div>
+        <div class="times" id="times" role="group" aria-label="Pick a time"></div>
+        <div class="notice" id="noTimes" hidden></div>
+        <div class="nav">
+          <button class="link-back" type="button" data-back="1">&larr; Service</button>
+        </div>
+      </div>
+
+      <!-- step 3 -->
+      <div class="panel" id="p3" hidden>
+        <h3 class="panel-h">Your details</h3>
+        <p class="panel-p">Your number is how you get your confirmation and the studio address.</p>
+        <div class="fields">
+          <div class="two">
+            <div class="field">
+              <label for="fName">Your name</label>
+              <input id="fName" type="text" autocomplete="name" placeholder="First and last" />
+            </div>
+            <div class="field">
+              <label for="fPhone">Phone</label>
+              <input id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(678) 555-0123" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="fEmail">Email <i>(optional)</i></label>
+            <input id="fEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@email.com" />
+          </div>
+          <div class="field">
+            <label for="fNotes">Anything I should know? <i>(optional)</i></label>
+            <textarea id="fNotes" placeholder="How long you&rsquo;ve been locked, last retwist, parting you like, anything going on with your scalp&hellip;"></textarea>
+          </div>
+        </div>
+        <div class="nav">
+          <button class="link-back" type="button" data-back="2">&larr; Date</button>
+          <button class="btn btn-solid" type="button" id="toReview" disabled>Review</button>
+        </div>
+      </div>
+
+      <!-- step 4 -->
+      <div class="panel" id="p4" hidden>
+        <h3 class="panel-h">Look this over</h3>
+        <p class="panel-p">Your deposit is <b>half of your service total</b> and it is non-refundable.</p>
+        <div class="receipt" id="receipt"></div>
+        <label class="ack" for="ackBox">
+          <input type="checkbox" id="ackBox" />
+          <span>I&rsquo;ve read the policies. I understand my <b>deposit is non-refundable</b>, that changes must be made <b>48 hours ahead</b>, and that I&rsquo;m coming <b>alone</b>.</span>
+        </label>
+        <div class="sends" id="sends"></div>
+        <div class="nav">
+          <button class="link-back" type="button" data-back="3">&larr; Details</button>
+        </div>
+      </div>
+
+      <!-- step 5 -->
+      <div class="panel" id="p5" hidden>
+        <div class="sent">
+          <svg class="check" viewBox="0 0 60 60" aria-hidden="true">
+            <circle cx="30" cy="30" r="27"/><path d="M18 31l8.5 8.5L43 22"/>
+          </svg>
+          <h3 class="panel-h">Send it over</h3>
+          <p class="panel-p" id="sentLine"></p>
+        </div>
+        <label class="eyebrow" for="copyOut" style="display:block;margin-bottom:8px">Your request</label>
+        <textarea class="copy-out" id="copyOut" readonly></textarea>
+        <div class="sends" id="sends2" style="margin-top:12px"></div>
+        <div class="nav">
+          <button class="link-back" type="button" data-back="restart">&larr; Book another</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PRICE MENU ================= -->
+<section class="sec wrap" id="prices">
+  <p class="eyebrow">Service menu</p>
+  <h2>Everything I <em>offer</em></h2>
+  <p class="sec-sub">All services include a shampoo. Appointment times are an estimate &mdash; length and add-ons change the total.</p>
+  <div class="menu" id="menu"></div>
+</section>
+
+<!-- ================= LENGTH CHART ================= -->
+<section class="sec wrap" id="lengthchart">
+  <p class="eyebrow">Sizing</p>
+  <h2>Loc <em>length chart</em></h2>
+  <p class="sec-sub">Not sure what length to book under? Let your locs hang loose and see where they fall.</p>
+  <div class="chart">
+    <svg viewBox="0 0 120 260" role="img" aria-label="Body diagram marking shoulder, midback, waist, butt and thigh length">
+      <g fill="#cfc7ba">
+        <circle cx="60" cy="24" r="16"/>
+        <path d="M60 40c-13 0-22 7-25 18l-6 34c-1 6 7 8 9 2l5-22 2 36c0 3 1 6 1 9l-3 52c-1 7 10 8 11 1l6-44 6 44c1 7 12 6 11-1l-3-52c0-3 1-6 1-9l2-36 5 22c2 6 10 4 9-2l-6-34C82 47 73 40 60 40z"/>
+      </g>
+      <g stroke="#8a7a63" stroke-width="1.4" fill="none" stroke-dasharray="3 2.5">
+        <path d="M6 52h108"/><path d="M6 92h108"/><path d="M6 118h108"/><path d="M6 143h108"/><path d="M6 196h108"/>
+      </g>
+      <g fill="#8a7a63">
+        <circle cx="6" cy="52" r="3"/><circle cx="6" cy="92" r="3"/><circle cx="6" cy="118" r="3"/>
+        <circle cx="6" cy="143" r="3"/><circle cx="6" cy="196" r="3"/>
+      </g>
+    </svg>
+    <ul class="chart-key">
+      <li><span class="dot"></span><span><b>Shoulder</b> &mdash; locs rest at the top of your shoulders</span></li>
+      <li><span class="dot"></span><span><b>Midback</b> &mdash; roughly level with your bra line</span></li>
+      <li><span class="dot"></span><span><b>Waist</b> &mdash; the narrowest part of your torso</span></li>
+      <li><span class="dot"></span><span><b>Butt</b> &mdash; locs reach the bottom of your seat</span></li>
+      <li><span class="dot"></span><span><b>Thigh</b> &mdash; past your seat, down the thigh</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= POLICIES ================= -->
+<section class="sec wrap" id="policies">
+  <div class="pill-wrap"><span class="pill">Policies</span></div>
+  <div class="framed">
+    <p class="sec-sub" style="text-align:center;margin:6px auto 0;max-width:46ch">
+      Before booking please be sure to thoroughly read all policies.
+    </p>
+    <div class="cols">
+      <div class="note">
+        <h3>Good to know</h3>
+        <ul>
+          <li>All washes are <b>complimentary</b> with your service.</li>
+          <li><b>No extra guests</b> are allowed.</li>
+          <li>Snacks and drinks are provided at your appointment.</li>
+          <li>Bookings open on the <b>27th of each month</b>.</li>
+          <li>Your deposit is <b>half of your total service</b> and is non-refundable. No refunds are given under ANY circumstances.</li>
+        </ul>
+      </div>
+      <div class="note nope">
+        <h3>What I don&rsquo;t offer</h3>
+        <ul>
+          <li>Loc extensions</li>
+          <li>Loc combinations</li>
+          <li>Reattachments exceeding 10 locs</li>
+          <li>Wick maintenance</li>
+          <li>MicroLoc services</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note warn" style="margin-top:12px">
+      <h3>Late fees, cancellations &amp; more</h3>
+      <ul>
+        <li><b>10&ndash;15 minutes late</b> results in a $20 fee applied to your remaining balance at the end of your appointment.</li>
+        <li><b>20 minutes late</b> and your appointment is cancelled &mdash; your card is charged 100% of the service total.</li>
+        <li>Failing to show up without prior notification results in <b>100% of the service fee</b> charged to the card on file.</li>
+        <li>Any cancellation or reschedule must be made <b>48 hours prior</b> to your appointment.</li>
+        <li>Any locked cards or insufficient funds will be <b>banned from booking</b>.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= HOURS / PAY / CONTACT ================= -->
+<section class="sec wrap" id="contact">
+  <div class="pill-wrap"><span class="pill">Hours &amp; contact</span></div>
+  <div class="framed">
+    <div class="hours" id="hours"></div>
+    <p class="eyebrow" style="margin:24px 0 0">Payments accepted</p>
+    <div class="pays">
+      <span class="pay">Zelle</span><span class="pay">Cash</span><span class="pay">Card</span><span class="pay">Apple Pay</span>
+    </div>
+    <p class="eyebrow" style="margin:24px 0 0">Reach me</p>
+    <div class="contacts" id="contacts"></div>
+  </div>
+</section>
+
+<footer class="wrap">
+  <img src="img/wordmark.png" alt="" width="1000" height="355" />
+  <p>Lithonia, GA &middot; Tuesday to Saturday &middot; By appointment only</p>
+</footer>
+
+<div class="bar" id="bar">
+  <a class="btn btn-solid" href="#book">Book an appointment</a>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ------------------------------------------------------------------
+     EDIT ME — the business details.
+  ------------------------------------------------------------------ */
+  var SHOP = {
+    name: "Locddatlastt",
+    city: "Lithonia, GA",
+    phone: "6786655663",
+    email: "naturallyinterwinned@gmail.com",
+    instagram: "Locddatlastt",
+    depositRate: 0.5,        // deposit is half of the service total
+    openDay: 27              // next month's calendar opens on the 27th
+  };
+
+  /* Business hours by weekday (0 = Sunday). [open, close] in 24h, null = closed. */
+  var HOURS = { 0: null, 1: null, 2: [10, 18], 3: [10, 18], 4: [10, 18], 5: [10, 18], 6: [10, 18] };
+  var DAYNAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var MON_LONG = ["January", "February", "March", "April", "May", "June",
+                  "July", "August", "September", "October", "November", "December"];
+
+  var GROUPS = [
+    { id: "retwist",  label: "Loc Retwist" },
+    { id: "starters", label: "Starters" },
+    { id: "natural",  label: "Natural Hairstyles" },
+    { id: "extended", label: "Extended Loc Hairstyles — hair included" }
+  ];
+
+  /* p = price, m = minutes, len = length add-on applies, consult = consultation required first */
+  var SERVICES = [
+    { g: "retwist", n: "Standard Retwist", p: 125, m: 180, img: "svc-retwist.jpg", len: 1,
+      d: "Included with a shampoo. Appointment time is just an estimate. Please be sure to select all add-ons for your appointment." },
+    { g: "retwist", n: "Retwist & Style", p: 150, m: 210, img: "svc-retwist-style.jpg", len: 1,
+      d: "Included with a shampoo. Appointment time is just an estimate. Please be sure to select all add-ons for your appointment." },
+
+    { g: "starters", n: "Consultation", p: 10, m: 10, glyph: 1, len: 0,
+      d: "Book me first. Starting your loc journey? We go over sizing, parting, hair texture and density. This is a virtual consultation." },
+    { g: "starters", n: "Starter Loc Coils", p: 320, m: 240, img: "svc-starter-coils.jpg", len: 1, consult: 1,
+      d: "Included with a shampoo. Please book a consultation before booking this appointment. Select all add-ons including parting shape." },
+    { g: "starters", n: "Starter Loc Two Strand", p: 300, m: 240, img: "svc-starter-twostrand.jpg", len: 1, consult: 1,
+      d: "Included with a shampoo. Please book a consultation before booking this appointment. Select all add-ons including parting shape." },
+
+    { g: "natural", n: "Two Strand Twists", p: 100, m: 180, img: "svc-twists.jpg", len: 1,
+      flag: "Not starter locs",
+      d: "Included with a shampoo. Appointment time is just an estimate. Please be sure to select all add-ons for your appointment." },
+
+    { g: "extended", n: "Two Strand Twist Extended", p: 280, m: 300, img: "svc-extended.jpg", len: 1,
+      flag: "8+ months locked",
+      d: "Your locs must be 8+ months locked and healthy to book this style. Hair is provided with your service. Please select all correct add-ons and lengths." }
+  ];
+
+  /* Length add-ons. Waist (+$20 / +20 min) is taken from the live booking page;
+     the rest follow that same $10-and-10-minutes-per-step ladder — confirm before going live. */
+  var LENGTHS = [
+    { n: "Shoulder", add: 0,  mins: 0 },
+    { n: "Midback",  add: 10, mins: 10 },
+    { n: "Waist",    add: 20, mins: 20 },
+    { n: "Butt",     add: 30, mins: 30 },
+    { n: "Thigh",    add: 40, mins: 40 }
+  ];
+
+  /* ---------------------------- helpers ---------------------------- */
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function money(n) {
+    return "$" + (Math.round(n * 100) / 100).toFixed(2).replace(/\.00$/, "");
+  }
+  function dur(mins) {
+    var h = Math.floor(mins / 60), m = mins % 60;
+    if (h && m) return h + " hr " + m + " min";
+    if (h) return h + (h === 1 ? " hour" : " hours");
+    return m + " min";
+  }
+  function clock(mins) {
+    var h = Math.floor(mins / 60), m = mins % 60;
+    var ap = h >= 12 ? "PM" : "AM", h12 = h % 12 === 0 ? 12 : h % 12;
+    return h12 + ":" + (m < 10 ? "0" + m : m) + " " + ap;
+  }
+  function sameDay(a, b) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+  function store(k, v) {
+    try {
+      if (v === undefined) return localStorage.getItem(k);
+      if (v === null) { localStorage.removeItem(k); return null; }
+      localStorage.setItem(k, v); return v;
+    } catch (e) { return null; }
+  }
+
+  /* ----------------------------- state ----------------------------- */
+  var state = { svc: null, len: 0, date: null, time: null, step: 1 };
+
+  /* ------------------- the "opens on the 27th" window --------------- */
+  /* You can book the rest of the current month. On the 27th, the following
+     month opens up too. */
+  function bookingEnd(today) {
+    var extra = today.getDate() >= SHOP.openDay ? 2 : 1;
+    return new Date(today.getFullYear(), today.getMonth() + extra, 0);
+  }
+  function opensLine(today) {
+    if (today.getDate() >= SHOP.openDay) return "";
+    var next = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    return MON_LONG[next.getMonth()] + " opens on the " + SHOP.openDay + "th.";
+  }
+
+  /* --------------------------- price menu -------------------------- */
+  (function renderMenu() {
+    var html = "";
+    GROUPS.forEach(function (g, i) {
+      var rows = SERVICES.filter(function (s) { return s.g === g.id; });
+      html += '<details class="grp"' + (i === 0 ? " open" : "") + "><summary>" + esc(g.label) +
+        "<span></span></summary><ul class=\"menu-list\">" +
+        rows.map(function (s) {
+          return '<li><span class="mn">' + esc(s.n) + "<small>" + esc(s.d) + "</small></span>" +
+            '<span class="dots"></span><span class="mp">' + money(s.p) +
+            "<small>" + dur(s.m) + "</small></span></li>";
+        }).join("") + "</ul></details>";
+    });
+    html += '<details class="grp"><summary>Length add-ons<span></span></summary><ul class="menu-list">' +
+      LENGTHS.filter(function (l) { return l.add > 0; }).map(function (l) {
+        return '<li><span class="mn">' + esc(l.n) + " Length</span>" +
+          '<span class="dots"></span><span class="mp">+' + money(l.add) +
+          "<small>+" + l.mins + " min</small></span></li>";
+      }).join("") + "</ul></details>";
+    $("menu").innerHTML = html;
+  })();
+
+  /* ----------------------------- hours ----------------------------- */
+  (function renderHours() {
+    var today = new Date().getDay(), out = "";
+    [1, 2, 3, 4, 5, 6, 0].forEach(function (d) {
+      var h = HOURS[d];
+      out += '<div class="hrow"' + (h ? "" : ' data-closed="1"') + (d === today ? ' data-today="1"' : "") +
+        '><span class="hd">' + DAYNAMES[d] +
+        (d === today ? '<span class="today-tag">Today</span>' : "") +
+        '</span><span class="ht">' +
+        (h ? clock(h[0] * 60) + " – " + clock(h[1] * 60) : "Closed") + "</span></div>";
+    });
+    $("hours").innerHTML = out;
+  })();
+
+  /* ---------------------------- contacts --------------------------- */
+  (function renderContacts() {
+    function pretty(p) { return "(" + p.slice(0, 3) + ") " + p.slice(3, 6) + "-" + p.slice(6); }
+    var ic = {
+      ph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3h3l1.6 4-2.1 1.4a12 12 0 0 0 5.6 5.6L16 11.9l4 1.6v3a2 2 0 0 1-2.2 2C10.6 18 6 13.4 4.5 5.2A2 2 0 0 1 6.5 3z"/></svg>',
+      em: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M3 7l9 6 9-6"/></svg>',
+      ig: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none"/></svg>'
+    };
+    $("contacts").innerHTML =
+      '<a class="contact" href="tel:+1' + SHOP.phone + '">' + ic.ph +
+        "<span><b>" + pretty(SHOP.phone) + "</b><small>Call or text</small></span></a>" +
+      '<a class="contact" href="mailto:' + SHOP.email + '">' + ic.em +
+        "<span><b>" + SHOP.email + "</b><small>Email</small></span></a>" +
+      '<a class="contact" target="_blank" rel="noopener" href="https://instagram.com/' + SHOP.instagram + '">' + ic.ig +
+        "<span><b>@" + SHOP.instagram + "</b><small>See the latest work</small></span></a>";
+  })();
+
+  /* ------------------------ step 1: services ----------------------- */
+  (function renderTiles() {
+    var html = "";
+    GROUPS.forEach(function (g) {
+      var rows = SERVICES.filter(function (s) { return s.g === g.id; });
+      if (!rows.length) return;
+      html += '<p class="group-h">' + esc(g.label) + '</p><div class="tiles">';
+      html += rows.map(function (s) {
+        var i = SERVICES.indexOf(s);
+        var pic = s.img
+          ? '<img src="img/' + s.img + '" alt="' + esc(s.n) + '" loading="lazy" />'
+          : '<span class="tile-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v7a4 4 0 0 0 8 0V3"/><circle cx="12" cy="17.5" r="3.5"/></svg></span>';
+        return '<button class="tile" type="button" data-svc="' + i + '" aria-pressed="false">' +
+          '<span class="tile-img">' + pic + "</span>" +
+          '<span class="tile-body"><span class="tile-n">' + esc(s.n) + "</span>" +
+          '<span class="tile-m">' + dur(s.m) + "</span>" +
+          (s.flag ? '<span class="tile-flag">' + esc(s.flag) + "</span>" : "") +
+          '<span class="tile-p">' + money(s.p) + "</span></span></button>";
+      }).join("");
+      html += "</div>";
+    });
+    $("tiles").innerHTML = html;
+  })();
+
+  (function renderLengths() {
+    $("lengths").innerHTML = LENGTHS.map(function (l, i) {
+      return '<button class="len" type="button" data-len="' + i + '" aria-pressed="' + (i === 0) + '">' +
+        esc(l.n) + (l.add ? " <span>+" + money(l.add) + "</span>" : " <span>included</span>") + "</button>";
+    }).join("");
+  })();
+
+  $("tiles").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-svc]");
+    if (!b) return;
+    state.svc = parseInt(b.getAttribute("data-svc"), 10);
+    state.len = 0;
+    state.date = null;
+    state.time = null;
+    Array.prototype.forEach.call(this.querySelectorAll("[data-svc]"), function (t) {
+      t.setAttribute("aria-pressed", String(t === b));
+    });
+    var svc = SERVICES[state.svc];
+    $("lenWrap").hidden = !svc.len;
+    Array.prototype.forEach.call($("lengths").children, function (c, i) {
+      c.setAttribute("aria-pressed", String(i === 0));
+    });
+    $("p1nav").hidden = false;
+    $("toDate").focus({ preventScroll: true });
+  });
+
+  $("lengths").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-len]");
+    if (!b) return;
+    state.len = parseInt(b.getAttribute("data-len"), 10);
+    Array.prototype.forEach.call(this.children, function (c) {
+      c.setAttribute("aria-pressed", String(c === b));
+    });
+  });
+
+  $("toDate").addEventListener("click", function () {
+    if (state.svc === null) return;
+    renderDays();
+    go(2);
+  });
+
+  /* ------------------------ step 2: day & time --------------------- */
+  function totalMins() {
+    var svc = SERVICES[state.svc];
+    return svc.m + (svc.len ? LENGTHS[state.len].mins : 0);
+  }
+  function totalPrice() {
+    var svc = SERVICES[state.svc];
+    return svc.p + (svc.len ? LENGTHS[state.len].add : 0);
+  }
+
+  function slotsFor(date, mins) {
+    var h = HOURS[date.getDay()];
+    if (!h) return [];
+    var open = h[0] * 60, close = h[1] * 60, out = [];
+    var now = new Date();
+    var earliest = sameDay(date, now) ? now.getHours() * 60 + now.getMinutes() + 180 : 0;
+    for (var t = open; t + mins <= close; t += 30) if (t >= earliest) out.push(t);
+    return out;
+  }
+
+  function renderDays() {
+    var svc = SERVICES[state.svc], mins = totalMins();
+    $("p2sub").innerHTML = esc(svc.n) +
+      (svc.len ? " at " + esc(LENGTHS[state.len].n.toLowerCase()) + " length" : "") +
+      " runs about <b>" + dur(mins) + "</b>, so these are the start times that fit.";
+
+    var today = new Date(), end = bookingEnd(today), out = "", months = [];
+    for (var d = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+         d <= end; d.setDate(d.getDate() + 1)) {
+      var free = slotsFor(d, mins).length > 0;
+      var key = d.getFullYear() + "-" + d.getMonth();
+      if (months.indexOf(key) < 0) months.push(key);
+      out += '<button class="day" type="button" data-iso="' + d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate() +
+        '"' + (free ? "" : " disabled") + ' aria-pressed="false"><span class="day-w">' +
+        DAYNAMES[d.getDay()].slice(0, 3) + '</span><span class="day-d">' + d.getDate() +
+        '</span><span class="day-m">' + MON[d.getMonth()] + "</span></button>";
+    }
+    $("days").innerHTML = out;
+
+    var first = months[0].split("-"), last = months[months.length - 1].split("-");
+    $("monthLbl").textContent = months.length > 1
+      ? MON_LONG[+first[1]] + " – " + MON_LONG[+last[1]] + " " + last[0]
+      : MON_LONG[+first[1]] + " " + first[0];
+
+    $("times").innerHTML = "";
+    var n = $("noTimes"), opens = opensLine(today);
+    n.hidden = false;
+    n.innerHTML = "Pick a day above to see open times." +
+      (opens ? " <b>" + esc(opens) + "</b>" : "");
+  }
+
+  $("days").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-iso]");
+    if (!b || b.disabled) return;
+    var p = b.getAttribute("data-iso").split("-");
+    state.date = new Date(+p[0], +p[1], +p[2]);
+    state.time = null;
+    Array.prototype.forEach.call(this.children, function (c) {
+      c.setAttribute("aria-pressed", String(c === b));
+    });
+    renderTimes();
+  });
+
+  function renderTimes() {
+    var slots = slotsFor(state.date, totalMins()), n = $("noTimes");
+    if (!slots.length) {
+      $("times").innerHTML = "";
+      n.hidden = false;
+      n.innerHTML = "That day can't fit " + esc(SERVICES[state.svc].n) +
+        ". Try another day — I'm open Tuesday to Saturday, 10 to 6.";
+      return;
+    }
+    n.hidden = true;
+    $("times").innerHTML = slots.map(function (t, i) {
+      return '<button class="time" type="button" data-time="' + t +
+        '" aria-pressed="false" style="animation-delay:' + Math.min(i * 34, 340) + 'ms">' +
+        clock(t) + "</button>";
+    }).join("");
+  }
+
+  $("times").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-time]");
+    if (!b) return;
+    state.time = parseInt(b.getAttribute("data-time"), 10);
+    Array.prototype.forEach.call(this.children, function (c) {
+      c.setAttribute("aria-pressed", String(c === b));
+    });
+    go(3);
+  });
+
+  /* -------------------------- step 3: you -------------------------- */
+  var fName = $("fName"), fPhone = $("fPhone"), fEmail = $("fEmail"), fNotes = $("fNotes");
+  function checkForm() {
+    var ok = fName.value.trim().length > 1 && fPhone.value.replace(/\D/g, "").length >= 10;
+    $("toReview").disabled = !ok;
+    return ok;
+  }
+  [fName, fPhone].forEach(function (el) { el.addEventListener("input", checkForm); });
+  $("toReview").addEventListener("click", function () {
+    if (checkForm()) { renderReview(); go(4); }
+  });
+
+  /* ------------------------ step 4: review ------------------------- */
+  function dateLine() {
+    var d = state.date;
+    return DAYNAMES[d.getDay()] + ", " + MON_LONG[d.getMonth()] + " " + d.getDate() +
+      " at " + clock(state.time);
+  }
+
+  function renderReview() {
+    var svc = SERVICES[state.svc];
+    var total = totalPrice(), dep = total * SHOP.depositRate;
+    var rows = [["Service", esc(svc.n), money(svc.p)]];
+    if (svc.len) {
+      var L = LENGTHS[state.len];
+      rows.push(["Length", esc(L.n), L.add ? "+" + money(L.add) + " · +" + L.mins + " min" : "included"]);
+    }
+    rows.push(["When", esc(dateLine()), "about " + dur(totalMins()) + " · Eastern"]);
+    rows.push(["Name", esc(fName.value.trim()), ""]);
+    rows.push(["Phone", esc(fPhone.value.trim()), fEmail.value.trim() ? esc(fEmail.value.trim()) : ""]);
+    if (fNotes.value.trim()) rows.push(["Notes", esc(fNotes.value.trim()), ""]);
+
+    var html = rows.map(function (r) {
+      return '<div class="rrow"><span class="rk">' + r[0] + '</span><span class="rv">' + r[1] +
+        (r[2] ? "<small>" + r[2] + "</small>" : "") + "</span></div>";
+    }).join("");
+    html += '<div class="rrow total"><span class="rk">Service total</span><span class="rv">' + money(total) + "</span></div>";
+    html += '<div class="rrow dep"><span class="rk">Deposit due</span><span class="rv">' + money(dep) +
+      "<small>non-refundable · " + money(total - dep) + " due at your appointment</small></span></div>";
+    if (svc.consult) {
+      html += '<div class="rrow"><span class="rk">Heads up</span><span class="rv" style="font-weight:500">' +
+        "Book a consultation before this one<small>It's $10 and takes 10 minutes, virtually.</small></span></div>";
+    }
+    $("receipt").innerHTML = html;
+    renderSends();
+  }
+
+  function summaryText() {
+    var svc = SERVICES[state.svc], total = totalPrice(), dep = total * SHOP.depositRate;
+    var L = [
+      "APPOINTMENT REQUEST — " + SHOP.name,
+      "",
+      "Service: " + svc.n + " (" + money(svc.p) + ")"
+    ];
+    if (svc.len) {
+      var len = LENGTHS[state.len];
+      L.push("Length: " + len.n + (len.add ? " (+" + money(len.add) + ")" : " (included)"));
+    }
+    L.push("When: " + dateLine() + " ET");
+    L.push("Est. time: about " + dur(totalMins()));
+    L.push("");
+    L.push("Service total: " + money(total));
+    L.push("Deposit (half, non-refundable): " + money(dep));
+    L.push("Balance at appointment: " + money(total - dep));
+    L.push("");
+    L.push("Name: " + fName.value.trim());
+    L.push("Phone: " + fPhone.value.trim());
+    if (fEmail.value.trim()) L.push("Email: " + fEmail.value.trim());
+    if (fNotes.value.trim()) L.push("Notes: " + fNotes.value.trim());
+    L.push("");
+    L.push("I've read and agree to the policies.");
+    return L.join("\n");
+  }
+
+  function renderSends() {
+    var ok = $("ackBox").checked;
+    $("sends").innerHTML =
+      '<button class="btn btn-solid btn-wide" type="button" id="sendBtn"' + (ok ? "" : " disabled") +
+      ">Send my request</button>" +
+      (ok ? "" : '<p class="panel-p" style="margin:0;text-align:center">Tick the box above to send.</p>');
+    var b = $("sendBtn");
+    if (b) b.addEventListener("click", send);
+  }
+  $("ackBox").addEventListener("change", renderSends);
+
+  /* ---------------------------- sending ---------------------------- */
+  function copy(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).catch(function () { return legacy(text); });
+    }
+    return Promise.resolve(legacy(text));
+  }
+  function legacy(text) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); document.body.removeChild(ta);
+    } catch (e) { /* the textarea on the next screen is the fallback */ }
+  }
+
+  function send() {
+    var text = summaryText();
+    copy(text);
+    $("copyOut").value = text;
+    $("sentLine").innerHTML = "Your request is copied and ready. Send it any way below — " +
+      "<b>your time isn't held until I confirm and your deposit is in.</b>";
+    store("ldl_booking", JSON.stringify({
+      svc: SERVICES[state.svc].n, when: dateLine(), at: Date.now()
+    }));
+    renderSends2(text);
+    go(5);
+  }
+
+  function renderSends2(text) {
+    var subj = encodeURIComponent("Appointment request — " + fName.value.trim());
+    var body = encodeURIComponent(text);
+    $("sends2").innerHTML =
+      '<a class="btn btn-solid btn-wide" href="sms:+1' + SHOP.phone + "?&body=" + body + '">Text it to me</a>' +
+      '<a class="btn btn-ghost btn-wide" href="mailto:' + SHOP.email + "?subject=" + subj + "&body=" + body + '">Email it</a>' +
+      '<a class="btn btn-ghost btn-wide" target="_blank" rel="noopener" href="https://ig.me/m/' + SHOP.instagram +
+        '">Send on Instagram &mdash; paste it in</a>' +
+      '<button class="btn btn-ghost btn-wide" type="button" id="copyAgain">Copy again</button>';
+    var c = $("copyAgain");
+    if (c) c.addEventListener("click", function () {
+      var self = this;
+      copy(text);
+      self.textContent = "Copied";
+      setTimeout(function () { self.textContent = "Copy again"; }, 1800);
+    });
+  }
+
+  /* ------------------------- step machine -------------------------- */
+  function go(n) {
+    state.step = n;
+    [1, 2, 3, 4, 5].forEach(function (i) { $("p" + i).hidden = i !== n; });
+    var shown = Math.min(n, 4), marks = $("steps").children;
+    for (var i = 0; i < marks.length; i++) {
+      marks[i].setAttribute("data-on", i + 1 === shown ? "1" : "0");
+      marks[i].setAttribute("data-done", i + 1 < shown ? "1" : "0");
+    }
+    $("trackFill").style.width = (shown * 25) + "%";
+    if (n === 3) checkForm();
+    var card = document.querySelector(".book");
+    var top = card.getBoundingClientRect().top + window.pageYOffset - 16;
+    var calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (window.pageYOffset > top) window.scrollTo({ top: top, behavior: calm ? "auto" : "smooth" });
+  }
+
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-back]");
+    if (!b) return;
+    var to = b.getAttribute("data-back");
+    if (to === "restart") {
+      state = { svc: null, len: 0, date: null, time: null, step: 1 };
+      $("ackBox").checked = false;
+      $("lenWrap").hidden = true;
+      $("p1nav").hidden = true;
+      Array.prototype.forEach.call($("tiles").querySelectorAll("[data-svc]"), function (t) {
+        t.setAttribute("aria-pressed", "false");
+      });
+      go(1);
+      return;
+    }
+    go(parseInt(to, 10));
+  });
+
+  /* ------------------------ returning client ----------------------- */
+  (function saved() {
+    var raw = store("ldl_booking");
+    if (!raw) return;
+    try {
+      var b = JSON.parse(raw);
+      if (Date.now() - b.at > 1000 * 60 * 60 * 24 * 45) { store("ldl_booking", null); return; }
+      $("savedTxt").innerHTML = "Last request: <b>" + esc(b.svc) + "</b> — " + esc(b.when) + ".";
+      $("savedBox").hidden = false;
+      $("savedClear").addEventListener("click", function () {
+        store("ldl_booking", null);
+        $("savedBox").hidden = true;
+      });
+    } catch (e) { /* ignore a malformed entry */ }
+  })();
+
+  /* --------------------------- sticky bar -------------------------- */
+  (function stickyBar() {
+    var bar = $("bar"), book = $("book");
+    if (!("IntersectionObserver" in window)) return;
+    new IntersectionObserver(function (en) {
+      var e = en[0];
+      var past = !e.isIntersecting && e.boundingClientRect.top < 0;
+      bar.setAttribute("data-show", past ? "1" : "0");
+    }, { rootMargin: "-100px 0px 0px 0px" }).observe(book);
+  })();
+})();
+</script>
+<!--ARTIFACT-END-->
+</body>
+</html>
