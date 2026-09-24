@@ -107,10 +107,20 @@ Change `SHOP.openDay` to move it.
 There is no server, so the site does not store bookings or hold a slot. It
 assembles the request and hands it to the client to send:
 
-1. Service and length → day and time → name and phone → review
-2. The review shows the service total, the deposit (half) and the balance due
-3. They tick the policy acknowledgement and hit **Send my request**
-4. That copies the request and offers: text it, email it, or send it on Instagram
+There are two screens, and only two.
+
+1. **Your hair** — the service tiles, grouped by category. Tapping one goes
+   straight through.
+2. **Your appointment** — length, day, time, name, phone and notes in a single
+   scroll, with the total, the deposit and the balance updating live at the
+   bottom. Tick the policy box and send.
+
+The send button is never a dead grey rectangle: until the booking is complete
+it names the one thing still missing ("Pick a day", "Add your phone number",
+"Tick the box to agree"), then becomes **Send my request**.
+
+Sending copies the request and offers: text it, email it, or send it on
+Instagram.
 
 The page says plainly that the time is not held until you confirm and the
 deposit is in.

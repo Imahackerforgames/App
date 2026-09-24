@@ -130,22 +130,38 @@ h2 em{font-style:italic;color:var(--accent-deep)}
   box-shadow:0 18px 44px rgba(60,48,32,.11);overflow:hidden;margin-top:22px;
 }
 .book-top{padding:18px 18px 0}
-.steps{display:flex;gap:4px;list-style:none;margin:0 0 4px;padding:0}
-.steps li{
-  flex:1;font:600 .6rem/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;
-  color:var(--muted);text-align:center;padding-bottom:10px;transition:color .3s ease;
+.twostep{display:flex;gap:8px;margin:0}
+.twostep span{
+  flex:1;font:600 .64rem/1 var(--f-body);letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);text-align:center;padding-bottom:10px;border-bottom:2px solid var(--line);
+  transition:color .3s ease,border-color .3s ease;
 }
-.steps li[data-on="1"]{color:var(--ink)}
-.steps li[data-done="1"]{color:var(--accent-deep)}
-.track{height:2px;background:var(--line);border-radius:2px;overflow:hidden;margin-bottom:16px}
-.track i{
-  display:block;height:100%;width:25%;background:var(--ink);border-radius:2px;
-  transition:width .42s cubic-bezier(.4,.9,.3,1);
-}
-.panel{padding:4px 18px 20px}
+.twostep span[data-on="1"]{color:var(--ink);border-bottom-color:var(--ink)}
+.panel{padding:16px 18px 20px}
 .panel-h{font:500 1.35rem/1.25 var(--f-display);margin:0 0 5px}
 .panel-p{color:var(--muted);font-size:.9rem;margin:0 0 16px}
 .panel-p b{color:var(--ink-2)}
+
+/* a labelled band inside the appointment screen */
+.field-h{
+  font:600 .66rem/1 var(--f-body);letter-spacing:.18em;text-transform:uppercase;
+  color:var(--accent-deep);margin:22px 0 10px;display:flex;align-items:center;gap:10px;
+}
+.field-h::after{content:"";flex:1;height:1px;background:var(--line)}
+.field-h em{font-style:normal;color:var(--muted);letter-spacing:.06em;text-transform:none;font-weight:500}
+
+/* running total */
+.totals{
+  background:var(--card-2);border:1px solid var(--line);border-radius:var(--r);
+  padding:10px 16px;margin-top:22px;
+}
+.trow{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:6px 0}
+.trow + .trow{border-top:1px solid var(--line)}
+.trow span{font:600 .66rem/1.4 var(--f-body);letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.trow b{font:500 1.05rem/1 var(--f-display);font-variant-numeric:tabular-nums}
+.trow.dep span{color:var(--ink-2)}
+.trow.dep b{color:var(--accent-deep);font-size:1.5rem}
+.trow.sub b{font-size:.95rem;color:var(--muted);font-weight:400}
 
 /* service tiles */
 .group-h{
@@ -459,48 +475,38 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
       </div>
 
       <div class="book-top">
-        <ol class="steps" id="steps">
-          <li data-on="1">Service</li>
-          <li>Date</li>
-          <li>Details</li>
-          <li>Confirm</li>
-        </ol>
-        <div class="track"><i id="trackFill"></i></div>
+        <div class="twostep" id="twostep">
+          <span data-on="1">1 &middot; Your hair</span>
+          <span>2 &middot; Your appointment</span>
+        </div>
       </div>
 
-      <!-- step 1 -->
-      <div class="panel" id="p1">
-        <h3 class="panel-h">What are we booking?</h3>
-        <p class="panel-p">Every service below includes a shampoo. Times are an estimate &mdash; your final price is set by your length and add-ons.</p>
-        <div id="chosen"></div>
+      <!-- ===== screen 1: the hair ===== -->
+      <div class="panel" id="s1">
+        <h3 class="panel-h">Pick your style</h3>
+        <p class="panel-p">Tap one. Every service includes a shampoo, and the time shown is an estimate.</p>
         <div id="tiles"></div>
-        <div id="lenWrap" hidden>
-          <p class="group-h" style="margin-top:22px">Your loc length</p>
-          <div class="lengths" id="lengths" role="group" aria-label="Loc length"></div>
-          <p class="hint">Not sure? <a href="#lengthchart">Check the length chart</a> &mdash; measure to where your locs fall when they hang loose.</p>
-        </div>
-        <div class="nav" id="p1nav" hidden>
-          <button class="btn btn-solid btn-wide" type="button" id="toDate">Choose a date</button>
-        </div>
       </div>
 
-      <!-- step 2 -->
-      <div class="panel" id="p2" hidden>
-        <h3 class="panel-h">Pick your day</h3>
-        <p class="panel-p" id="p2sub"></p>
-        <div class="monthbar"><h4 id="monthLbl"></h4></div>
+      <!-- ===== screen 2: the appointment ===== -->
+      <div class="panel" id="s2" hidden>
+        <div id="chosen"></div>
+        <div class="notice" id="consultNote" hidden></div>
+
+        <div id="lenWrap" hidden>
+          <p class="field-h">Your loc length</p>
+          <div class="lengths" id="lengths" role="group" aria-label="Loc length"></div>
+          <p class="hint">Not sure? <a href="#lengthchart">Check the length chart</a> &mdash; measure to where your locs fall loose.</p>
+        </div>
+
+        <p class="field-h">Pick a day <em id="monthLbl"></em></p>
         <div class="days" id="days" role="group" aria-label="Pick a day"></div>
+
+        <p class="field-h">Pick a time</p>
         <div class="times" id="times" role="group" aria-label="Pick a time"></div>
         <div class="notice" id="noTimes" hidden></div>
-        <div class="nav">
-          <button class="link-back" type="button" data-back="1">&larr; Service</button>
-        </div>
-      </div>
 
-      <!-- step 3 -->
-      <div class="panel" id="p3" hidden>
-        <h3 class="panel-h">Your details</h3>
-        <p class="panel-p">Your number is how you get your confirmation and the studio address.</p>
+        <p class="field-h">Your details</p>
         <div class="fields">
           <div class="two">
             <div class="field">
@@ -513,37 +519,25 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
             </div>
           </div>
           <div class="field">
-            <label for="fEmail">Email <i>(optional)</i></label>
-            <input id="fEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@email.com" />
-          </div>
-          <div class="field">
             <label for="fNotes">Anything I should know? <i>(optional)</i></label>
             <textarea id="fNotes" placeholder="How long you&rsquo;ve been locked, last retwist, parting you like, anything going on with your scalp&hellip;"></textarea>
           </div>
         </div>
-        <div class="nav">
-          <button class="link-back" type="button" data-back="2">&larr; Date</button>
-          <button class="btn btn-solid" type="button" id="toReview" disabled>Review</button>
-        </div>
-      </div>
 
-      <!-- step 4 -->
-      <div class="panel" id="p4" hidden>
-        <h3 class="panel-h">Look this over</h3>
-        <p class="panel-p">Your deposit is <b>half of your service total</b> and it is non-refundable.</p>
-        <div class="receipt" id="receipt"></div>
+        <div class="totals" id="totals"></div>
+
         <label class="ack" for="ackBox">
           <input type="checkbox" id="ackBox" />
-          <span>I&rsquo;ve read the policies. I understand my <b>deposit is non-refundable</b>, that changes must be made <b>48 hours ahead</b>, and that I&rsquo;m coming <b>alone</b>.</span>
+          <span>I&rsquo;ve read the policies. My <b>deposit is non-refundable</b>, changes are made <b>48 hours ahead</b>, and I&rsquo;m coming <b>alone</b>.</span>
         </label>
-        <div class="sends" id="sends"></div>
-        <div class="nav">
-          <button class="link-back" type="button" data-back="3">&larr; Details</button>
+
+        <div class="sends">
+          <button class="btn btn-solid btn-wide" type="button" id="sendBtn" disabled>Pick a day and time</button>
         </div>
       </div>
 
-      <!-- step 5 -->
-      <div class="panel" id="p5" hidden>
+      <!-- ===== sent ===== -->
+      <div class="panel" id="s3" hidden>
         <div class="sent">
           <svg class="check" viewBox="0 0 60 60" aria-hidden="true">
             <circle cx="30" cy="30" r="27"/><path d="M18 31l8.5 8.5L43 22"/>
@@ -555,7 +549,7 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
         <textarea class="copy-out" id="copyOut" readonly></textarea>
         <div class="sends" id="sends2" style="margin-top:12px"></div>
         <div class="nav">
-          <button class="link-back" type="button" data-back="restart">&larr; Book another</button>
+          <button class="link-back" type="button" id="restart">&larr; Book another</button>
         </div>
       </div>
     </div>
@@ -841,30 +835,33 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
         "<span><b>@" + SHOP.instagram + "</b><small>See the latest work</small></span></a>";
   })();
 
-  /* ------------------------ step 1: services ----------------------- */
+  /* =================== screen 1: the hair ==================== */
   (function renderTiles() {
     var html = "";
     GROUPS.forEach(function (g) {
-      var rows = SERVICES.filter(function (s) { return s.g === g.id; });
+      var rows = SERVICES.filter(function (x) { return x.g === g.id; });
       if (!rows.length) return;
       html += '<p class="group-h">' + esc(g.label) + '</p><div class="tiles">';
-      html += rows.map(function (s) {
-        var i = SERVICES.indexOf(s);
-        var pic = s.img
-          ? '<img src="img/' + s.img + '" alt="' + esc(s.n) + '" loading="lazy" />'
-          : '<span class="tile-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
-            (GLYPHS[s.glyph] || GLYPHS.chat) + "</svg></span>";
-        return '<button class="tile" type="button" data-svc="' + i + '" aria-pressed="false">' +
-          '<span class="tile-img">' + pic + "</span>" +
-          '<span class="tile-body"><span class="tile-n">' + esc(s.n) + "</span>" +
-          '<span class="tile-m">' + dur(s.m) + "</span>" +
-          (s.flag ? '<span class="tile-flag">' + esc(s.flag) + "</span>" : "") +
-          '<span class="tile-p">' + money(s.p) + "</span></span></button>";
+      html += rows.map(function (x) {
+        var i = SERVICES.indexOf(x);
+        return '<button class="tile" type="button" data-svc="' + i + '">' +
+          '<span class="tile-img">' + thumb(x) + "</span>" +
+          '<span class="tile-body"><span class="tile-n">' + esc(x.n) + "</span>" +
+          '<span class="tile-m">' + dur(x.m) + "</span>" +
+          (x.flag ? '<span class="tile-flag">' + esc(x.flag) + "</span>" : "") +
+          '<span class="tile-p">' + money(x.p) + "</span></span></button>";
       }).join("");
       html += "</div>";
     });
     $("tiles").innerHTML = html;
   })();
+
+  function thumb(svc) {
+    return svc.img
+      ? '<img src="img/' + svc.img + '" alt="" loading="lazy" />'
+      : '<span class="tile-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+        (GLYPHS[svc.glyph] || GLYPHS.chat) + "</svg></span>";
+  }
 
   (function renderLengths() {
     $("lengths").innerHTML = LENGTHS.map(function (l, i) {
@@ -873,6 +870,7 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
     }).join("");
   })();
 
+  /* Picking a style is the whole of screen one — it goes straight through. */
   $("tiles").addEventListener("click", function (e) {
     var b = e.target.closest("[data-svc]");
     if (!b) return;
@@ -880,65 +878,34 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
     state.len = 0;
     state.date = null;
     state.time = null;
-    Array.prototype.forEach.call(this.querySelectorAll("[data-svc]"), function (t) {
-      t.setAttribute("aria-pressed", String(t === b));
-    });
-    showChosen();
-  });
-
-  /* Collapsing the grid down to the one pick is what makes the next step
-     visible: eight photo tiles are taller than a phone screen, so a chosen
-     tile plus a button further down reads as nothing having happened. */
-  function showChosen() {
     var svc = SERVICES[state.svc];
-    var pic = svc.img
-      ? '<img src="img/' + svc.img + '" alt="" />'
-      : '<span class="tile-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
-        (GLYPHS[svc.glyph] || GLYPHS.chat) + "</svg></span>";
+
     $("chosen").innerHTML =
-      '<div class="chosen"><span class="chosen-img">' + pic + "</span>" +
+      '<div class="chosen"><span class="chosen-img">' + thumb(svc) + "</span>" +
       '<span class="chosen-b"><span class="chosen-n">' + esc(svc.n) + "</span>" +
       '<span class="chosen-m">' + dur(svc.m) + "</span></span>" +
       '<span class="chosen-p">' + money(svc.p) + "</span>" +
       '<button class="change" type="button" id="changeSvc">Change</button></div>';
-    $("tiles").hidden = true;
+    $("changeSvc").addEventListener("click", function () { go(1); });
+
+    $("consultNote").hidden = !svc.consult;
+    if (svc.consult) {
+      $("consultNote").innerHTML =
+        "<b>Book a consultation first.</b> It's " + money(10) +
+        " and takes ten minutes, virtually \u2014 we sort out sizing and parting before this appointment.";
+    }
+
     $("lenWrap").hidden = !svc.len;
     Array.prototype.forEach.call($("lengths").children, function (c, i) {
       c.setAttribute("aria-pressed", String(i === 0));
     });
-    $("p1nav").hidden = false;
-    $("changeSvc").addEventListener("click", clearChosen);
-    scrollToCard();
-  }
 
-  function clearChosen() {
-    state.svc = null; state.len = 0; state.date = null; state.time = null;
-    $("chosen").innerHTML = "";
-    $("tiles").hidden = false;
-    $("lenWrap").hidden = true;
-    $("p1nav").hidden = true;
-    Array.prototype.forEach.call($("tiles").querySelectorAll("[data-svc]"), function (t) {
-      t.setAttribute("aria-pressed", "false");
-    });
-    scrollToCard();
-  }
-
-  $("lengths").addEventListener("click", function (e) {
-    var b = e.target.closest("[data-len]");
-    if (!b) return;
-    state.len = parseInt(b.getAttribute("data-len"), 10);
-    Array.prototype.forEach.call(this.children, function (c) {
-      c.setAttribute("aria-pressed", String(c === b));
-    });
-  });
-
-  $("toDate").addEventListener("click", function () {
-    if (state.svc === null) return;
     renderDays();
+    update();
     go(2);
   });
 
-  /* ------------------------ step 2: day & time --------------------- */
+  /* ================ screen 2: the appointment ================= */
   function totalMins() {
     var svc = SERVICES[state.svc];
     return svc.m + (svc.len ? LENGTHS[state.len].mins : 0);
@@ -961,47 +928,61 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
     return out;
   }
 
-  function renderDays() {
-    var svc = SERVICES[state.svc], mins = totalMins();
-    $("p2sub").innerHTML = esc(svc.n) +
-      (svc.len ? " at " + esc(LENGTHS[state.len].n.toLowerCase()) + " length" : "") +
-      " runs about <b>" + dur(mins) + "</b>, so these are the start times that fit.";
+  $("lengths").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-len]");
+    if (!b) return;
+    state.len = parseInt(b.getAttribute("data-len"), 10);
+    Array.prototype.forEach.call(this.children, function (c) {
+      c.setAttribute("aria-pressed", String(c === b));
+    });
+    renderDays();   // a longer style can drop start times, so rebuild both
+    update();
+  });
 
-    var today = new Date(), end = bookingEnd(today), out = "", months = [];
+  function renderDays() {
+    var mins = totalMins(), today = new Date(), end = bookingEnd(today);
+    var out = "", months = [], keep = false;
+
     for (var d = new Date(today.getFullYear(), today.getMonth(), today.getDate());
          d <= end; d.setDate(d.getDate() + 1)) {
       var free = slotsFor(d, mins).length > 0;
+      var mine = state.date && sameDay(d, state.date) && free;
+      if (mine) keep = true;
       var key = d.getFullYear() + "-" + d.getMonth();
       if (months.indexOf(key) < 0) months.push(key);
       out += '<button class="day" type="button" data-iso="' + d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate() +
-        '"' + (free ? "" : " disabled") + ' aria-pressed="false"><span class="day-w">' +
-        DAYNAMES[d.getDay()].slice(0, 3) + '</span><span class="day-d">' + d.getDate() +
+        '"' + (free ? "" : " disabled") + ' aria-pressed="' + (mine ? "true" : "false") +
+        '"><span class="day-w">' + DAYNAMES[d.getDay()].slice(0, 3) +
+        '</span><span class="day-d">' + d.getDate() +
         '</span><span class="day-m">' + MON[d.getMonth()] + "</span></button>";
     }
     $("days").innerHTML = out;
 
-    var first = months[0].split("-"), last = months[months.length - 1].split("-");
+    var f = months[0].split("-"), l = months[months.length - 1].split("-");
     $("monthLbl").textContent = months.length > 1
-      ? MON_LONG[+first[1]] + " – " + MON_LONG[+last[1]] + " " + last[0]
-      : MON_LONG[+first[1]] + " " + first[0];
+      ? MON_LONG[+f[1]] + " \u2013 " + MON_LONG[+l[1]] + " " + l[0]
+      : MON_LONG[+f[1]] + " " + f[0];
 
+    if (keep) { renderTimes(); return; }
+    state.date = null;
+    state.time = null;
     $("times").innerHTML = "";
     var n = $("noTimes"), opens = opensLine(today);
     n.hidden = false;
-    n.innerHTML = "Pick a day above to see open times." +
-      (opens ? " <b>" + esc(opens) + "</b>" : "");
+    n.innerHTML = "Pick a day above to see open times." + (opens ? " <b>" + esc(opens) + "</b>" : "");
   }
 
   $("days").addEventListener("click", function (e) {
     var b = e.target.closest("[data-iso]");
     if (!b || b.disabled) return;
-    var p = b.getAttribute("data-iso").split("-");
-    state.date = new Date(+p[0], +p[1], +p[2]);
+    var q = b.getAttribute("data-iso").split("-");
+    state.date = new Date(+q[0], +q[1], +q[2]);
     state.time = null;
     Array.prototype.forEach.call(this.children, function (c) {
       c.setAttribute("aria-pressed", String(c === b));
     });
     renderTimes();
+    update();
   });
 
   function renderTimes() {
@@ -1010,14 +991,14 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
       $("times").innerHTML = "";
       n.hidden = false;
       n.innerHTML = "That day can't fit " + esc(SERVICES[state.svc].n) +
-        ". Try another day — I'm open Tuesday to Saturday, 10 to 6.";
+        ". Try another \u2014 I'm open Tuesday to Saturday, 10 to 6.";
       return;
     }
     n.hidden = true;
     $("times").innerHTML = slots.map(function (t, i) {
       return '<button class="time" type="button" data-time="' + t +
-        '" aria-pressed="false" style="animation-delay:' + Math.min(i * 34, 340) + 'ms">' +
-        clock(t) + "</button>";
+        '" aria-pressed="' + (state.time === t) + '" style="animation-delay:' +
+        Math.min(i * 34, 340) + 'ms">' + clock(t) + "</button>";
     }).join("");
   }
 
@@ -1028,63 +1009,45 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
     Array.prototype.forEach.call(this.children, function (c) {
       c.setAttribute("aria-pressed", String(c === b));
     });
-    go(3);
+    update();
   });
 
-  /* -------------------------- step 3: you -------------------------- */
-  var fName = $("fName"), fPhone = $("fPhone"), fEmail = $("fEmail"), fNotes = $("fNotes");
-  function checkForm() {
-    var ok = fName.value.trim().length > 1 && fPhone.value.replace(/\D/g, "").length >= 10;
-    $("toReview").disabled = !ok;
-    return ok;
+  var fName = $("fName"), fPhone = $("fPhone"), fNotes = $("fNotes");
+  [fName, fPhone].forEach(function (el) { el.addEventListener("input", update); });
+  $("ackBox").addEventListener("change", update);
+
+  /* One place decides the running total and what the button says. Rather than
+     a dead grey button, it names the one thing still missing. */
+  function update() {
+    if (state.svc === null) return;
+    var total = totalPrice(), dep = total * SHOP.depositRate;
+    $("totals").innerHTML =
+      '<div class="trow"><span>Service total</span><b>' + money(total) + "</b></div>" +
+      '<div class="trow dep"><span>Deposit due now</span><b>' + money(dep) + "</b></div>" +
+      '<div class="trow sub"><span>Balance at your appointment</span><b>' + money(total - dep) + "</b></div>";
+
+    var why = "";
+    if (!state.date) why = "Pick a day";
+    else if (state.time === null) why = "Pick a time";
+    else if (fName.value.trim().length < 2) why = "Add your name";
+    else if (fPhone.value.replace(/\D/g, "").length < 10) why = "Add your phone number";
+    else if (!$("ackBox").checked) why = "Tick the box to agree";
+    var btn = $("sendBtn");
+    btn.disabled = !!why;
+    btn.textContent = why || "Send my request";
   }
-  [fName, fPhone].forEach(function (el) { el.addEventListener("input", checkForm); });
-  $("toReview").addEventListener("click", function () {
-    if (checkForm()) { renderReview(); go(4); }
-  });
 
-  /* ------------------------ step 4: review ------------------------- */
   function dateLine() {
     var d = state.date;
     return DAYNAMES[d.getDay()] + ", " + MON_LONG[d.getMonth()] + " " + d.getDate() +
       " at " + clock(state.time);
   }
 
-  function renderReview() {
-    var svc = SERVICES[state.svc];
-    var total = totalPrice(), dep = total * SHOP.depositRate;
-    var rows = [["Service", esc(svc.n), money(svc.p)]];
-    if (svc.len) {
-      var L = LENGTHS[state.len];
-      rows.push(["Length", esc(L.n), L.add ? "+" + money(L.add) + " · +" + L.mins + " min" : "included"]);
-    }
-    rows.push(["When", esc(dateLine()), "about " + dur(totalMins()) + " · Eastern"]);
-    rows.push(["Name", esc(fName.value.trim()), ""]);
-    rows.push(["Phone", esc(fPhone.value.trim()), fEmail.value.trim() ? esc(fEmail.value.trim()) : ""]);
-    if (fNotes.value.trim()) rows.push(["Notes", esc(fNotes.value.trim()), ""]);
-
-    var html = rows.map(function (r) {
-      return '<div class="rrow"><span class="rk">' + r[0] + '</span><span class="rv">' + r[1] +
-        (r[2] ? "<small>" + r[2] + "</small>" : "") + "</span></div>";
-    }).join("");
-    html += '<div class="rrow total"><span class="rk">Service total</span><span class="rv">' + money(total) + "</span></div>";
-    html += '<div class="rrow dep"><span class="rk">Deposit due</span><span class="rv">' + money(dep) +
-      "<small>non-refundable · " + money(total - dep) + " due at your appointment</small></span></div>";
-    if (svc.consult) {
-      html += '<div class="rrow"><span class="rk">Heads up</span><span class="rv" style="font-weight:500">' +
-        "Book a consultation before this one<small>It's $10 and takes 10 minutes, virtually.</small></span></div>";
-    }
-    $("receipt").innerHTML = html;
-    renderSends();
-  }
-
+  /* ---------------------------- sending ---------------------------- */
   function summaryText() {
     var svc = SERVICES[state.svc], total = totalPrice(), dep = total * SHOP.depositRate;
-    var L = [
-      "APPOINTMENT REQUEST — " + SHOP.name,
-      "",
-      "Service: " + svc.n + " (" + money(svc.p) + ")"
-    ];
+    var L = ["APPOINTMENT REQUEST \u2014 " + SHOP.name, "",
+             "Service: " + svc.n + " (" + money(svc.p) + ")"];
     if (svc.len) {
       var len = LENGTHS[state.len];
       L.push("Length: " + len.n + (len.add ? " (+" + money(len.add) + ")" : " (included)"));
@@ -1098,25 +1061,12 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
     L.push("");
     L.push("Name: " + fName.value.trim());
     L.push("Phone: " + fPhone.value.trim());
-    if (fEmail.value.trim()) L.push("Email: " + fEmail.value.trim());
     if (fNotes.value.trim()) L.push("Notes: " + fNotes.value.trim());
     L.push("");
     L.push("I've read and agree to the policies.");
     return L.join("\n");
   }
 
-  function renderSends() {
-    var ok = $("ackBox").checked;
-    $("sends").innerHTML =
-      '<button class="btn btn-solid btn-wide" type="button" id="sendBtn"' + (ok ? "" : " disabled") +
-      ">Send my request</button>" +
-      (ok ? "" : '<p class="panel-p" style="margin:0;text-align:center">Tick the box above to send.</p>');
-    var b = $("sendBtn");
-    if (b) b.addEventListener("click", send);
-  }
-  $("ackBox").addEventListener("change", renderSends);
-
-  /* ---------------------------- sending ---------------------------- */
   function copy(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       return navigator.clipboard.writeText(text).catch(function () { return legacy(text); });
@@ -1132,21 +1082,16 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
     } catch (e) { /* the textarea on the next screen is the fallback */ }
   }
 
-  function send() {
+  $("sendBtn").addEventListener("click", function () {
     var text = summaryText();
     copy(text);
     $("copyOut").value = text;
-    $("sentLine").innerHTML = "Your request is copied and ready. Send it any way below — " +
+    $("sentLine").innerHTML = "Your request is copied and ready. Send it any way below \u2014 " +
       "<b>your time isn't held until I confirm and your deposit is in.</b>";
     store("ldl_booking", JSON.stringify({
       svc: SERVICES[state.svc].n, when: dateLine(), at: Date.now()
     }));
-    renderSends2(text);
-    go(5);
-  }
-
-  function renderSends2(text) {
-    var subj = encodeURIComponent("Appointment request — " + fName.value.trim());
+    var subj = encodeURIComponent("Appointment request \u2014 " + fName.value.trim());
     var body = encodeURIComponent(text);
     $("sends2").innerHTML =
       '<a class="btn btn-solid btn-wide" href="sms:+1' + SHOP.phone + "?&body=" + body + '">Text it to me</a>' +
@@ -1154,50 +1099,38 @@ footer img{width:160px;margin:0 auto 12px;opacity:.6}
       '<a class="btn btn-ghost btn-wide" target="_blank" rel="noopener" href="https://ig.me/m/' + SHOP.instagram +
         '">Send on Instagram &mdash; paste it in</a>' +
       '<button class="btn btn-ghost btn-wide" type="button" id="copyAgain">Copy again</button>';
-    var c = $("copyAgain");
-    if (c) c.addEventListener("click", function () {
+    $("copyAgain").addEventListener("click", function () {
       var self = this;
       copy(text);
       self.textContent = "Copied";
       setTimeout(function () { self.textContent = "Copy again"; }, 1800);
     });
-  }
+    go(3);
+  });
 
-  /* ------------------------- step machine -------------------------- */
+  $("restart").addEventListener("click", function () {
+    state = { svc: null, len: 0, date: null, time: null, step: 1 };
+    $("ackBox").checked = false;
+    $("chosen").innerHTML = "";
+    $("consultNote").hidden = true;
+    $("lenWrap").hidden = true;
+    go(1);
+  });
+
+  /* --------------------------- the two screens --------------------- */
   function go(n) {
     state.step = n;
-    [1, 2, 3, 4, 5].forEach(function (i) { $("p" + i).hidden = i !== n; });
-    var shown = Math.min(n, 4), marks = $("steps").children;
-    for (var i = 0; i < marks.length; i++) {
-      marks[i].setAttribute("data-on", i + 1 === shown ? "1" : "0");
-      marks[i].setAttribute("data-done", i + 1 < shown ? "1" : "0");
-    }
-    $("trackFill").style.width = (shown * 25) + "%";
-    if (n === 3) checkForm();
-    scrollToCard();
-  }
-
-  /* Every step change puts the top of the card on screen. Without this a tap
-     can change something that is sitting below the fold. */
-  function scrollToCard() {
+    $("s1").hidden = n !== 1;
+    $("s2").hidden = n !== 2;
+    $("s3").hidden = n !== 3;
+    var marks = $("twostep").children;
+    marks[0].setAttribute("data-on", n === 1 ? "1" : "0");
+    marks[1].setAttribute("data-on", n >= 2 ? "1" : "0");
     var card = document.querySelector(".book");
     var top = card.getBoundingClientRect().top + window.pageYOffset - 12;
     var calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     window.scrollTo({ top: top, behavior: calm ? "auto" : "smooth" });
   }
-
-  document.addEventListener("click", function (e) {
-    var b = e.target.closest("[data-back]");
-    if (!b) return;
-    var to = b.getAttribute("data-back");
-    if (to === "restart") {
-      $("ackBox").checked = false;
-      clearChosen();
-      go(1);
-      return;
-    }
-    go(parseInt(to, 10));
-  });
 
   /* ------------------------ returning client ----------------------- */
   (function saved() {
