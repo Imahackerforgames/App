@@ -134,11 +134,17 @@ when the database is unreachable is worse than the spending it prevents.
 |---|---|---|
 | Sign-in attempts | 10/hour | IP address |
 | Sign-in attempts | 6/hour | username |
-| Product searches | 35/hour | account |
+| Product searches | 25/hour | account |
 | Assistant questions | 40/hour | account |
 
 Both search and assistant answer a `{ peek: true }` request with the
 balance without spending any of it. Settings reads them that way.
+
+The search number is low because one call is not one Tavily credit. It
+fans out to a search per marketplace plus a page extract, so a call costs
+five or six credits and an analysis costs around a dozen. Twenty-five an
+hour is about 150 credits an hour for one account. Raise it only after
+checking what the plan actually includes.
 
 ## There is no demo mode
 

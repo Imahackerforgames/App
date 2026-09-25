@@ -19,7 +19,7 @@ const quota = (limit, used, minsLeft = 41) => ({
   resetsAt: minsLeft === null ? null : new Date(Date.now() + minsLeft * 60_000).toISOString(),
 });
 
-async function app({ pro = true, search = quota(35, 9), ask = quota(40, 12), peeks = null } = {}) {
+async function app({ pro = true, search = quota(25, 9), ask = quota(40, 12), peeks = null } = {}) {
   const c = await b.newContext({ viewport: { width: 400, height: 1100 } });
   const page = await c.newPage();
   page.on("pageerror", (e) => { console.log("  PAGEERROR " + e.message); fail++; });
@@ -60,7 +60,7 @@ const body = (page) => page.locator("body").innerText();
   const { c, page } = await app({ peeks });
   const t = await body(page);
   ok("the searches row", /Product searches/i.test(t));
-  ok("with the server's numbers", /26 of 35 left/.test(t), t.match(/.{0,30}of 35.{0,10}/)?.[0]);
+  ok("with the server's numbers", /16 of 25 left/.test(t), t.match(/.{0,30}of 25.{0,10}/)?.[0]);
   ok("the assistant row", /Assistant questions/i.test(t));
   ok("with its own numbers", /28 of 40 left/.test(t), t.match(/.{0,30}of 40.{0,10}/)?.[0]);
   ok("each says what was used", (t.match(/You've used \d+ this hour/g) || []).length === 2,
@@ -98,9 +98,9 @@ const body = (page) => page.locator("body").innerText();
 // ── 4. an exhausted allowance says so ──────────────────────────────────
 {
   console.log("\n4. Running out is stated plainly");
-  const { c, page } = await app({ search: quota(35, 35), ask: quota(40, 3) });
+  const { c, page } = await app({ search: quota(25, 25), ask: quota(40, 3) });
   const t = await body(page);
-  ok("zero left is shown", /0 of 35 left/.test(t), t.match(/.{0,20}of 35.{0,10}/)?.[0]);
+  ok("zero left is shown", /0 of 25 left/.test(t), t.match(/.{0,20}of 25.{0,10}/)?.[0]);
   ok("and named", /used this hour's searches/i.test(t), t.match(/.{0,50}this hour's.{0,20}/)?.[0]);
   ok("the other is unaffected", /37 of 40 left/.test(t));
   await c.close();
@@ -109,7 +109,7 @@ const body = (page) => page.locator("body").innerText();
 // ── 5. an untouched allowance is not given a reset time ────────────────
 {
   console.log("\n5. A full allowance has no reset pending");
-  const { c, page } = await app({ search: quota(35, 0, null), ask: quota(40, 0, null) });
+  const { c, page } = await app({ search: quota(25, 0, null), ask: quota(40, 0, null) });
   const t = await body(page);
   ok("no reset time invented", !/Resets at /.test(t));
   ok("it says the allowance is whole", (t.match(/full allowance is available/g) || []).length === 2);

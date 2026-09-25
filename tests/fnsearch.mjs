@@ -350,7 +350,7 @@ const okReply = (sent) => new Response(JSON.stringify({
     body: { query: "x", maxResults: 24 }, tavily: okReply, rateLimitAllows: false,
     /* A refusal means the counter is at the cap, so the row has to say so
        too — otherwise the fixture describes a state that cannot happen. */
-    rateLimitRow: { count: 35, window_start: new Date().toISOString() } });
+    rateLimitRow: { count: 25, window_start: new Date().toISOString() } });
   ok("refused with 429", res.status === 429, String(res.status));
   ok("and says why in words", /used all your searches/i.test(data.error || ""), JSON.stringify(data.error));
   /* The refusal carries the balance too, so the app can say when it lifts
@@ -500,9 +500,9 @@ console.log("\nThe search allowance can be read without spending it");
     onConsume: () => { consumed++; },
   });
   ok("a peek answers 200", res.status === 200, String(res.status));
-  ok("the limit is the real one", data.quota.limit === 35, JSON.stringify(data.quota));
+  ok("the limit is the real one", data.quota.limit === 25, JSON.stringify(data.quota));
   ok("used comes from the counter", data.quota.used === 9, String(data.quota?.used));
-  ok("and remaining is the difference", data.quota.remaining === 26, String(data.quota?.remaining));
+  ok("and remaining is the difference", data.quota.remaining === 16, String(data.quota?.remaining));
   ok("peeking spends nothing", consumed === 0, String(consumed));
   ok("and runs no search", calls.length === 0, String(calls.length));
   ok("it says when it resets", typeof data.quota.resetsAt === "string", JSON.stringify(data.quota.resetsAt));
@@ -514,7 +514,7 @@ console.log("\nThe search allowance can be read without spending it");
     body: { peek: true }, tavily: okReply,
     rateLimitRow: { count: 15, window_start: new Date(Date.now() - 3 * 60 * 60_000).toISOString() },
   });
-  ok("a lapsed window reads as untouched", data.quota.used === 0 && data.quota.remaining === 35,
+  ok("a lapsed window reads as untouched", data.quota.used === 0 && data.quota.remaining === 25,
      JSON.stringify(data.quota));
   ok("with no reset pending", data.quota.resetsAt === null, JSON.stringify(data.quota.resetsAt));
 }
@@ -527,7 +527,7 @@ console.log("\nThe search allowance can be read without spending it");
     body: { query: "airpods" }, tavily: okReply,
     rateLimitRow: { count: 4, window_start: new Date().toISOString() },
   });
-  ok("a real search reports the balance back", data.quota?.remaining === 31,
+  ok("a real search reports the balance back", data.quota?.remaining === 21,
      JSON.stringify(data.quota));
 }
 

@@ -86,14 +86,19 @@ const SOLD_PAGE: Record<string, (q: string) => string> = {
 /* How many searches one account gets per hour.
 
    Each analysis is two calls to this function, and each call fans out to one
-   Tavily search per marketplace plus a page extract — so a single analysis
-   can be a dozen Tavily requests. Thirty-five calls an hour is therefore
-   around seventeen analyses, which is a working afternoon rather than a
-   wall, while still bounding the Tavily bill.
+   Tavily search per marketplace plus a page extract — so one call is five
+   or six Tavily credits and a single analysis is around a dozen.
+
+   Twenty-five an hour is therefore roughly 150 credits an hour for one
+   account, or about twelve analyses. Lowered from thirty-five once that
+   multiplication was done properly: the limit that matters is not how many
+   times somebody presses a button, it is how many credits that button
+   spends, and a plan measured in a thousand credits a month does not
+   survive many hours at two hundred.
 
    Counted in Postgres, not in memory: Edge Functions run on many instances
    and an in-process counter is bypassed by landing on a different one. */
-const SEARCH_MAX = 35, SEARCH_WINDOW = 60 * 60;
+const SEARCH_MAX = 25, SEARCH_WINDOW = 60 * 60;
 
 /* What is left, without spending any of it.
 
