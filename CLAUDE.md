@@ -96,14 +96,53 @@ it.
   rather than returning a half-finished answer.
 - `stop_reason: "refusal"` is checked before reading content.
 
-## What this integration did not touch
+## Everything goes through the Edge Function now
 
-`askClaude` in `App.jsx` still calls `api.anthropic.com` directly from the
-browser. Browsers block that (no CORS headers, no key), which surfaces as
-"Load failed" / "Failed to fetch". It powers four features that remain broken:
+`askClaude` in `App.jsx` used to call `api.anthropic.com` straight from the
+browser, which cannot work — no CORS headers, and the key would be exposed
+even if it did. It surfaced as "Load failed" and broke product descriptions,
+the AI Discover and market-research fallbacks, and the listing generator.
 
-- `describeProduct` — product descriptions
-- the AI Discover and market-research fallbacks
-- `generateListingText` — listing generator
+All four now route through `ai-assistant` and work. If you are reading this
+section expecting them to be broken, that information is out of date.
 
-Each can be fixed by pointing `askClaude` at this same Edge Function.
+## Payments
+
+Premium is granted by `supabase/functions/stripe-webhook`, which writes to
+`entitlements` when Stripe reports a payment. `verify_jwt` is off — Stripe
+has no Supabase session to send — so the signature check is the entire
+security boundary, and without it anyone who found the URL could POST
+themselves a pro row.
+
+The account is matched by `client_reference_id`, appended to the payment
+link by `openCheckout`. Only the first event knows who paid; renewals and
+cancellations carry a Stripe customer and nothing else, which is why
+`entitlements.stripe_customer_id` records the mapping at checkout time.
+
+Secrets, both server-side only: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
+
+`docs/granting-premium.md` covers granting by hand, which is still how
+comped accounts work.
+
+## Limits
+
+Enforced in Postgres via `consume_rate_limit`, so they hold across Edge
+Function instances. All fail open — a limiter that silences the product
+when the database is unreachable is worse than the spending it prevents.
+
+| What | Limit | Per |
+|---|---|---|
+| Sign-in attempts | 10/hour | IP address |
+| Sign-in attempts | 6/hour | username |
+| Product searches | 35/hour | account |
+| Assistant questions | 40/hour | account |
+
+Both search and assistant answer a `{ peek: true }` request with the
+balance without spending any of it. Settings reads them that way.
+
+## There is no demo mode
+
+Sign-in used to fall back to a fake session when the network failed. It was
+a development convenience and a data-loss bug: the session had no account
+id, so everything the person entered was stored under a key their real
+account would never read. `tests/nodemo.mjs` exists to keep it gone.
