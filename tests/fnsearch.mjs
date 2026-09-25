@@ -21,7 +21,8 @@ const TOKEN = (sub) =>
 /* Load the module once per scenario with its own stubs. */
 async function runHandler({ body, tavily, extract = null, rateLimitAllows = true,
                             rateLimitBroken = false, pro = true, signedIn = true,
-                            rateLimitRow = null, onConsume = null }) {
+                            rateLimitRow = null, monthRow = null, onConsume = null,
+                            monthAllows = true }) {
   let handler;
   const calls = [];
   const rpcCalls = [];
@@ -32,7 +33,12 @@ async function runHandler({ body, tavily, extract = null, rateLimitAllows = true
     /* The entitlement lookup is a GET with no body, so it has to be handled
        before anything tries to parse one. */
     if (String(url).includes("/rest/v1/rate_limits")) {
-      return new Response(JSON.stringify(rateLimitRow ? [rateLimitRow] : []),
+      /* Two counters now, hourly and monthly, told apart by the bucket in
+         the query string. A fixture that answered both with the same row
+         would report the monthly balance as the hourly one. */
+      const monthly = /bucket=eq\.[^&]*month/.test(String(url));
+      const row = monthly ? monthRow : rateLimitRow;
+      return new Response(JSON.stringify(row ? [row] : []),
         { status: 200, headers: { "Content-Type": "application/json" } });
     }
     if (String(url).includes("/rest/v1/entitlements")) {
@@ -44,7 +50,8 @@ async function runHandler({ body, tavily, extract = null, rateLimitAllows = true
       rpcCalls.push(sent);
       onConsume?.(sent);
       if (rateLimitBroken) return new Response("limiter exploded", { status: 500 });
-      return new Response(JSON.stringify(rateLimitAllows), { status: 200 });
+      const isMonth = String(sent.p_bucket || "").includes(":month:");
+      return new Response(JSON.stringify(isMonth ? monthAllows : rateLimitAllows), { status: 200 });
     }
     sent._endpoint = String(url).includes("/extract") ? "extract" : "search";
     calls.push(sent);
@@ -357,8 +364,13 @@ const okReply = (sent) => new Response(JSON.stringify({
      rather than leaving the person to guess. */
   ok("and carries the balance", data.quota?.remaining === 0, JSON.stringify(data.quota));
   ok("not one Tavily credit was spent", calls.length === 0, String(calls.length));
-  ok("the limit was checked once", rpcCalls.length === 1, String(rpcCalls.length));
-  ok("bucketed per account, not globally", /^search:/.test(rpcCalls[0]?.p_bucket || ""), rpcCalls[0]?.p_bucket);
+  /* Two counters, not one: the hourly window stops a burst and the monthly
+     one stops sustained use, and neither substitutes for the other. */
+  const buckets = rpcCalls.map((c) => c.p_bucket);
+  ok("both windows were consumed", rpcCalls.length === 2, buckets.join(", "));
+  ok("one hourly", buckets.some((b) => /^search:user:/.test(b)), buckets.join(", "));
+  ok("one monthly", buckets.some((b) => /^search:month:user:/.test(b)), buckets.join(", "));
+  ok("bucketed per account, not globally", buckets.every((b) => b.includes("user:")), buckets.join(", "));
 }
 
 // ── 18. a broken limiter must not lock everyone out ────────────────────
@@ -369,7 +381,7 @@ const okReply = (sent) => new Response(JSON.stringify({
      which is worse than the spending a limiter prevents. */
   const { res, data, calls, rpcCalls } = await runHandler({
     body: { query: "x", maxResults: 24 }, tavily: okReply, rateLimitBroken: true });
-  ok("the limiter was asked", rpcCalls.length === 1, String(rpcCalls.length));
+  ok("the limiter was asked", rpcCalls.length === 2, String(rpcCalls.length));
   ok("still a 200 rather than a lockout", res.status === 200, String(res.status));
   ok("the search actually ran", calls.length > 0, String(calls.length));
   ok("and results came back", data.count > 0, String(data.count));
@@ -529,6 +541,54 @@ console.log("\nThe search allowance can be read without spending it");
   });
   ok("a real search reports the balance back", data.quota?.remaining === 21,
      JSON.stringify(data.quota));
+}
+
+/* ── the monthly cap ─────────────────────────────────────────────
+   The hourly limit stops a burst and does nothing about sustained use.
+   Twenty-five an hour every hour is legal under it and comes to eighteen
+   thousand searches a month from one account paying $25. This is the
+   limit that makes that impossible. */
+console.log("\nThe monthly cap holds even when the hourly one allows");
+{
+  const { res, data, calls } = await runHandler({
+    body: { query: "airpods" }, tavily: okReply,
+    rateLimitAllows: true,      // plenty left this hour
+    monthAllows: false,         // but the month is spent
+    rateLimitRow: { count: 2, window_start: new Date().toISOString() },
+    monthRow: { count: 150, window_start: new Date().toISOString() },
+  });
+  ok("refused with 429", res.status === 429, String(res.status));
+  /* The message has to name the right window. Telling somebody to wait an
+     hour when the wall is monthly is worse than saying nothing. */
+  ok("and says it is the month, not the hour", /month/i.test(String(data.error)), JSON.stringify(data.error));
+  ok("not one Tavily credit was spent", calls.length === 0, String(calls.length));
+  ok("the monthly balance is reported", data.quota?.month?.remaining === 0, JSON.stringify(data.quota?.month));
+}
+{
+  /* And the other way round: hour spent, month fine. */
+  const { res, data } = await runHandler({
+    body: { query: "airpods" }, tavily: okReply,
+    rateLimitAllows: false, monthAllows: true,
+    rateLimitRow: { count: 25, window_start: new Date().toISOString() },
+    monthRow: { count: 10, window_start: new Date().toISOString() },
+  });
+  ok("hourly refusal names the hour", /hour/i.test(String(data.error)), JSON.stringify(data.error));
+  ok("and still reports both", data.quota?.month?.remaining === 140, JSON.stringify(data.quota?.month));
+}
+{
+  console.log("\nA peek reports both windows without spending either");
+  let consumed = 0;
+  const { data, calls } = await runHandler({
+    body: { peek: true }, tavily: okReply,
+    rateLimitRow: { count: 9, window_start: new Date().toISOString() },
+    monthRow: { count: 40, window_start: new Date().toISOString() },
+    onConsume: () => { consumed++; },
+  });
+  ok("hourly balance", data.quota.remaining === 16, JSON.stringify(data.quota));
+  ok("monthly balance", data.quota.month.remaining === 110, JSON.stringify(data.quota.month));
+  ok("and the monthly limit is the real one", data.quota.month.limit === 150, String(data.quota.month?.limit));
+  ok("neither was spent", consumed === 0, String(consumed));
+  ok("and no search ran", calls.length === 0, String(calls.length));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -14,12 +14,21 @@ const ok = (n, c, x = "") => { c ? (pass++, console.log("  PASS  " + n)) : (fail
 const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 const UID = "u1";
 
-const quota = (limit, used, minsLeft = 41) => ({
+const quota = (limit, used, minsLeft = 41, month = null) => ({
   limit, used, remaining: Math.max(0, limit - used),
   resetsAt: minsLeft === null ? null : new Date(Date.now() + minsLeft * 60_000).toISOString(),
+  ...(month ? { month } : {}),
+});
+/* The monthly half of the same shape. */
+const monthly = (limit, used, days = 12) => ({
+  limit, used, remaining: Math.max(0, limit - used),
+  resetsAt: new Date(Date.now() + days * 86400_000).toISOString(),
 });
 
-async function app({ pro = true, search = quota(25, 9), ask = quota(40, 12), peeks = null } = {}) {
+async function app({ pro = true,
+                     search = quota(25, 9, 41, monthly(150, 40)),
+                     ask = quota(40, 12, 41, monthly(250, 60)),
+                     peeks = null } = {}) {
   const c = await b.newContext({ viewport: { width: 400, height: 1100 } });
   const page = await c.newPage();
   page.on("pageerror", (e) => { console.log("  PAGEERROR " + e.message); fail++; });
@@ -113,6 +122,30 @@ const body = (page) => page.locator("body").innerText();
   const t = await body(page);
   ok("no reset time invented", !/Resets at /.test(t));
   ok("it says the allowance is whole", (t.match(/full allowance is available/g) || []).length === 2);
+  await c.close();
+}
+
+/* ── 6. the monthly line ─────────────────────────────────────────
+   A person the monthly cap is refusing would otherwise read "16 of 25
+   left this hour" and conclude the app was broken. The hourly number is
+   true and useless on its own. */
+{
+  console.log("\n6. The monthly allowance is shown too");
+  const { c, page } = await app();
+  const t = await body(page);
+  ok("searches show the month", /110 of 150 left this month/.test(t), t.match(/.{0,40}this month.{0,10}/)?.[0]);
+  ok("questions show the month", /190 of 250 left this month/.test(t), t.match(/.{0,40}250.{0,20}/)?.[0]);
+  ok("with a reset date", /Resets [A-Z][a-z]{2} \d+/.test(t), t.match(/Resets [A-Za-z]{3} \d+/)?.[0]);
+  await c.close();
+}
+{
+  /* A server that sends no monthly half must not produce a blank line or
+     an invented number — the row simply stops at the hourly figure. */
+  console.log("\n7. No monthly half, no monthly line");
+  const { c, page } = await app({ search: quota(25, 9), ask: quota(40, 12) });
+  const t = await body(page);
+  ok("still shows the hourly rows", /Product searches/.test(t));
+  ok("and invents no monthly line", !/this month/.test(t), t.match(/.{0,40}this month.{0,10}/)?.[0]);
   await c.close();
 }
 

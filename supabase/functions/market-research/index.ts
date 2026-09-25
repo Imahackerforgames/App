@@ -102,6 +102,7 @@ async function allow(bucket: string, max: number, windowSeconds: number): Promis
    an account could exhaust one and carry straight on spending through the
    other. One budget, one counter. */
 const SEARCH_MAX = 25, SEARCH_WINDOW = 60 * 60;
+const SEARCH_MONTH_MAX = 150, SEARCH_MONTH_WINDOW = 30 * 24 * 60 * 60;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -138,9 +139,20 @@ Deno.serve(async (req: Request) => {
     if (!(await callerIsPro(req))) {
       return json({ error: "Market research is a premium feature. Upgrade in Settings to use it.", upgrade: true }, 402);
     }
-    if (!(await allow(`search:${callerId(req)}`, SEARCH_MAX, SEARCH_WINDOW))) {
-      console.warn("market-research: rate limited.");
-      return json({ error: "You've used all your searches for this hour. They refresh shortly." }, 429);
+    /* Both windows, both shared with product-search. One Tavily budget,
+       one pair of counters. */
+    const who = callerId(req);
+    const [hourOk, monthOk] = await Promise.all([
+      allow(`search:${who}`, SEARCH_MAX, SEARCH_WINDOW),
+      allow(`search:month:${who}`, SEARCH_MONTH_MAX, SEARCH_MONTH_WINDOW),
+    ]);
+    if (!hourOk || !monthOk) {
+      console.warn(`market-research: rate limited (${!hourOk ? "hour" : "month"}).`);
+      return json({
+        error: hourOk
+          ? "You've used all your searches for this month. They refresh at the start of your next cycle."
+          : "You've used all your searches for this hour. They refresh shortly.",
+      }, 429);
     }
 
     const res = await fetch("https://api.tavily.com/search", {
