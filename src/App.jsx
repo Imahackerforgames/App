@@ -112,7 +112,16 @@ const stripPrices = (t) => (t || "").replace(/\$\s?[\d,]+(\.\d{1,2})?/g, "").rep
 
    This is a public URL by design. It is not a key and carries no secret;
    the secret key lives only in the Edge Function's environment. */
-const STRIPE_CHECKOUT_URL = "https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00";
+/* ⚠️ TEMPORARY — POINTED AT THE $0 TEST LINK ⚠️
+   Anyone who taps Upgrade right now gets premium for nothing. This is on
+   purpose, so the whole flow can be exercised through the real button
+   rather than a link pasted into a browser, and it must be put back the
+   moment that is done.
+
+   The real one, $25/month:
+     https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00                     */
+const STRIPE_CHECKOUT_URL = "https://buy.stripe.com/9B628ten6cEkgbEc4I7wA02";
+const STRIPE_LIVE_URL = "https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00";
 
 /* The signed-in account, kept here so openCheckout can read it without a
    round trip.
