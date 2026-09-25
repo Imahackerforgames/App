@@ -135,6 +135,7 @@ when the database is unreachable is worse than the spending it prevents.
 | Sign-in attempts | 10/hour | IP address |
 | Sign-in attempts | 6/hour | username |
 | Product searches | 25/hour | account |
+| Market research | shares the search bucket | account |
 | Assistant questions | 40/hour | account |
 
 Both search and assistant answer a `{ peek: true }` request with the
@@ -145,6 +146,25 @@ fans out to a search per marketplace plus a page extract, so a call costs
 five or six credits and an analysis costs around a dozen. Twenty-five an
 hour is about 150 credits an hour for one account. Raise it only after
 checking what the plan actually includes.
+
+## A free account spends nothing
+
+Every endpoint that costs money checks `callerIsPro` before spending
+anything: `ai-assistant` (Anthropic), `product-search` and
+`market-research` (Tavily). A free account gets a 402 and neither a token
+nor a credit is spent making it.
+
+That is load-bearing for the unit economics. Free users are meant to cost
+fractions of a cent, so the business scales on subscribers rather than on
+signups. Any new endpoint that calls a paid API must do the same check, in
+the same place: before the work, not after.
+
+`market-research` was the exception and did not, which is exactly why this
+section exists. It was deployed but never committed, so it was invisible
+to review — any signed-in free account could call it directly and spend
+Tavily credits with no limit at all. It now shares product-search's
+allowance, because both spend the same budget and two separate counters
+would let one account exhaust one and carry on through the other.
 
 ## There is no demo mode
 
