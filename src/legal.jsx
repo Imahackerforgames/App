@@ -19,17 +19,21 @@
    available on request. Cut that and the section becomes a silence, which
    is worse than the long version ever was.
 
-   One thing in here still needs a human decision and is marked NEEDS YOUR
-   ANSWER in the text: the support address. Governing law is settled — the
-   United States.
+   Nothing in here is waiting on a decision any more. The support address
+   is a real inbox and governing law is settled — the United States.
 
    A caveat worth leaving written down: US contract law is state law, not
    federal. Naming the country is enough to be going on with, but a lawyer
    would name a state. Changing it later is one line.
+
+   The date below is what the documents say they were last updated. Move it
+   whenever the wording changes in a way a reader would care about — a
+   policy claiming a date older than its own contents is a small lie that
+   costs nothing to avoid.
    ────────────────────────────────────────────────────────────── */
 
-export const LEGAL_UPDATED = "21 September 2026";
-export const SUPPORT_EMAIL = "support@reamp.store";
+export const LEGAL_UPDATED = "25 September 2026";
+export const SUPPORT_EMAIL = "reamp.store@gmail.com";
 
 /* Each document is a list of [heading, ...paragraphs]. Kept as data rather
    than markup so the same content can be rendered anywhere. */
@@ -64,7 +68,7 @@ export const PRIVACY = [
     `Reamp isn't for under-13s.`],
 
   ["Contact",
-    `NEEDS YOUR ANSWER — confirm this address works: ${SUPPORT_EMAIL}`],
+    `Questions about any of this: ${SUPPORT_EMAIL}. We read everything.`],
 ];
 
 export const TERMS = [
@@ -98,5 +102,5 @@ export const TERMS = [
     `Governed by the laws of the United States, where any dispute will be handled.`],
 
   ["Contact",
-    `NEEDS YOUR ANSWER — confirm this address works: ${SUPPORT_EMAIL}`],
+    `Questions about any of this: ${SUPPORT_EMAIL}. We read everything.`],
 ];

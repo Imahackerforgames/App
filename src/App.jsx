@@ -5907,8 +5907,11 @@ function LegalSheet({ which, onClose }) {
           )}
           {paras.map((t, j) => (
             <p key={j} style={{ fontSize: 13, lineHeight: 1.65, color: C.dim, margin: "0 0 8px" }}>
-              {/* The unanswered bits are flagged in the copy itself rather
-                  than hidden, so they cannot be published by accident. */}
+              {/* Anything still awaiting a decision is flagged in the copy
+                  itself rather than hidden, so it cannot be published by
+                  accident. Nothing is flagged today; the highlight stays
+                  because the next unanswered question should be as loud as
+                  the last one was. */}
               {t.startsWith("NEEDS YOUR ANSWER")
                 ? <span style={{ color: C.accentText, fontWeight: 600 }}>{t}</span>
                 : t}

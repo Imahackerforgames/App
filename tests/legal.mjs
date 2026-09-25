@@ -104,24 +104,22 @@ const settings = async (page) => {
   await page.getByRole("button", { name: /^Terms$/ }).click();
   await page.waitForTimeout(700);
   const t = await page.locator("body").innerText();
-  /* Governing law is answered now — the United States, which the owner
-     chose. It must no longer carry the flag, or the flag stops meaning
-     anything. */
-  /* Counting rather than matching proximity: the Contact section sits
-     directly under Governing law, so anything that looks nearby catches the
-     wrong flag. One flag left on the page, and it is the address one. */
+  /* Nothing is awaiting an answer any more. Governing law is the United
+     States and the support address is a real inbox. */
   const flags = t.match(/NEEDS YOUR ANSWER/gi) || [];
-  ok("governing law is answered, not flagged",
-     /governed by the laws of the United States/i.test(t) && flags.length === 1,
-     `${flags.length} flag(s): ${t.match(/governed by[\s\S]{0,60}/i)?.[0]}`);
+  ok("governing law is answered",
+     /governed by the laws of the United States/i.test(t),
+     t.match(/governed by[\s\S]{0,60}/i)?.[0]);
+  /* The flag was the mechanism that kept an unfinished document from being
+     published quietly. Nothing should carry it now, and if something ever
+     does again, this fails before a customer sees it. */
+  ok("nothing is left awaiting an answer", flags.length === 0,
+     `${flags.length}: ${t.match(/NEEDS YOUR ANSWER.{0,80}/)?.[0]}`);
 
-  /* The support address is the one thing still outstanding. This assertion
-     is what turns "I'll come back to it" into something that shouts if it
-     is forgotten — and it will start failing the moment it is answered,
-     which is the point. */
-  ok("the support address is still marked as needing an answer",
-     /NEEDS YOUR ANSWER[\s\S]{0,120}@/i.test(t),
-     t.match(/NEEDS YOUR ANSWER.{0,100}/)?.[0]);
+  /* And a real address is actually printed, rather than the section having
+     been quietly deleted along with its flag. */
+  ok("a real contact address is given",
+     /reamp\.store@gmail\.com/i.test(t), t.match(/.{0,40}@.{0,30}/)?.[0]);
   await ctx.close();
 }
 
@@ -193,7 +191,7 @@ const settings = async (page) => {
   const body = await page.locator("body").innerText();
   ok("privacy link", /Privacy Policy/i.test(body));
   ok("terms link", /Terms of Service/i.test(body));
-  ok("and a contact address", /support@reamp\.store/i.test(body));
+  ok("and a contact address", /reamp\.store@gmail\.com/i.test(body));
   await ctx.close();
 }
 
