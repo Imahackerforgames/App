@@ -12,8 +12,6 @@ import AIAssistant from "./components/AIAssistant.jsx";
 const ANTHROPIC_MODEL_DEFAULT = "claude-sonnet-4-6";
 const ANTHROPIC_MODEL_DEEP = "claude-sonnet-4-6"; // reserved seam for a stronger model later
 
-const DEMO = true;
-
 // Live Supabase project. The publishable key is safe in frontend code —
 // it only grants what RLS allows. The service role key is the one that
 // must never appear here.
@@ -62,12 +60,6 @@ function inSandboxFrame() {
 // Tavily runs inside the Edge Function, never here. Set false to force the
 // Claude web-search fallback.
 const USE_TAVILY = true;
-
-async function signIn(provider) {
-  if (DEMO) return { email: `you@${provider}.com`, provider };
-  // supabase.auth.signInWithOAuth({ provider, options:{ redirectTo:`${location.origin}/auth/callback` }})
-  throw new Error("Configure the provider before disabling DEMO.");
-}
 
 const MARKETS = {
  ebay: { label: "eBay", kind: "online", sold: true, hasApi: true,
@@ -285,8 +277,9 @@ const sessionFields = (d) => ({
    only the publishable key, which is not a user JWT at all under the new
    sb_publishable_* key format.
 
-   The fallback keeps demo mode working: with no session there is no token,
-   and the call goes out with the publishable key exactly as it used to. */
+   With no session there is no token, and the call goes out with the
+   publishable key alone — which the JWT-gated functions will refuse, which
+   is the correct answer for a signed-out caller. */
 async function fnHeaders() {
  const token = await sessionToken();
  return {
@@ -1686,8 +1679,9 @@ const Tag = ({ children }) => (
 
 // ═══════════ real Supabase auth, over the REST endpoints ═══════════
 // No SDK needed — these are the same endpoints @supabase/supabase-js calls.
-// If the sandbox blocks the request we fall back to demo mode rather than
-// leaving the user staring at a dead button.
+// A network failure is reported as one. There is deliberately no fallback
+// that hands back a session: a connection problem must never look like a
+// successful sign-in.
 
 /* GoTrue's error shape has changed across versions: older builds answer
    { error, error_description }, newer ones { code, error_code, msg }. Read
@@ -2160,13 +2154,19 @@ function AuthScreen({ onDone, theme, recovery = null }) {
         onDone({ email: addr, provider: "email", ...sessionFields(d), id: d.user?.id });
       }
     } catch (e) {
-      // Sandbox blocked the call, or the project isn't reachable from here.
+      /* A connection problem must not become a fake session.
+
+         Falling through to "demo mode" was a development convenience and
+         is a data-loss bug in front of a real customer: the session it
+         creates has no account id, so `scope` falls back to the email
+         address and everything they enter is stored under a key the real
+         account will never read. They add a week of inventory, sign in
+         properly later, and find it gone.
+
+         Refusing and saying why is the honest outcome. Nothing is lost,
+         because nothing was started. */
       if (/failed to fetch|networkerror|load failed/i.test(e.message)) {
-        setNote("Can't reach Supabase from this preview. Continuing in demo mode.");
-        // The login tab writes to loginId and the sign-up tab to email. Sending
-        // the wrong one here handed the app an identity with no address at all.
-        const who = mode === "login" ? loginId.trim() : email.trim();
-        setTimeout(() => onDone({ email: who, provider: "demo" }), 900);
+        setErr("Can't reach the server. Check your connection and try again.");
       } else setErr(e.message);
     } finally { setBusy(false); }
   };
@@ -2183,9 +2183,10 @@ function AuthScreen({ onDone, theme, recovery = null }) {
       if (!d.access_token) { setErr("That code didn't work. Check it and try again."); return; }
       onDone({ email, provider: "email", ...sessionFields(d), id: d.user?.id });
     } catch (e) {
+      /* Same reasoning as above: a dropped connection while confirming a
+         code must not hand back a session that is not really signed in. */
       if (/failed to fetch|networkerror|load failed/i.test(e.message)) {
-        setNote("Can't reach Supabase from this preview. Continuing in demo mode.");
-        setTimeout(() => onDone({ email, provider: "demo" }), 900);
+        setErr("Can't reach the server. Check your connection and try again.");
       } else setErr(/expired|invalid/i.test(e.message)
         ? "That code is wrong or has expired. Send a new one."
         : e.message);
@@ -2230,10 +2231,8 @@ function AuthScreen({ onDone, theme, recovery = null }) {
       await sendRecoveryEmail(cleanEmail(resetEmail));
       setResetSent(true);
     } catch (e) {
-      // Unlike sign-in there is no demo path here: the email has to be sent
-      // by a server that actually exists.
       setErr(/failed to fetch|networkerror|load failed/i.test(e.message)
-        ? "Can't reach Supabase from this preview. Password reset only works on the live site."
+        ? "Can't reach the server. Check your connection and try again."
         : e.message);
     } finally { setBusy(false); }
   };
@@ -2956,9 +2955,10 @@ function PickUsername({ email, userId, onDone }) {
     if (!valid || busy) return;
     setBusy(true); setErr(null);
 
-    /* A demo session has no account behind it, so there is nothing to
-       write. Let it through rather than blocking on a database that was
-       never going to answer. */
+    /* No account id means no row to write against. It should not be
+       reachable now that sign-in always produces a real session, but
+       blocking here would trap somebody on this screen with no way past,
+       so it lets them through with the name held locally. */
     if (!userId) { onDone(want); return; }
 
     try {
@@ -5669,8 +5669,8 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  return (
  <div style={{ paddingTop: 4 }}>
  <Group title="Account">
- <Row l="Signed in" r={user.email || user.username || "Demo mode"} />
- <Row l="Method" r={user.provider === "email" ? "Email + password" : user.provider === "demo" ? "Demo mode" : user.provider || "—"} />
+ <Row l="Signed in" r={user.email || user.username || "—"} />
+ <Row l="Method" r={user.provider === "email" ? "Email + password" : user.provider || "—"} />
  <Field label="Display name" value={db.profile.name} onChange={(v) => put("profile", { ...db.profile, name: v })} placeholder="Alex" />
  <button onClick={signOut} className="fx fx-chip"
  style={{ ...pillBtn(false), width: "100%", padding: "13px", marginTop: 6, fontWeight: 700 }}>
@@ -5727,18 +5727,6 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  <p style={{ fontSize: 11.5, color: C.dead, marginTop: 10, lineHeight: 1.6 }}>
  When on, the assistant reads your inventory, sales and location to answer specifically.
  When off, it still helps — just without your numbers.
- </p>
- </Group>
-
- <Group title="Backend">
- <Row l="Database" r={<Tag>profiles + watchlist, RLS on</Tag>} />
- <Row l="Product search" r={<Tag>{USE_TAVILY ? "Tavily edge fn" : "fallback"}</Tag>} />
- <Row l="Market research" r={<Tag>{USE_TAVILY ? "Tavily edge fn" : "fallback"}</Tag>} />
- <Row l="Login" r={<Tag>{DEMO ? "demo mode" : "live"}</Tag>} />
- <p style={{ fontSize: 11.5, color: C.dead, marginTop: 10, lineHeight: 1.6 }}>
- The database and both Tavily functions are live on Supabase. The edge functions
- require a signed-in user, so until real login is wired up, search falls back to
- web search directly. Every result is tagged with which path produced it.
  </p>
  </Group>
 
