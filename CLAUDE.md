@@ -134,12 +134,26 @@ when the database is unreachable is worse than the spending it prevents.
 |---|---|---|
 | Sign-in attempts | 10/hour | IP address |
 | Sign-in attempts | 6/hour | username |
-| Product searches | 25/hour | account |
-| Market research | shares the search bucket | account |
-| Assistant questions | 40/hour | account |
+| Product searches | 25/hour **and 150/month** | account |
+| Market research | shares the search buckets | account |
+| Assistant questions | 40/hour **and 250/month** | account |
 
 Both search and assistant answer a `{ peek: true }` request with the
 balance without spending any of it. Settings reads them that way.
+
+Two windows, because one cannot do the other's job. The hourly limit
+stops a burst; it says nothing about sustained use. Forty questions an
+hour, every hour, is legal under an hourly cap and comes to 28,000
+questions a month from one account paying $25 — and even a human asking
+hourly through a working day costs more than they pay. The monthly cap is
+what makes a single account unable to cost more than it brings in.
+
+Both are deliberately far above normal use. They are not there to shape
+behaviour, only to bound the worst case.
+
+Set them from measured cost per question, not from intuition. The numbers
+here were chosen before that measurement existed and should be revisited
+once one real month of usage has been billed.
 
 The search number is low because one call is not one Tavily credit. It
 fans out to a search per marketplace plus a page extract, so a call costs

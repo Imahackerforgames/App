@@ -5773,6 +5773,18 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  {q.resetsAt
    ? ` Resets at ${new Date(q.resetsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`
    : " The full allowance is available."}
+ {/* The monthly line matters most when it is the one refusing. Showing
+     only the hourly balance would read as "25 left" to somebody the
+     monthly cap is turning away, which is worse than no number at all. */}
+ {q.month && (
+ <>
+ <br />
+ {`${q.month.remaining} of ${q.month.limit} left this month.`}
+ {q.month.resetsAt
+   ? ` Resets ${new Date(q.month.resetsAt).toLocaleDateString([], { month: "short", day: "numeric" })}.`
+   : ""}
+ </>
+ )}
  </p>
  </div>
  ))}

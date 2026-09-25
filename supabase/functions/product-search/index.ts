@@ -100,6 +100,22 @@ const SOLD_PAGE: Record<string, (q: string) => string> = {
    and an in-process counter is bypassed by landing on a different one. */
 const SEARCH_MAX = 25, SEARCH_WINDOW = 60 * 60;
 
+/* And how many in a month.
+
+   The hourly limit stops a burst. It does nothing about sustained use:
+   twenty-five an hour, every hour, is perfectly legal under it and comes
+   to eighteen thousand searches a month from one account paying $25.
+
+   So there is a second limit the first cannot substitute for. A hundred
+   and fifty a month is five a day — far more than a real subscriber uses,
+   which is the point. It is not there to shape normal behaviour, it is
+   there so that one account cannot cost more than it pays.
+
+   The window is rolling rather than calendar: it starts on the first
+   request and resets thirty days after that, which is what the counter
+   already does and is fairer than everyone resetting on the 1st. */
+const SEARCH_MONTH_MAX = 150, SEARCH_MONTH_WINDOW = 30 * 24 * 60 * 60;
+
 /* What is left, without spending any of it.
 
    A limit nobody can see is indistinguishable from the app being broken:
@@ -140,6 +156,17 @@ async function quotaFor(bucket: string, max: number, windowSeconds: number): Pro
     console.error("product-search: quota read failed:", String(e));
     return null;
   }
+}
+
+/* Hourly and monthly together, so a caller can see which one is limiting
+   them. Reporting only the hourly balance would read as "25 left" to
+   somebody the monthly cap is refusing, which is worse than no number. */
+async function bothQuotas(caller: string) {
+  const [hour, month] = await Promise.all([
+    quotaFor(`search:${caller}`, SEARCH_MAX, SEARCH_WINDOW),
+    quotaFor(`search:month:${caller}`, SEARCH_MONTH_MAX, SEARCH_MONTH_WINDOW),
+  ]);
+  return hour ? { ...hour, month } : null;
 }
 
 /* Fails open. A limiter that stops everyone working when the database is
@@ -307,7 +334,7 @@ Deno.serve(async (req: Request) => {
       if (!(await callerIsPro(req))) {
         return json({ error: "Product Search is a premium feature. Upgrade in Settings to use it.", upgrade: true }, 402);
       }
-      return json({ quota: await quotaFor(`search:${callerId(req)}`, SEARCH_MAX, SEARCH_WINDOW) });
+      return json({ quota: await bothQuotas(callerId(req)) });
     }
 
     if (!query || typeof query !== "string" || !query.trim()) {
@@ -323,11 +350,21 @@ Deno.serve(async (req: Request) => {
 
     /* Checked after the request is understood but before a single Tavily
        credit is spent. */
-    if (!(await allow(`search:${callerId(req)}`, SEARCH_MAX, SEARCH_WINDOW))) {
-      console.warn("product-search: rate limited.");
+    /* Both consumed together rather than in sequence: two awaits in a row
+       would let a request slip between them under load, and the pair is
+       what bounds the spend. Refused if either says no. */
+    const who = callerId(req);
+    const [hourOk, monthOk] = await Promise.all([
+      allow(`search:${who}`, SEARCH_MAX, SEARCH_WINDOW),
+      allow(`search:month:${who}`, SEARCH_MONTH_MAX, SEARCH_MONTH_WINDOW),
+    ]);
+    if (!hourOk || !monthOk) {
+      console.warn(`product-search: rate limited (${!hourOk ? "hour" : "month"}).`);
       return json({
-        error: "You've used all your searches for this hour. They refresh shortly.",
-        quota: await quotaFor(`search:${callerId(req)}`, SEARCH_MAX, SEARCH_WINDOW),
+        error: hourOk
+          ? "You've used all your searches for this month. They refresh at the start of your next cycle."
+          : "You've used all your searches for this hour. They refresh shortly.",
+        quota: await bothQuotas(who),
       }, 429);
     }
 
@@ -679,7 +716,7 @@ Deno.serve(async (req: Request) => {
       sold,
       /* Sent back on every search so the counter moves as it is spent,
          rather than only when Settings is opened. */
-      quota: await quotaFor(`search:${callerId(req)}`, SEARCH_MAX, SEARCH_WINDOW),
+      quota: await bothQuotas(callerId(req)),
       searchedDomains: domains,
       markets,
       marketCounts,

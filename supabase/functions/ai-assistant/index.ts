@@ -228,6 +228,32 @@ function callerUserId(req: Request): string | null {
    case per account per hour becomes a number you can actually budget for. */
 const ASK_MAX = 40, ASK_WINDOW = 60 * 60;
 
+/* And how many in a month.
+
+   The hourly limit stops a burst. It does nothing about sustained use:
+   forty an hour, every hour, is legal under it and comes to twenty-eight
+   thousand questions a month from one account paying $25. Even a human
+   asking hourly through a working day costs more than they pay.
+
+   Two hundred and fifty a month is about eight a day — well above what a
+   real subscriber uses, which is the point. It is not there to shape
+   normal behaviour, it is there so one account cannot cost more than it
+   pays.
+
+   Rolling rather than calendar: the window starts on the first question
+   and resets thirty days later, which is what the counter already does. */
+const ASK_MONTH_MAX = 250, ASK_MONTH_WINDOW = 30 * 24 * 60 * 60;
+
+/* Hourly and monthly together. Reporting only the hourly balance would
+   read as "40 left" to somebody the monthly cap is refusing. */
+async function bothQuotas(asker: string) {
+  const [hour, month] = await Promise.all([
+    quotaFor(`ask:${asker}`, ASK_MAX, ASK_WINDOW),
+    quotaFor(`ask:month:${asker}`, ASK_MONTH_MAX, ASK_MONTH_WINDOW),
+  ]);
+  return hour ? { ...hour, month } : null;
+}
+
 /* What is left, without spending any of it.
 
    A cap nobody can see is indistinguishable from the app being broken: you
@@ -354,17 +380,27 @@ Deno.serve(async (req: Request) => {
      none and would otherwise be rejected as an empty conversation. */
   const peeking = await req.clone().json().then((b) => b?.peek === true).catch(() => false);
   if (peeking) {
-    return json({ quota: await quotaFor(`ask:${asker ?? "unknown"}`, ASK_MAX, ASK_WINDOW) });
+    return json({ quota: await bothQuotas(asker ?? "unknown") });
   }
 
   /* After the premium check, so a free account hammering the endpoint cannot
      burn through somebody else's allowance, and before the model is called,
      so a refusal costs nothing. */
-  if (!(await allow(`ask:${asker ?? "unknown"}`, ASK_MAX, ASK_WINDOW))) {
-    console.warn("ai-assistant: rate limited.");
+  /* Both consumed together rather than in sequence: two awaits in a row
+     would let a request slip between them under load, and the pair is what
+     bounds the spend. Refused if either says no. */
+  const id = asker ?? "unknown";
+  const [hourOk, monthOk] = await Promise.all([
+    allow(`ask:${id}`, ASK_MAX, ASK_WINDOW),
+    allow(`ask:month:${id}`, ASK_MONTH_MAX, ASK_MONTH_WINDOW),
+  ]);
+  if (!hourOk || !monthOk) {
+    console.warn(`ai-assistant: rate limited (${!hourOk ? "hour" : "month"}).`);
     return json({
-      error: "You've asked all your questions for this hour. They refresh shortly.",
-      quota: await quotaFor(`ask:${asker ?? "unknown"}`, ASK_MAX, ASK_WINDOW),
+      error: hourOk
+        ? "You've asked all your questions for this month. They refresh at the start of your next cycle."
+        : "You've asked all your questions for this hour. They refresh shortly.",
+      quota: await bothQuotas(id),
     }, 429);
   }
 
@@ -424,7 +460,7 @@ Deno.serve(async (req: Request) => {
       sources,
       /* Sent back on every answer so a caller can track the balance as it is
          spent, rather than only when Settings is opened. */
-      quota: await quotaFor(`ask:${asker ?? "unknown"}`, ASK_MAX, ASK_WINDOW),
+      quota: await bothQuotas(asker ?? "unknown"),
       meta: {
         model: response.model ?? MODEL,
         stopReason: response.stop_reason,
