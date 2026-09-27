@@ -121,6 +121,22 @@ cancellations carry a Stripe customer and nothing else, which is why
 
 Secrets, both server-side only: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
 
+Only `STRIPE_WEBHOOK_SECRET` is required. Signature verification runs on
+WebCrypto and never touches the API key, so the endpoint works without one.
+`STRIPE_SECRET_KEY` buys one thing: the exact `current_period_end` for a new
+subscription, which the `checkout.session.completed` payload does not carry.
+When that lookup fails the function grants `pro` anyway with a 32-day
+estimate, and the next `customer.subscription.updated` — which *does* carry
+the real date in its payload — corrects it.
+
+That is not defensive decoration. The secret held an API key's *id* rather
+than the key (`mk_...`, which the dashboard shows next to the key itself),
+`subscriptions.retrieve` threw, the handler returned 500, and a completed
+checkout granted nothing for a day. The payment was never in doubt — only
+the expiry lookup was — so nothing about that failure should have reached
+the customer. A wrong key now logs its own diagnosis at boot instead of
+surfacing as a generic 500 hours later.
+
 `docs/granting-premium.md` covers granting by hand, which is still how
 comped accounts work.
 
