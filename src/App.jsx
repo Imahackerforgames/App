@@ -3906,7 +3906,7 @@ function PremiumModal({ feature, onClose }) {
         </button>
 
         <p style={{ fontSize: 11, color: C.dead, margin: "10px 0 0", lineHeight: 1.55 }}>
-          Already paid? Open Settings and press “I've paid — check again”.
+          Already paid? Premium appears on its own once Stripe confirms it.
         </p>
       </div>
     </div>
@@ -3929,7 +3929,7 @@ function PremiumGate({ title, blurb, onUpgrade }) {
         Upgrade to premium
       </button>
       <p style={{ fontSize: 11, color: C.dead, margin: "14px 0 0", lineHeight: 1.55 }}>
-        Already paid? Open Settings and press “I've paid — check again”.
+        Already paid? Premium appears on its own once Stripe confirms it.
       </p>
     </div>
   );
@@ -5970,25 +5970,51 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  <p style={{ fontSize: 11.5, color: C.dead, marginTop: 10, lineHeight: 1.6 }}>
  Premium unlocks the AI assistant, AI Discover and Product Search. Payment
  is handled by Stripe — this app never sees your card. Your account is
- upgraded as soon as the payment goes through; if it hasn't appeared after
- a minute, press the button below.
+ upgraded as soon as the payment goes through, with nothing to press.
  </p>
  </>
  )}
 
- {/* Manual activation means someone can be paid-up before the app knows it.
-     This is how they check without having to guess when to reload. */}
- <button onClick={refreshEntitlement} disabled={entLoading} className="fx fx-chip"
- style={{ ...pillBtn(false), width: "100%", padding: "12px", marginTop: 10, fontWeight: 700,
-   cursor: entLoading ? "wait" : "pointer" }}>
- {entLoading ? "Checking…" : isPro ? "Re-check my plan" : "I've paid — check again"}
- </button>
+ {/* A fallback, deliberately quiet.
 
- {/* What the check found. A button that can only ever leave the screen
-     unchanged is indistinguishable from a broken one. */}
+     Stripe's webhook grants premium by itself, and the app re-reads the
+     plan whenever you come back to this tab, so nobody should ever need
+     this. It exists because a webhook can fail — ours did, for a day,
+     over a mistyped key — and somebody who has paid and sees Free needs
+     something to do other than write an email.
+
+     But a full-width button reading "I've paid — check again" is the
+     product saying it does not trust its own payments, on the screen
+     where somebody is deciding whether to hand over a card. So: a small
+     link, under the upgrade button, for the person who needs it and
+     nobody else.
+
+     Not shown to premium accounts at all. It read "Re-check my plan"
+     there and did nothing anyone wanted. */}
+ {!isPro && (
+ <button onClick={refreshEntitlement} disabled={entLoading} className="fx"
+ style={{ display: "block", margin: "12px auto 0", background: "none", border: "none",
+   padding: "6px 4px", fontFamily: SANS, fontSize: 12, fontWeight: 600,
+   color: C.dim, textDecoration: "underline", textUnderlineOffset: 3,
+   cursor: entLoading ? "wait" : "pointer" }}>
+ {entLoading ? "Checking…" : "Already paid? Check again"}
+ </button>
+ )}
+
+ {/* What the check found.
+
+     Outside the !isPro gate above, and that is the whole point. A check
+     that succeeds flips the account to premium — which would unmount the
+     very sentence confirming it, so the one person who most needs an
+     answer would watch the link and its reply disappear together and be
+     told nothing. The link goes, because they no longer need it. The
+     answer stays.
+
+     A check that can only ever leave the screen unchanged is
+     indistinguishable from a broken one. */}
  {entNote && (
- <p role="status" style={{ fontSize: 12, marginTop: 10, lineHeight: 1.6,
-   color: isPro ? C.dim : C.accent }}>
+ <p role="status" style={{ fontSize: 12.5, marginTop: 10, lineHeight: 1.6,
+   color: C.accent, fontWeight: 600 }}>
  {entNote}
  </p>
  )}

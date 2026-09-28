@@ -11,7 +11,7 @@ Playwright, run against a production build with Supabase mocked. Three files:
 | `zoomcheck.mjs` | That no field is small enough to make iOS zoom on tap, that no page scrolls sideways at 320px or 390px, and that desktop sizing is untouched. |
 | `zoomaudit.mjs` | Prints every form control and its size on a phone viewport — the diagnostic behind zoomcheck, for when a new one is added. |
 | `fnsearch.mjs` | The product-search Edge Function itself, run in Node with Tavily stubbed: one search per marketplace, results dealt out evenly, filters still narrowing, one board failing not sinking the rest. |
-| `entcheck.mjs` | What "I've paid — check again" reports back: premium found, genuinely free, expired session, blocked table, lapsed premium, no network. |
+| `entcheck.mjs` | The "Already paid? Check again" fallback: what it reports back (premium found, genuinely free, expired session, blocked table, lapsed premium, no network), that it stays a quiet link rather than a full-width button next to Upgrade, and that premium accounts are not shown it at all. |
 | `signinout.mjs` | Signing in with the address typed in any case, the password being left untouched, a wrong password still failing, and signing out revoking the session server-side before signing straight back in. |
 | `soldcard.mjs` | Recent sold activity for a live-searched product: counted totals, the per-marketplace breakdown, the cap marked as a floor, no time claim, and an honest empty state when nothing was found. |
 | `themes.mjs` | Each of the four palettes applying its variables, all four being offered in Settings, and none of the old theme names surviving anywhere. |
