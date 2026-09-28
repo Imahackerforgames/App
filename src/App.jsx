@@ -113,16 +113,43 @@ const stripPrices = (t) => (t || "").replace(/\$\s?[\d,]+(\.\d{1,2})?/g, "").rep
 
    This is a public URL by design. It is not a key and carries no secret;
    the secret key lives only in the Edge Function's environment. */
-/* ⚠️ TEMPORARY — POINTED AT THE $0 TEST LINK ⚠️
-   Anyone who taps Upgrade right now gets premium for nothing. This is on
-   purpose, so the whole flow can be exercised through the real button
-   rather than a link pasted into a browser, and it must be put back the
-   moment that is done.
+/* ⚠️ TEMPORARY — POINTED AT THE $1 SPLIT TEST LINK ⚠️
+   Upgrade currently charges $1/month, not $25. On purpose, and it must be
+   put back the moment the test is read.
 
-   The real one, $25/month:
-     https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00                     */
-const STRIPE_CHECKOUT_URL = "https://buy.stripe.com/9B628ten6cEkgbEc4I7wA02";
-const STRIPE_LIVE_URL = "https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00";
+   Why a dollar rather than nothing. The $0 link proved the plumbing —
+   client_reference_id reaches the webhook, premium switches on — but $0
+   moves no money, so it could not prove the revenue split. A dollar is the
+   smallest amount that produces a real fee, a real application fee and a
+   real transfer, which are the three records that show where the money
+   actually went.
+
+   Why it goes through the button rather than the raw link. Opening a
+   payment link directly leaves out client_reference_id, so the payment
+   arrives attached to nobody and premium never activates. Only the button
+   exercises the whole path at once: account id -> checkout -> webhook ->
+   premium, and the split alongside it.
+
+   Expect the $1 split to look lopsided: Noah $0.48, us $0.19. Stripe's
+   flat 30c is 30% of a dollar and 1% of $25, and it comes off our side.
+   The same 52.05% that looks unfair here lands dead even at $25. If this
+   test showed 50/50 at $1, the live link would be the one that is wrong.
+
+   The four links this account has:
+     $25, split 50/50 with the partner   <- the real one, see STRIPE_LIVE_URL
+       https://buy.stripe.com/6oU14p1AkbAgaRkc4I7wA03
+     $25, all to us (pre-partner)
+       https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00
+     $1, split 50/50   <- live right now
+       https://buy.stripe.com/7sY4gBceY0VC4sWb0E7wA04
+     $0, no split
+       https://buy.stripe.com/9B628ten6cEkgbEc4I7wA02                   */
+const STRIPE_CHECKOUT_URL = "https://buy.stripe.com/7sY4gBceY0VC4sWb0E7wA04";
+
+/* Where this goes back to once the split is verified: $25/month, with
+   52.05% kept here and the rest transferred to the partner automatically
+   on every payment and every renewal. */
+const STRIPE_LIVE_URL = "https://buy.stripe.com/6oU14p1AkbAgaRkc4I7wA03";
 
 /* The signed-in account, kept here so openCheckout can read it without a
    round trip.
