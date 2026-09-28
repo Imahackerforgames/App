@@ -12,9 +12,12 @@
 //
 // Deploy:  supabase functions deploy stripe-webhook --no-verify-jwt
 //
-// Secrets it needs (set them in the Supabase dashboard, never in code):
-//   STRIPE_SECRET_KEY       sk_live_... or sk_test_...
-//   STRIPE_WEBHOOK_SECRET   whsec_...   from the endpoint you create in Stripe
+// Secrets (set them in the Supabase dashboard, never in code):
+//   STRIPE_WEBHOOK_SECRET   whsec_...  REQUIRED. Signature verification.
+//   STRIPE_SECRET_KEY       sk_live_/rk_live_...  OPTIONAL, and deliberately
+//                           so: it only sharpens the expiry date. A missing
+//                           or wrong key must never cost somebody a
+//                           purchase they paid for. See the retrieve below.
 // ═══════════════════════════════════════════════════════════════
 
 import Stripe from "npm:stripe@^17.0.0";
@@ -31,6 +34,20 @@ const stripe = new Stripe(STRIPE_KEY, {
   httpClient: Stripe.createFetchHttpClient(),
 });
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
+
+/* A wrong-shaped key cost a real test payment its upgrade and took a log
+   dig to find, because the failure surfaced as a generic 500 four hours
+   later. The Stripe dashboard shows a key's *id* next to the key itself and
+   they are easy to confuse; an id is not usable as a credential. Say so at
+   boot, by name, so the next person reads one line instead of a stack. */
+if (STRIPE_KEY && !/^(sk|rk)_/.test(STRIPE_KEY)) {
+  console.error(
+    "stripe-webhook: STRIPE_SECRET_KEY does not look like a secret key " +
+    `(starts with "${STRIPE_KEY.slice(0, 3)}", expected "sk_" or "rk_"). ` +
+    "It is probably the key's ID copied from the dashboard list rather than " +
+    "the key. Upgrades still work; expiry dates fall back to an estimate.",
+  );
+}
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -63,14 +80,21 @@ async function upsertEntitlement(row: Record<string, unknown>) {
    Renewals and cancellations carry no user id — only the customer. This is
    the lookup that makes the mapping recorded at checkout time useful, and
    it is why the two stripe_* columns exist. */
-async function userIdForCustomer(customerId: string): Promise<string | null> {
+async function accountForCustomer(
+  customerId: string,
+): Promise<{ userId: string; subId: string | null } | null> {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/entitlements?select=user_id&stripe_customer_id=eq.${encodeURIComponent(customerId)}&limit=1`,
+    `${SUPABASE_URL}/rest/v1/entitlements?select=user_id,stripe_subscription_id&stripe_customer_id=eq.${encodeURIComponent(customerId)}&limit=1`,
     { headers: admin() },
   );
   if (!res.ok) return null;
   const rows = await res.json();
-  return Array.isArray(rows) && rows[0]?.user_id ? String(rows[0].user_id) : null;
+  const row = Array.isArray(rows) ? rows[0] : null;
+  if (!row?.user_id) return null;
+  return {
+    userId: String(row.user_id),
+    subId: row.stripe_subscription_id ? String(row.stripe_subscription_id) : null,
+  };
 }
 
 /* Premium runs until the end of the period that was paid for, plus a day.
@@ -82,6 +106,12 @@ async function userIdForCustomer(customerId: string): Promise<string | null> {
    access. It is also a backstop: if a cancellation webhook never arrives at
    all, premium still lapses on its own rather than lasting forever. */
 const GRACE_MS = 24 * 60 * 60 * 1000;
+
+/* Only used when Stripe's real period end could not be read. Every plan
+   this app sells is monthly, so a month plus slack is the safe guess: too
+   short would drop a paying customer to Free, too long gives away days.
+   If an annual plan is ever added this needs to stop being a constant. */
+const ESTIMATED_PERIOD_MS = 32 * 24 * 60 * 60 * 1000;
 const periodEnd = (sub: any): string | null => {
   const secs = sub?.current_period_end ?? sub?.items?.data?.[0]?.current_period_end;
   return secs ? new Date(secs * 1000 + GRACE_MS).toISOString() : null;
@@ -98,8 +128,11 @@ const ACTIVE = new Set(["active", "trialing", "past_due"]);
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
 
-  if (!STRIPE_KEY || !WEBHOOK_SECRET) {
-    console.error("stripe-webhook: STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET is not set.");
+  /* Only the signing secret is load-bearing. Signature verification runs on
+     WebCrypto, not on the API key, so refusing every event for want of a
+     key would reject payments this endpoint can in fact handle. */
+  if (!WEBHOOK_SECRET) {
+    console.error("stripe-webhook: STRIPE_WEBHOOK_SECRET is not set.");
     return json({ error: "Stripe is not configured." }, 500);
   }
 
@@ -142,10 +175,28 @@ Deno.serve(async (req: Request) => {
         const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
         const subId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
 
+        /* The event payload names the subscription but not when it ends, so
+           the exact date needs an API call. That call is the one part of
+           this path that can fail for reasons having nothing to do with the
+           payment — a rotated, revoked or mistyped key — and it must not be
+           able to take the upgrade down with it. A real payment arrived; the
+           only acceptable outcome is `pro`.
+
+           So: try for the real date, fall back to an estimate, never throw.
+           The estimate is self-correcting — customer.subscription.updated
+           carries current_period_end in its own payload and overwrites this
+           with the true date at the first renewal. */
         let expiresAt: string | null = null;
         if (subId) {
-          const sub = await stripe.subscriptions.retrieve(subId);
-          expiresAt = periodEnd(sub);
+          try {
+            expiresAt = periodEnd(await stripe.subscriptions.retrieve(subId));
+          } catch (e) {
+            expiresAt = new Date(Date.now() + ESTIMATED_PERIOD_MS + GRACE_MS).toISOString();
+            console.error(
+              `stripe-webhook: could not read ${subId} (${String(e).slice(0, 160)}). ` +
+              `Granting pro until ${expiresAt} on estimate; a renewal event will correct it.`,
+            );
+          }
         }
 
         await upsertEntitlement({
@@ -170,12 +221,36 @@ Deno.serve(async (req: Request) => {
         const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
         if (!customerId) break;
 
-        const userId = await userIdForCustomer(customerId);
-        if (!userId) {
+        const account = await accountForCustomer(customerId);
+        if (!account) {
           /* Can happen legitimately if events arrive out of order and the
              checkout event has not landed yet. That one sets the correct
              state when it does, so this is a warning rather than a retry. */
           console.warn(`stripe-webhook: no account for customer ${customerId}; ignoring ${event.type}.`);
+          break;
+        }
+        const { userId, subId: onRecord } = account;
+
+        /* Is this event even about the subscription this account is on?
+
+           The customer is the only handle these events carry, so the
+           account is found by customer. That is fine while a customer has
+           one subscription and wrong the moment they have two: cancelling
+           either one looks identical from here, and the account would be
+           switched off while the other subscription carries on charging
+           them. Somebody paying, locked out of what they are paying for —
+           a refund and probably a chargeback, and the customer is right.
+
+           `stripe_subscription_id` records which subscription the account
+           is actually on, written by the checkout event. An event about
+           any other subscription is not about this account's access, so it
+           does not touch it. The recorded one stays authoritative until a
+           checkout event replaces it. */
+        if (onRecord && sub.id !== onRecord) {
+          console.warn(
+            `stripe-webhook: ${event.type} for ${sub.id}, but ${userId} is on ${onRecord}. ` +
+            `Leaving their plan alone — a second subscription ending is not this one ending.`,
+          );
           break;
         }
 

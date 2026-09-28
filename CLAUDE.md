@@ -121,8 +121,73 @@ cancellations carry a Stripe customer and nothing else, which is why
 
 Secrets, both server-side only: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
 
-`docs/granting-premium.md` covers granting by hand, which is still how
-comped accounts work.
+Only `STRIPE_WEBHOOK_SECRET` is required. Signature verification runs on
+WebCrypto and never touches the API key, so the endpoint works without one.
+`STRIPE_SECRET_KEY` buys one thing: the exact `current_period_end` for a new
+subscription, which the `checkout.session.completed` payload does not carry.
+When that lookup fails the function grants `pro` anyway with a 32-day
+estimate, and the next `customer.subscription.updated` — which *does* carry
+the real date in its payload — corrects it.
+
+That is not defensive decoration. The secret held an API key's *id* rather
+than the key (`mk_...`, which the dashboard shows next to the key itself),
+`subscriptions.retrieve` threw, the handler returned 500, and a completed
+checkout granted nothing for a day. The payment was never in doubt — only
+the expiry lookup was — so nothing about that failure should have reached
+the customer. A wrong key now logs its own diagnosis at boot instead of
+surfacing as a generic 500 hours later.
+
+`docs/granting-premium.md` covers granting and removing by hand, which is
+still how comped accounts and support fixes work. Two helpers installed by
+`supabase/migrations/002_premium_helpers.sql` make it one call:
+
+```sql
+select grant_premium('them@example.com', 30);
+select revoke_premium('them@example.com');
+```
+
+Both are SECURITY DEFINER and both have `EXECUTE` revoked from `PUBLIC`.
+That revoke is the entire access control, not tidying: Postgres grants
+`EXECUTE` to `PUBLIC` by default, `PUBLIC` includes `anon` and
+`authenticated`, and a SECURITY DEFINER function runs with its owner's
+rights — so without it any signed-in visitor could promote themselves.
+Revoking from `anon` and `authenticated` by name would not help; the grant
+lives on `PUBLIC` and they inherit it. `tests/premiumfns.mjs` fails if
+either line is removed.
+
+Nobody can buy it twice. Every upgrade button is hidden from a premium
+account, and `openCheckout` refuses outright when `checkoutIsPro` — hiding
+a control is a drawing decision, and this is the one that spends money.
+Two subscriptions on one account is one person charged twice for one
+thing: a refund, an apology and quite possibly a chargeback.
+
+Subscription events carry only the customer, so the account is found by
+customer — fine with one subscription, wrong with two, because cancelling
+either looks identical and would switch the account off while the other
+kept charging. `stripe_subscription_id` records which subscription the
+account is actually on, and an event about any other one is left alone.
+
+Leaving is as easy as arriving. Settings -> Billing offers a premium
+member **Manage subscription**, which calls `billing-portal` for a
+short-lived link into Stripe's own portal: cancel, change card, read
+invoices. Stripe's page rather than a cancel button of ours, because a
+homegrown one is a deploy away from disagreeing with Stripe about whether
+somebody still pays us — and because a subscription that feels like a trap
+gets charged back rather than cancelled.
+
+`billing-portal` needs a real `STRIPE_SECRET_KEY`; there is no offline way
+to mint a portal link, so unlike the webhook it cannot degrade. It reads
+the Stripe customer from `entitlements` against the id in a verified token
+and never from the request — a caller-supplied customer id would open
+somebody else's billing. An account with no `stripe_customer_id` (comped,
+or granted by hand) gets a 404 `no_subscription`, which the app renders as
+an explanation rather than an error. Stripe's portal must also be switched
+on once in the dashboard.
+
+Removing premium from somebody who pays means cancelling in Stripe, not
+clearing the row. A live subscription re-grants `pro` at the next renewal
+event and the revoke silently undoes itself, so `revoke_premium` returns a
+warning naming the subscription when one is recorded.
 
 ## Limits
 

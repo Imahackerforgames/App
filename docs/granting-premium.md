@@ -1,12 +1,43 @@
-# Granting premium by hand
+# Granting and removing premium by hand
 
-Until a payment processor is wired up, `entitlements` is written by hand.
-This is the whole of it — there is no admin screen, and deliberately so: the
-only thing that can make an account premium is a row in this table, and the
-only thing that can write that row is the service role. Nothing a browser
-does can promote an account.
+There is no admin screen, deliberately: the only thing that can make an
+account premium is a row in `entitlements`, and the only thing that can write
+that row is the service role. Nothing a browser does can promote an account.
 
-Run these in the Supabase **SQL Editor**.
+Run everything here in the Supabase **SQL Editor**.
+
+## The short way
+
+Two functions, installed by `supabase/migrations/002_premium_helpers.sql`:
+
+```sql
+select grant_premium('them@example.com');        -- one year
+select grant_premium('them@example.com', 30);    -- thirty days
+select grant_premium('them@example.com', null);  -- no expiry
+select revoke_premium('them@example.com');
+```
+
+Each returns one sentence saying what happened, and **the sentence names the
+account as stored, not what you typed**. That is the point of them. The raw
+statements further down fail silently on a typo — they match nobody, change
+nothing, and print success, which is exactly the mistake people make when
+fixing an account in a hurry. These say `No account with the address …`
+instead. The address is matched ignoring case and surrounding spaces.
+
+`revoke_premium` also warns you when the person still has a live Stripe
+subscription recorded, because clearing the row does not stop Stripe. See
+**Removing premium** below — that ordering matters more than anything else
+on this page.
+
+Only `service_role` and the SQL Editor may call these. Postgres grants
+`EXECUTE` to `PUBLIC` by default, and `PUBLIC` includes the roles a browser
+holds, so the migration revokes it — without that, any signed-in visitor
+could promote themselves. Revoking from `anon` and `authenticated` alone
+would not have been enough; the grant lives on `PUBLIC` and they inherit it.
+
+## The long way
+
+Useful when you want to see or change exactly what is written.
 
 ## Grant
 
@@ -39,7 +70,29 @@ date somebody first subscribed.
   a null `expires_at` as forever.
 - **Other lengths:** `interval '30 days'`, `interval '6 months'`.
 
-## Revoke
+## Removing premium
+
+**Read this before revoking anyone who has actually paid.**
+
+Clearing the row does not stop Stripe. If the subscription is still live, the
+next `customer.subscription.updated` event writes `pro` straight back and your
+revoke silently undoes itself — hours later, with nothing in the database
+explaining why. Cancelling in Stripe is the real revoke.
+
+**Someone who pays.** Cancel in Stripe and stop: dashboard → **Customers** →
+their email → **Cancel subscription**. The webhook receives
+`customer.subscription.deleted` and sets them to free by itself. No SQL at
+all. If you want it gone immediately rather than on the event, cancel first,
+then run `revoke_premium`.
+
+**A comped or test account.** No subscription exists, so the row is the only
+place their premium lives:
+
+```sql
+select revoke_premium('them@example.com');
+```
+
+or the raw form:
 
 ```sql
 update public.entitlements
@@ -47,6 +100,19 @@ set plan = 'free', expires_at = null, note = 'Revoked', updated_at = now()
 where user_id = (select id from auth.users where email = 'them@example.com')
 returning user_id, plan;
 ```
+
+### How fast it takes effect
+
+Instantly in the database, and instantly for anyone who reloads the page,
+signs in, or opens the app fresh.
+
+Someone sitting in an **already-open tab keeps the premium interface until
+they refresh**. The app rechecks the plan when you switch back to the tab,
+but that recheck only ever promotes — a paying customer must not be knocked
+down to Free because their connection blinked, and that protection cuts both
+ways. They cannot get anything expensive out of it: `ai-assistant`,
+`product-search` and `market-research` each re-read the database on every
+call, so the spending stops at once even while the interface lags.
 
 ## Who has what
 
@@ -68,10 +134,14 @@ That button renews the access token before asking, which matters: the token
 was minted before the grant, and an expired one gets refused by the gateway —
 which would otherwise surface as "still free" rather than as a stale session.
 
-## When this goes away
+## This is no longer the only route
 
-Once a payment webhook exists, it writes these same rows on
-`checkout.session.completed` and sets `plan = 'free'` on cancellation. The
-expiry is the backstop: it is set from the paid period, so premium lapses on
-its own even if a cancellation webhook is missed entirely. Grants made here
-are the same shape, which is why comped accounts keep working afterwards.
+`supabase/functions/stripe-webhook` now writes these same rows automatically
+on `checkout.session.completed`, and sets `plan = 'free'` when a subscription
+is cancelled. Everything here is still correct and still used — for comped
+accounts, for support fixes, and for the times an event has not landed.
+
+The expiry is the backstop in both cases: it is set from the paid period, so
+premium lapses on its own even if a cancellation event is missed entirely.
+Grants made by hand are the same shape as grants made by the webhook, which
+is why the two never conflict.

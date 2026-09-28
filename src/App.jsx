@@ -6,6 +6,7 @@ import {
  Plus, TrendingUp, TrendingDown, Package, Bell, Calculator as CalcIcon,
  Check, Send, ChevronRight, ChevronDown, X, Target, ShoppingBag, Wrench,
  Droplets, Footprints, Shirt, Watch, Gem, Minus, FileText, Bookmark,
+ CreditCard,
 } from "lucide-react";
 import AIAssistant from "./components/AIAssistant.jsx";
 
@@ -112,16 +113,43 @@ const stripPrices = (t) => (t || "").replace(/\$\s?[\d,]+(\.\d{1,2})?/g, "").rep
 
    This is a public URL by design. It is not a key and carries no secret;
    the secret key lives only in the Edge Function's environment. */
-/* ⚠️ TEMPORARY — POINTED AT THE $0 TEST LINK ⚠️
-   Anyone who taps Upgrade right now gets premium for nothing. This is on
-   purpose, so the whole flow can be exercised through the real button
-   rather than a link pasted into a browser, and it must be put back the
-   moment that is done.
+/* ⚠️ TEMPORARY — POINTED AT THE $1 SPLIT TEST LINK ⚠️
+   Upgrade currently charges $1/month, not $25. On purpose, and it must be
+   put back the moment the test is read.
 
-   The real one, $25/month:
-     https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00                     */
-const STRIPE_CHECKOUT_URL = "https://buy.stripe.com/9B628ten6cEkgbEc4I7wA02";
-const STRIPE_LIVE_URL = "https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00";
+   Why a dollar rather than nothing. The $0 link proved the plumbing —
+   client_reference_id reaches the webhook, premium switches on — but $0
+   moves no money, so it could not prove the revenue split. A dollar is the
+   smallest amount that produces a real fee, a real application fee and a
+   real transfer, which are the three records that show where the money
+   actually went.
+
+   Why it goes through the button rather than the raw link. Opening a
+   payment link directly leaves out client_reference_id, so the payment
+   arrives attached to nobody and premium never activates. Only the button
+   exercises the whole path at once: account id -> checkout -> webhook ->
+   premium, and the split alongside it.
+
+   Expect the $1 split to look lopsided: Noah $0.48, us $0.19. Stripe's
+   flat 30c is 30% of a dollar and 1% of $25, and it comes off our side.
+   The same 52.05% that looks unfair here lands dead even at $25. If this
+   test showed 50/50 at $1, the live link would be the one that is wrong.
+
+   The four links this account has:
+     $25, split 50/50 with the partner   <- the real one, see STRIPE_LIVE_URL
+       https://buy.stripe.com/6oU14p1AkbAgaRkc4I7wA03
+     $25, all to us (pre-partner)
+       https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00
+     $1, split 50/50   <- live right now
+       https://buy.stripe.com/7sY4gBceY0VC4sWb0E7wA04
+     $0, no split
+       https://buy.stripe.com/9B628ten6cEkgbEc4I7wA02                   */
+const STRIPE_CHECKOUT_URL = "https://buy.stripe.com/7sY4gBceY0VC4sWb0E7wA04";
+
+/* Where this goes back to once the split is verified: $25/month, with
+   52.05% kept here and the rest transferred to the partner automatically
+   on every payment and every renewal. */
+const STRIPE_LIVE_URL = "https://buy.stripe.com/6oU14p1AkbAgaRkc4I7wA03";
 
 /* The signed-in account, kept here so openCheckout can read it without a
    round trip.
@@ -131,6 +159,12 @@ const STRIPE_LIVE_URL = "https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00";
    opened directly inside the click handler. A module-level value that the
    app keeps current is the honest way to have it to hand. */
 let checkoutUserId = null;
+
+/* Whether that account already has premium, mirrored here for the same
+   reason as the id above: openCheckout runs inside a click handler and
+   cannot await a lookup without Safari treating the popup as unsolicited
+   and blocking it. */
+let checkoutIsPro = false;
 
 /* Whether this account has paid, read from the entitlements table.
 
@@ -206,6 +240,7 @@ async function fetchQuota(endpoint) {
 }
 
 const AI_FN = `${SUPABASE_URL}/functions/v1/ai-assistant`;
+const PORTAL_FN = `${SUPABASE_URL}/functions/v1/billing-portal`;
 
 /** The signed-in user's access token, for the JWT-gated Edge Functions.
 
@@ -2311,6 +2346,19 @@ function AuthScreen({ onDone, theme, recovery = null }) {
     setNote("Finish signing in with Google in the popup window…");
 
     const onMessage = async (ev) => {
+      /* Who sent this. A message carrying an access_token is a session, so
+         accepting one from any origin means any page that can get a
+         message into this window can hand us an account to be signed in
+         as. The token is minted by Supabase, not by us, so we cannot tell
+         a forged one from a real one after the fact — the origin check is
+         the only place this can be caught.
+
+         Our own origin covers the same-tab case; the callback function on
+         the Supabase project covers the popup, which is the whole reason
+         that function exists. Anything else is ignored in silence. */
+      const FROM = [window.location.origin, new URL(SUPABASE_URL).origin];
+      if (!FROM.includes(ev.origin)) return;
+
       const d = ev.data;
       if (!d || d.type !== "supabase-auth") return;
       cleanup();
@@ -3258,11 +3306,17 @@ export default function ResellOS() {
    /* Kept current for openCheckout, which needs it synchronously inside a
       click handler and cannot go and look it up. */
    checkoutUserId = user?.id || null;
+   if (!user) checkoutIsPro = false;
    if (!user) { setEnt({ plan: "free", expiresAt: null }); return; }
    let alive = true;
    fetchEntitlement().then((e) => alive && setEnt(e));
    return () => { alive = false; };
  }, [user]);
+
+ /* The other half of that mirror. Whatever the plan turns out to be, and
+    every time it changes, openCheckout is told — so its refusal reflects
+    the answer the server actually gave rather than a stale one. */
+ useEffect(() => { checkoutIsPro = isPro; }, [isPro]);
 
  /* Checkout opens in another tab. Coming back to this one is the moment the
     payment has most likely just landed, so that is when to ask again —
@@ -3911,9 +3965,61 @@ function openCheckout() {
     return;
   }
 
+  /* Somebody who already pays must not be able to start a second
+     subscription.
+
+     Every upgrade button is already hidden from a premium account, so
+     under normal use this never fires. It is here for the cases where that
+     is not enough: a screen rendered before the plan finished loading, a
+     stale tab, a button reached by some route nobody thought of. Hiding a
+     control is a UI decision; this is the one that actually costs money if
+     it is wrong, so it gets checked at the point of spending rather than
+     at the point of drawing.
+
+     Two subscriptions on one account means a person charged twice for one
+     thing, which is a refund, an apology and quite possibly a chargeback.
+     Refusing a click somebody probably did not mean is much the cheaper
+     mistake. */
+  if (checkoutIsPro) {
+    alert("You already have premium on this account, so there's nothing to buy. If it isn't showing, open Settings and press \u201cI've paid \u2014 check again\u201d.");
+    return;
+  }
+
   const url = new URL(STRIPE_CHECKOUT_URL);
   url.searchParams.set("client_reference_id", checkoutUserId);
   window.open(url.toString(), "_blank", "noopener,noreferrer");
+}
+
+/* The other direction: out of a subscription rather than into one.
+
+   Stripe's own billing portal, not a cancel button of ours. Cancelling is
+   the moment somebody is most likely to feel tricked, and Stripe's page is
+   built and maintained by the company that actually knows what is being
+   charged — ours would be one deploy away from disagreeing with them.
+
+   The link is minted server-side per request and expires, so there is
+   nothing to hardcode and nothing worth stealing out of the bundle. */
+async function openBillingPortal() {
+  const res = await fetch(PORTAL_FN, { method: "POST", headers: await fnHeaders(), body: "{}" });
+  const d = await res.json().catch(() => ({}));
+
+  if (res.ok && d.url) {
+    /* Same tab. A cancellation is a decision somebody came here to make,
+       and a popup blocker eating it would read as the app refusing to let
+       them leave — which is the exact impression this feature exists to
+       avoid. */
+    window.location.href = d.url;
+    return { ok: true };
+  }
+
+  /* Premium granted by hand rather than bought. Not a failure, and worth
+     saying out loud: somebody told there is nothing to cancel will stop
+     looking, where an error would send them to support. */
+  if (res.status === 404 && d.error === "no_subscription") {
+    return { ok: false, note: "This account was given premium directly, so there's no subscription to manage. Nothing is being charged." };
+  }
+
+  return { ok: false, note: d.error || "Couldn't open billing just now. Try again in a moment." };
 }
 
 function Discover({ db, put, jump, go, isPro, requirePro }) {
@@ -5615,6 +5721,23 @@ function Essentials() {
 }
 
 function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitlement, entLoading, entNote }) {
+ /* Opening the portal is a round trip to Stripe, so the button has to say
+    it is working. Without that, a slow network reads as a dead button and
+    the person taps it repeatedly. */
+ const [portalBusy, setPortalBusy] = useState(false);
+ const [portalNote, setPortalNote] = useState(null);
+ const manageBilling = async () => {
+   setPortalBusy(true); setPortalNote(null);
+   try {
+     const r = await openBillingPortal();
+     /* On success the browser is already navigating to Stripe, so there is
+        nothing to say. Only a refusal needs words. */
+     if (!r.ok) setPortalNote(r.note);
+   } catch {
+     setPortalNote("Couldn't reach the server. Check your connection and try again.");
+   } finally { setPortalBusy(false); }
+ };
+
  /* null | "terms" | "privacy" */
  const [legal, setLegal] = useState(null);
 
@@ -5804,6 +5927,34 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  <Row l="Plan" r={isPro ? "Premium" : "Free"} />
  {isPro && ent.expiresAt && (
  <Row l="Renews / expires" r={new Date(ent.expiresAt).toLocaleDateString()} />
+ )}
+
+ {/* Leaving has to be as easy as arriving.
+
+     A subscription you cannot see or stop from inside the product feels
+     like a trap, and somebody who feels trapped disputes the charge
+     rather than cancelling it — which costs more than the subscription
+     was worth and takes the goodwill with it. This is one tap from the
+     same screen that shows the plan. */}
+ {isPro && (
+ <>
+ <button onClick={manageBilling} disabled={portalBusy} className="fx fx-chip"
+ style={{ ...pillBtn(false), width: "100%", padding: "12px", marginTop: 12, fontWeight: 700,
+   cursor: portalBusy ? "wait" : "pointer",
+   display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+ <CreditCard size={15} /> {portalBusy ? "Opening…" : "Manage subscription"}
+ </button>
+ <p style={{ fontSize: 11.5, color: C.dead, marginTop: 10, lineHeight: 1.6 }}>
+ Cancel, change your card or read your invoices. Opens Stripe, who handle
+ the payment — this app never sees your card. Cancelling keeps premium
+ until the end of the period you've already paid for.
+ </p>
+ {portalNote && (
+ <p role="status" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.6, color: C.dim }}>
+ {portalNote}
+ </p>
+ )}
+ </>
  )}
 
  {!isPro && (
