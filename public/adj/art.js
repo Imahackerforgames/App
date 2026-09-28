@@ -592,8 +592,11 @@
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
   // px is the output width in pixels; line weights are set in those pixels.
-  function pageSVG(book, i, px = W) {
-    const ps = Math.max(0.3, px / W), pg = compose(book, i);
+  // win (optional) is the part of the page to draw, in page units, so a
+  // zoomed-in view can be drawn sharp without drawing the whole page huge.
+  function pageSVG(book, i, px = W, win = null) {
+    const vw = win ? win.w : W, vh = win ? win.h : H;
+    const ps = Math.max(0.3, px / vw), pg = compose(book, i);
     const R = rng(book.id + ':scene:' + i);
     const sc = SCENES[pg.scene] ? SCENES[pg.scene](R) : SCENES.plain(R);
     let items = '';
@@ -607,7 +610,7 @@
     }
     let frames = '';
     for (const [x, y, w, h] of pg.frames) frames += r(x, y, w, h, 34);
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${f(W * ps)}" height="${f(H * ps)}" viewBox="0 0 ${W} ${H}">` +
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${f(vw * ps)}" height="${f(vh * ps)}" viewBox="${win ? [win.x, win.y, win.w, win.h].map(f).join(' ') : `0 0 ${W} ${H}`}" preserveAspectRatio="none">` +
       `<style>*{vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}</style>` +
       `<rect width="${W}" height="${H}" fill="#fff"/>` +
       `<defs><clipPath id="k"><rect x="30" y="30" width="790" height="955" rx="34"/></clipPath></defs>` +

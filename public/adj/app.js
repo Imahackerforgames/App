@@ -224,16 +224,16 @@
   }
 
   // Returns a canvas holding the page's line art as dark ink on transparent.
-  async function renderInk(book, i, w, h) {
+  async function renderInk(book, i, w, h, win = null) {
     await fontsReady;
-    const svg = A.pageSVG(book, i, w);
+    const svg = A.pageSVG(book, i, w, win);
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
     const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
     const ctx = cv.getContext('2d', { willReadFrequently: true });
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
     try { const img = await loadImg(url); ctx.drawImage(img, 0, 0, w, h); } finally { URL.revokeObjectURL(url); }
-    const pg = A.compose(book, i), k = w / A.W;
-    ctx.save(); ctx.scale(k, k); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const pg = A.compose(book, i), k = w / (win ? win.w : A.W);
+    ctx.save(); ctx.scale(k, k); if (win) ctx.translate(-win.x, -win.y); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     if (pg.title) i === 0 ? bubble(ctx, pg.title, 425, 190, 700, 124) : bubble(ctx, pg.title, 425, 520, 640, 170);
     if (pg.caption) {
       let sz = 46; ctx.font = `${sz}px ${DISPLAY}`;
@@ -449,6 +449,7 @@ Rules for every svg value:
     ['rainbow', 'Rainbow', '<path d="M2 18a10 10 0 0120 0"/><path d="M6 18a6 6 0 0112 0"/><path d="M10 18a2 2 0 014 0"/>'],
     ['glitter', 'Glitter', '<path d="M8 3l1.2 3L12 7.2 9.2 8.4 8 11.4 6.8 8.4 4 7.2l2.8-1.2z"/><path d="M16 10l1 2.4 2.4 1-2.4 1-1 2.4-1-2.4-2.4-1 2.4-1z"/><path d="M7 16l.6 1.4 1.4.6-1.4.6L7 20l-.6-1.4L5 18l1.4-.6z"/>'],
     ['eraser', 'Eraser', '<path d="M16 3l5 5-11 11H5l-3-3z"/><path d="M9 10l5 5"/><path d="M10 21h11"/>'],
+    ['hand', 'Move', '<path d="M8 13V5.5a1.5 1.5 0 013 0V12"/><path d="M11 11.5V4a1.5 1.5 0 013 0v7.5"/><path d="M14 11V5.5a1.5 1.5 0 013 0V13"/><path d="M17 9.5a1.5 1.5 0 013 0V15a7 7 0 01-7 7h-1.5a6 6 0 01-4.6-2.2L4 16a1.6 1.6 0 012.4-2L8 15.5"/>'],
     ['sticker', 'Stickers', '<path d="M5 3h14v10l-8 8H5z"/><path d="M11 21v-6a2 2 0 012-2h6"/>'],
   ];
   const COLORS = [
@@ -501,7 +502,7 @@ Rules for every svg value:
   }
   function setColor(hex, name) {
     prefs.color = hex; savePrefs();
-    if (['eraser', 'sticker'].includes(prefs.tool)) prefs.tool = 'marker';
+    if (['eraser', 'sticker', 'hand'].includes(prefs.tool)) prefs.tool = 'marker';
     $('mix').value = hex.length === 7 ? hex.toLowerCase() : '#ff5a5f';
     $('curName').textContent = name || 'Your color';
     syncTools();
@@ -523,7 +524,8 @@ Rules for every svg value:
     if (named) $('curName').textContent = named[1];
     $('patRow').hidden = prefs.tool !== 'magic';
     $('stkRow').hidden = prefs.tool !== 'sticker';
-    $('sizeRow').hidden = prefs.tool === 'fill' || prefs.tool === 'magic';
+    $('sizeRow').hidden = ['fill', 'magic', 'hand'].includes(prefs.tool);
+    stage.classList.toggle('pan', prefs.tool === 'hand');
   }
   const hexRGB = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
   const RAINBOW = Array.from({ length: 360 }, (_, i) => { const c = document.createElement('canvas').getContext('2d'); c.fillStyle = `hsl(${i},90%,64%)`; c.fillRect(0, 0, 1, 1); return [...c.getImageData(0, 0, 1, 1).data.slice(0, 3)]; });
@@ -633,30 +635,133 @@ Rules for every svg value:
     changed(); sfx.stamp();
   }
   function pos(ev) { const r = inkC.getBoundingClientRect(); return { x: ((ev.clientX - r.left) / r.width) * W, y: ((ev.clientY - r.top) / r.height) * H }; }
-  inkC.addEventListener('pointerdown', (ev) => {
-    if (!walls) return;
+
+  // ---------- zoom & pan ----------
+  // The page sits in a "sheet" moved with a CSS transform, so zooming never
+  // touches the drawing itself. A second finger always means zoom/pan: it
+  // takes back whatever the first finger just drew, and nothing is drawn
+  // again until every finger is lifted.
+  const stage = $('stage'), sheet = $('sheet');
+  const view = { z: 1, x: 0, y: 0 }, ZMAX = 5;
+  function applyView() {
+    const w = stage.clientWidth, h = stage.clientHeight;
+    view.z = Math.min(ZMAX, Math.max(1, view.z));
+    view.x = Math.min(0, Math.max(w - w * view.z, view.x));
+    view.y = Math.min(0, Math.max(h - h * view.z, view.y));
+    sheet.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.z})`;
+    $('zfit').textContent = Math.round(view.z * 100) + '%';
+    $('zout').disabled = view.z <= 1.001; $('zin').disabled = view.z >= ZMAX - 0.001;
+    scheduleSharp();
+  }
+  // While zoomed, redraw just the visible lines at screen resolution once
+  // the view stops moving, so they stay crisp instead of pixelated.
+  const hi = $('inkHi');
+  let hiT = null, hiSeq = 0;
+  function scheduleSharp() {
+    clearTimeout(hiT); hiSeq++;
+    hi.hidden = true; inkC.style.opacity = '';
+    if (view.z > 1.05 && book && walls) hiT = setTimeout(renderSharp, 150);
+  }
+  async function renderSharp() {
+    const seq = hiSeq, sw = stage.clientWidth, sh = stage.clientHeight, dpr = Math.min(2, devicePixelRatio || 1), k = (sw / A.W) * view.z;
+    const win = { x: -view.x / k, y: -view.y / k, w: sw / k, h: sh / k };
+    const cv = await renderInk(book, page, Math.round(sw * dpr), Math.round(sh * dpr), win).catch(() => null);
+    if (!cv || seq !== hiSeq) return;
+    hi.width = cv.width; hi.height = cv.height;
+    hi.getContext('2d').drawImage(cv, 0, 0);
+    hi.hidden = false; inkC.style.opacity = '0';
+  }
+  function zoomAt(z, cx, cy) {
+    const px = (cx - view.x) / view.z, py = (cy - view.y) / view.z;
+    view.z = Math.min(ZMAX, Math.max(1, z));
+    view.x = cx - px * view.z; view.y = cy - py * view.z;
+    applyView();
+  }
+  const zoomCenter = (f) => zoomAt(view.z * f, stage.clientWidth / 2, stage.clientHeight / 2);
+  const resetView = () => { view.z = 1; view.x = 0; view.y = 0; applyView(); };
+  $('zin').onclick = () => zoomCenter(1.5);
+  $('zout').onclick = () => zoomCenter(1 / 1.5);
+  $('zfit').onclick = resetView;
+  addEventListener('resize', applyView);
+  const local = (ev) => { const r = stage.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; };
+
+  const pts = new Map();
+  let mode = 'idle', penSeen = false, spaceDown = false, strokeRedo = null, tap = null, pinch = null, panLast = null;
+  function cancelStroke() {
+    if (!down) return;
+    down = false; last = null; clearInterval(sprayT);
+    if (undo.length) pctx.putImageData(undo.pop(), 0, 0);
+    redo = strokeRedo || []; syncUndo();
+  }
+  function startPinch() {
+    const [a, b] = [...pts.values()];
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, z: view.z, x: view.x, y: view.y };
+  }
+  const panMode = (ev) => prefs.tool === 'hand' || spaceDown || ev.button === 1 || (ev.pointerType === 'touch' && penSeen);
+  stage.addEventListener('pointerdown', (ev) => {
+    if (ev.target.closest('#zoombar') || !walls) return;
     ev.preventDefault();
+    if (ev.pointerType === 'pen') penSeen = true;
+    pts.set(ev.pointerId, local(ev));
+    try { stage.setPointerCapture(ev.pointerId); } catch {}
+    if (pts.size === 2) { cancelStroke(); tap = null; mode = 'pinch'; startPinch(); return; }
+    if (pts.size > 2 || mode === 'pinch') return;
+    if (panMode(ev)) { mode = 'pan'; panLast = local(ev); stage.classList.add('panning'); return; }
     const p = pos(ev), t = prefs.tool;
-    if (t === 'fill' || t === 'magic') return fillAt(p.x, p.y, t === 'magic');
-    if (t === 'sticker') return stamp(p);
-    try { inkC.setPointerCapture(ev.pointerId); } catch {}
-    snapshot(); down = true; last = p;
+    if (t === 'fill' || t === 'magic' || t === 'sticker') {
+      // A finger might be the start of a pinch, so touch waits for the lift.
+      if (ev.pointerType === 'touch') { tap = { p, at: local(ev) }; mode = 'tap'; return; }
+      return t === 'sticker' ? stamp(p) : fillAt(p.x, p.y, t === 'magic');
+    }
+    strokeRedo = redo.slice(); snapshot(); down = true; last = p; mode = 'draw';
     if (t === 'spray') { spray(p); sprayT = setInterval(() => last && spray(last), 30); }
     else seg(p, { x: p.x + 0.01, y: p.y + 0.01 });
   });
-  inkC.addEventListener('pointermove', (ev) => {
-    if (!down) return;
-    const evs = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev];
-    for (const e of evs.length ? evs : [ev]) {
-      const p = pos(e);
-      if (prefs.tool === 'spray') { spray(p); last = p; continue; }
-      seg(last, p); last = p;
+  stage.addEventListener('pointermove', (ev) => {
+    if (!pts.has(ev.pointerId)) return;
+    const here = local(ev); pts.set(ev.pointerId, here);
+    if (mode === 'pinch' && pinch && pts.size >= 2) {
+      const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const z = Math.min(ZMAX, Math.max(1, pinch.z * (d / pinch.d)));
+      const sx = (pinch.mx - pinch.x) / pinch.z, sy = (pinch.my - pinch.y) / pinch.z;
+      view.z = z; view.x = mx - sx * z; view.y = my - sy * z; applyView();
+    } else if (mode === 'pan') {
+      view.x += here.x - panLast.x; view.y += here.y - panLast.y; panLast = here; applyView();
+    } else if (mode === 'tap') {
+      // One finger dragging with fill or stickers moves the page instead.
+      if (Math.hypot(here.x - tap.at.x, here.y - tap.at.y) > 10) { mode = 'pan'; panLast = here; tap = null; }
+    } else if (mode === 'draw' && down) {
+      const evs = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev];
+      for (const e of evs.length ? evs : [ev]) {
+        const p = pos(e);
+        if (prefs.tool === 'spray') { spray(p); last = p; continue; }
+        seg(last, p); last = p;
+      }
     }
   });
-  const end = () => { if (!down) return; down = false; last = null; clearInterval(sprayT); changed(); };
-  inkC.addEventListener('pointerup', end);
-  inkC.addEventListener('pointercancel', end);
-  inkC.addEventListener('lostpointercapture', end);
+  function lift(ev) {
+    if (!pts.delete(ev.pointerId)) return;
+    if (mode === 'draw' && down) { down = false; last = null; clearInterval(sprayT); changed(); }
+    if (mode === 'tap' && tap && ev.type === 'pointerup') { const t = prefs.tool; t === 'sticker' ? stamp(tap.p) : fillAt(tap.p.x, tap.p.y, t === 'magic'); }
+    tap = null;
+    if (mode === 'pinch' && pts.size >= 2) startPinch();
+    if (pts.size === 0) { mode = 'idle'; pinch = null; stage.classList.remove('panning'); }
+    else if (mode !== 'pinch') mode = 'idle';
+  }
+  stage.addEventListener('pointerup', lift);
+  stage.addEventListener('pointercancel', lift);
+  stage.addEventListener('lostpointercapture', lift);
+  stage.addEventListener('wheel', (ev) => {
+    // Trackpad pinch arrives as ctrl+wheel. Plain scrolling moves a zoomed page.
+    if (ev.ctrlKey || ev.metaKey) { ev.preventDefault(); const c = local(ev); zoomAt(view.z * Math.exp(-Math.max(-60, Math.min(60, ev.deltaY * (ev.deltaMode ? 16 : 1))) * 0.006), c.x, c.y); }
+    else if (view.z > 1.001) { ev.preventDefault(); view.x -= ev.deltaX; view.y -= ev.deltaY; applyView(); }
+  }, { passive: false });
+  for (const g of ['gesturestart', 'gesturechange']) stage.addEventListener(g, (e) => e.preventDefault());
+  addEventListener('keydown', (e) => {
+    if (!book || /input|textarea/i.test(e.target.tagName)) return;
+    if (e.code === 'Space' && !e.repeat) { spaceDown = true; stage.classList.add('pan'); e.preventDefault(); }
+  });
+  addEventListener('keyup', (e) => { if (e.code === 'Space') { spaceDown = false; if (prefs.tool !== 'hand') stage.classList.remove('pan'); } });
 
   // Pages
   const thumbs = [];
@@ -691,7 +796,7 @@ Rules for every svg value:
     if (i < 0 || i > 11) return;
     await flush();
     const seq = ++openSeq;
-    page = i; walls = null; undo = []; redo = []; syncUndo(); syncStrip();
+    page = i; walls = null; undo = []; redo = []; syncUndo(); syncStrip(); resetView();
     $('loading').hidden = false;
     if (thumbs[i]) { const st = $('strip'); st.scrollTo({ left: thumbs[i].offsetLeft - st.clientWidth / 2 + 40, behavior: 'smooth' }); }
     const ink = await renderInk(book, i, W, H);
@@ -711,6 +816,10 @@ Rules for every svg value:
     $('btitle').textContent = bk.title;
     buildStrip();
     scrollTo(0, $('studio').offsetTop - 6);
+    if (!store.get('zoomHint', false)) {
+      store.set('zoomHint', true);
+      setTimeout(() => toast(matchMedia('(pointer: coarse)').matches ? 'Pinch with two fingers to zoom in. Two fingers also move the page.' : 'Zoom with the + and − buttons, or Ctrl + scroll. Hold Space and drag to move around.', 6000), 800);
+    }
     await goPage(0);
   }
   async function closeBook() {
@@ -759,8 +868,11 @@ Rules for every svg value:
   document.addEventListener('keydown', (e) => {
     if (!book || /input|textarea/i.test(e.target.tagName)) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); (e.shiftKey ? $('redo') : $('undo')).click(); }
-    else if (e.key === 'ArrowRight') goPage(page + 1);
-    else if (e.key === 'ArrowLeft') goPage(page - 1);
+    else if (e.key === '+' || e.key === '=') zoomCenter(1.5);
+    else if (e.key === '-') zoomCenter(1 / 1.5);
+    else if (e.key === '0') resetView();
+    else if (e.key === 'ArrowRight' && view.z <= 1.001) goPage(page + 1);
+    else if (e.key === 'ArrowLeft' && view.z <= 1.001) goPage(page - 1);
   });
   addEventListener('pagehide', flush);
   document.addEventListener('visibilitychange', () => document.hidden && flush());
