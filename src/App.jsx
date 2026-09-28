@@ -130,10 +130,10 @@ const stripPrices = (t) => (t || "").replace(/\$\s?[\d,]+(\.\d{1,2})?/g, "").rep
    exercises the whole path at once: account id -> checkout -> webhook ->
    premium, and the split alongside it.
 
-   Expect the $1 split to look lopsided: Noah $0.48, us $0.19. Stripe's
-   flat 30c is 30% of a dollar and 1% of $25, and it comes off our side.
-   The same 52.05% that looks unfair here lands dead even at $25. If this
-   test showed 50/50 at $1, the live link would be the one that is wrong.
+   Expect the $1 split to look lopsided: partner $0.50, us $0.17. Stripe's
+   flat 30c is 30% of a dollar and only 1% of $25, and the whole fee comes
+   off our side, so a dollar test flatters the partner and guts us. At $25
+   it is $12.50 and $11.47.
 
    The four links this account has:
      $25, split 50/50 with the partner   <- the real one, see STRIPE_LIVE_URL
@@ -146,9 +146,16 @@ const stripPrices = (t) => (t || "").replace(/\$\s?[\d,]+(\.\d{1,2})?/g, "").rep
        https://buy.stripe.com/9B628ten6cEkgbEc4I7wA02                   */
 const STRIPE_CHECKOUT_URL = "https://buy.stripe.com/7sY4gBceY0VC4sWb0E7wA04";
 
-/* Where this goes back to once the split is verified: $25/month, with
-   52.05% kept here and the rest transferred to the partner automatically
-   on every payment and every renewal. */
+/* Where this goes back to once the split is verified: $25/month, half
+   transferred to the partner automatically on every payment and every
+   renewal.
+
+   A straight 50 rather than a figure adjusted for Stripe's cut, because
+   that is what was asked for and it is the one people can check without
+   arithmetic: half the price each. It does mean the whole fee lands on
+   this side — $12.50 to the partner, $11.47 here — so the halves are even
+   on the sticker and $1.03 apart in the bank. Worth remembering when
+   reading a payout and wondering where the difference went. */
 const STRIPE_LIVE_URL = "https://buy.stripe.com/6oU14p1AkbAgaRkc4I7wA03";
 
 /* The signed-in account, kept here so openCheckout can read it without a
