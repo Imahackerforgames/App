@@ -2311,6 +2311,19 @@ function AuthScreen({ onDone, theme, recovery = null }) {
     setNote("Finish signing in with Google in the popup window…");
 
     const onMessage = async (ev) => {
+      /* Who sent this. A message carrying an access_token is a session, so
+         accepting one from any origin means any page that can get a
+         message into this window can hand us an account to be signed in
+         as. The token is minted by Supabase, not by us, so we cannot tell
+         a forged one from a real one after the fact — the origin check is
+         the only place this can be caught.
+
+         Our own origin covers the same-tab case; the callback function on
+         the Supabase project covers the popup, which is the whole reason
+         that function exists. Anything else is ignored in silence. */
+      const FROM = [window.location.origin, new URL(SUPABASE_URL).origin];
+      if (!FROM.includes(ev.origin)) return;
+
       const d = ev.data;
       if (!d || d.type !== "supabase-auth") return;
       cleanup();
