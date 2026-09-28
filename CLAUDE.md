@@ -137,8 +137,28 @@ the expiry lookup was — so nothing about that failure should have reached
 the customer. A wrong key now logs its own diagnosis at boot instead of
 surfacing as a generic 500 hours later.
 
-`docs/granting-premium.md` covers granting by hand, which is still how
-comped accounts work.
+`docs/granting-premium.md` covers granting and removing by hand, which is
+still how comped accounts and support fixes work. Two helpers installed by
+`supabase/migrations/002_premium_helpers.sql` make it one call:
+
+```sql
+select grant_premium('them@example.com', 30);
+select revoke_premium('them@example.com');
+```
+
+Both are SECURITY DEFINER and both have `EXECUTE` revoked from `PUBLIC`.
+That revoke is the entire access control, not tidying: Postgres grants
+`EXECUTE` to `PUBLIC` by default, `PUBLIC` includes `anon` and
+`authenticated`, and a SECURITY DEFINER function runs with its owner's
+rights — so without it any signed-in visitor could promote themselves.
+Revoking from `anon` and `authenticated` by name would not help; the grant
+lives on `PUBLIC` and they inherit it. `tests/premiumfns.mjs` fails if
+either line is removed.
+
+Removing premium from somebody who pays means cancelling in Stripe, not
+clearing the row. A live subscription re-grants `pro` at the next renewal
+event and the revoke silently undoes itself, so `revoke_premium` returns a
+warning naming the subscription when one is recorded.
 
 ## Limits
 

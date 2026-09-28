@@ -15,6 +15,7 @@ Playwright, run against a production build with Supabase mocked. Three files:
 | `signinout.mjs` | Signing in with the address typed in any case, the password being left untouched, a wrong password still failing, and signing out revoking the session server-side before signing straight back in. |
 | `soldcard.mjs` | Recent sold activity for a live-searched product: counted totals, the per-marketplace breakdown, the cap marked as a floor, no time claim, and an honest empty state when nothing was found. |
 | `themes.mjs` | Each of the four palettes applying its variables, all four being offered in Settings, and none of the old theme names surviving anywhere. |
+| `premiumfns.mjs` | The `grant_premium` / `revoke_premium` migration read as source: that `EXECUTE` is revoked from `PUBLIC` (not merely from `anon`/`authenticated`, which inherit it), that neither is granted to a role a browser holds, that both pin `search_path`, that a typo'd address is reported rather than silently matching nobody, and that revoking warns when a live Stripe subscription would undo it. |
 | `errs.mjs` | Every Supabase error shape, using the real response bodies — broken SMTP, rate limiting, a reused password, a breached password, a dead session, reauthentication. |
 
 ## Running them
