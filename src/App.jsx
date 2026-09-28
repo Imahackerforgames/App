@@ -104,6 +104,128 @@ function safeUrl(u) {
 }
 const stripPrices = (t) => (t || "").replace(/\$\s?[\d,]+(\.\d{1,2})?/g, "").replace(/\s{2,}/g, " ").trim();
 
+/* From a listing title to the name of the thing.
+
+   Sellers do not write product names, they write adverts:
+
+     "NEW🔥 Nike Air Jordan 4 Retro Black Cat 2020 CU1110-010 Mens Sz 10.5
+      DS 100% Authentic FAST SHIP"
+
+   Nobody comparing products wants to read that, and two listings for the
+   same shoe should not look like two different products. What is wanted is
+   "Nike Air Jordan 4 Retro Black Cat 2020".
+
+   Here rather than in the search function, and that is a deployment
+   decision rather than an architectural one. The Edge Function is the
+   tidier home — one place, every caller — but it can only be deployed by
+   pasting all forty kilobytes of it into an API call, and a mistyped
+   character in one regex would take product search down for everyone
+   paying. This file ships from git on every push. A cosmetic improvement
+   does not get to put the core paid feature at risk, so it goes where it
+   can be shipped safely. Move it server-side the day there is a CLI.
+
+   Everything below removes seller-speak, never product words. The one trap
+   worth naming: "New" is a brand. Stripping a bare leading "New" turns New
+   Balance into Balance and New Era into Era, so only the unambiguous
+   phrases go, and the brands that follow it are named rather than guessed
+   at. A stray "New" surviving is a far smaller problem than mangling a
+   brand nobody can then search for. */
+const TITLE_NOISE = [
+  /* Condition, as sellers abbreviate it. Bounded so "DS" cannot eat the
+     "DS" in "Nintendo DS". */
+  /\b(?:nwt|nwot|nib|bnib|niob|mib|vnds|euc|guc|dswt|deadstock)\b/gi,
+  /\bds\b(?!\s*(?:lite|xl|i\b))/gi,
+  /\bbrand\s*new\b/gi,
+  /\bnew\s+(?:in\s+box|with\s+tags|w\/?\s*tags|other)\b/gi,
+  /* The leftover half of the phrase above: "Brand New With Tags" loses its
+     first half to the line before this one, and the fuller pattern can no
+     longer match what remains. Removing the fragment separately is
+     order-independent, which the pair above is not. */
+  /\b(?:with|w\/)\s*tags\b/gi,
+  /\bin\s+(?:original\s+)?box\b/gi,
+  /\b(?:pre[\s-]?owned|preowned|gently\s+used|barely\s+used|like\s+new|mint\s+condition|excellent\s+condition|good\s+condition)\b/gi,
+  /* Marketing. None of it describes the product. */
+  /\b(?:free\s+ship(?:ping)?|fast\s+ship(?:ping)?|ships?\s+(?:free|fast|today|same\s+day)|same[\s-]day\s+ship\w*)\b/gi,
+  /\b(?:100%\s*)?(?:authentic|genuine|guaranteed)\b/gi,
+  /\b(?:rare|htf|hard\s+to\s+find|must\s+see|l@@k|wow|hot|trending)\b/gi,
+  /\b(?:in\s+hand|ready\s+to\s+ship|us\s+seller|smoke\s+free\s+home)\b/gi,
+  /* Quantities and bundles. */
+  /\blot\s+of\s+\d+\b/gi,
+  /\bx\s?\d+\s*(?:pack|pcs?|pieces?)\b/gi,
+  /\bbundle\s+of\s+\d+\b/gi,
+  /* Sizes. A size is a variant of a product, not a different product, and
+     the gender word is part of the size however the seller orders it. */
+  /\b(?:mens?|womens?|youth|kids?|unisex|us|uk|eu)?\s*\bsizes?\b\s*[:\-]?\s*[\dxsml.\/]+\b/gi,
+  /\b(?:mens?|womens?|youth|kids?|unisex)?\s*\bsz\b\s*[:\-]?\s*[\dxsml.\/]+\b/gi,
+  /\b(?:mens?|womens?|youth|unisex)\b\s*$/gi,
+  /* Style and model codes: CU1110-010, DH6927 111. Two or more letters
+     followed by digits, which ordinary words are not. */
+  /\b[A-Z]{2,}[\s-]?\d{3,}(?:[\s-]\d{2,})?\b/g,
+  /* Emoji and the decorative junk sellers pad titles with. */
+  /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/gu,
+  /[★☆✅✔❗➡⭐🔥]/g,
+];
+
+const MARKET_TAIL =
+  /\s*[|\-–—·]\s*(?:ebay(?:\s+community)?|poshmark|mercari|depop|vinted|offerup|facebook(?:\s+marketplace)?)\s*$/i;
+
+function genericName(t) {
+  let out = stripPrices(String(t || ""));
+  for (let i = 0; i < 3 && MARKET_TAIL.test(out); i++) out = out.replace(MARKET_TAIL, "");
+
+  /* Parenthetical and bracketed asides are almost always condition or
+     shipping notes. Dropped whole. */
+  out = out.replace(/[([{][^)\]}]*[)\]}]/g, " ");
+
+  for (const re of TITLE_NOISE) out = out.replace(re, " ");
+
+  /* A leading "NEW", the single most common way a listing opens. Bare
+     "New" is untouched everywhere else because it is a brand, but at the
+     very front it is nearly always the condition.
+
+     After the noise pass, not before: titles open "NEW🔥 Nike…" with no
+     space between the word and the decoration, so there is nothing to
+     match until the emoji have gone.
+
+     The separator is `+` and not `*`, which is the whole correctness of
+     this line. With `*` the engine may consume nothing and test the
+     exclusion immediately after "New" — against " Balance", which has a
+     leading space and so does not look like "balance" — and New Balance
+     becomes Balance despite a guard written to prevent exactly that. */
+  out = out.replace(/^\s*new\b[\s,\-|]+(?!balance\b|era\b|york\b)/i, "");
+
+  out = out
+    .replace(/\s*[,;:|]\s*(?=[,;:|]|$)/g, " ")
+    .replace(/\s*[-–—]\s*(?=[-–—]|$)/g, " ")
+    .replace(/^[\s,;:|\-–—.!]+/, "")
+    .replace(/[\s,;:|\-–—.!]+$/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  /* SHOUTING is an advert, not a name — but only when the whole thing is
+     caps, so "PS5" and "iPhone" survive in ordinary titles. Words
+     containing a digit keep their case: capacities and model numbers are
+     capitalised on purpose, and lower-casing turns "5QT" into "5qt". */
+  if (out.length > 3 && out === out.toUpperCase() && /[A-Z]{4,}/.test(out)) {
+    out = out
+      .split(" ")
+      .map((w) => (/\d/.test(w) ? w : w.toLowerCase().replace(/^[a-z]/, (c) => c.toUpperCase())))
+      .join(" ");
+  }
+
+  /* A name, not a paragraph. Cut at a word boundary so it reads as a name
+     rather than a truncation. */
+  if (out.length > 60) {
+    const cut = out.slice(0, 60);
+    const sp = cut.lastIndexOf(" ");
+    out = (sp > 24 ? cut.slice(0, sp) : cut).trim();
+  }
+
+  /* Everything removable was removed and nothing is left — a title that
+     was pure advertising. The original beats an empty card. */
+  return out.length >= 3 ? out : stripPrices(String(t || ""));
+}
+
 /* Where "Upgrade to premium" sends people: a Stripe Payment Link.
 
    Paste yours from the Stripe dashboard (Product catalogue → your product →
@@ -503,7 +625,7 @@ const SearchProvider = {
          const data = await res.json();
          if (Array.isArray(data.results) && data.results.length) {
            const rows = data.results.map((r) => ({
-             title: stripPrices(r.title), market: r.market,
+             title: genericName(r.title), market: r.market,
              cond: "", url: safeUrl(r.url), image: r.image || null,
              snippet: r.snippet || "", source: "tavily",
            })).filter((r) => r.url);
@@ -705,7 +827,12 @@ End with a line starting "SOURCES:" listing the URLs you used, comma separated.`
        .map((r) => ({ ...r, url: safeUrl(r.url) }))
        .filter((r) => r.url && r.title)
        .filter((r) => {
-         const k = stripPrices(r.title).toLowerCase().split(/\s+/).slice(0, 4).join(" ");
+         /* Deduped on the cleaned name, not the raw one. Two sellers
+            advertising the same shoe differently — "NWT Nike Dunk Low
+            Panda" and "Nike Dunk Low Panda 🔥 FAST SHIP" — produced
+            different first-four-words and both survived, which is how the
+            same product appeared twice in one set of five. */
+         const k = genericName(r.title).toLowerCase().split(/\s+/).slice(0, 4).join(" ");
          if (seen.has(k)) return false;
          seen.add(k);
          return true;
@@ -722,7 +849,7 @@ End with a line starting "SOURCES:" listing the URLs you used, comma separated.`
 
    const rows = picked.slice(0, 5).map((r, i) => ({
      rank: i + 1,
-     title: stripPrices(r.title),
+     title: genericName(r.title),
      cat: f.cat && f.cat !== "All" ? f.cat : (local ? "Local" : "Other"),
      source: MARKET_KEY[String(r.market || "").toLowerCase()] || (local ? "offerup" : "ebay"),
      url: r.url,

@@ -270,133 +270,6 @@ const cleanTitle = (t: string) => {
     .trim();
 };
 
-/* From a listing title to the name of the thing.
-
-   Sellers do not write product names, they write adverts:
-
-     "NEW🔥 Nike Air Jordan 4 Retro Black Cat 2020 CU1110-010 Men's Sz 10.5
-      DS 100% Authentic FAST SHIP L@@K"
-
-   Nobody comparing products wants to read that, and two listings for the
-   same shoe should not look like two different products. What is wanted is
-   "Nike Air Jordan 4 Retro Black Cat".
-
-   Everything here removes seller-speak, never product words. The order
-   matters: codes and sizes go before the tidy-up, so the punctuation they
-   leave behind gets swept.
-
-   The one trap worth naming: "New" is a brand. Stripping a bare leading
-   "New" turns New Balance into Balance and New Era into Era, so only the
-   unambiguous phrases go — "Brand New", "New in Box", "New with Tags". A
-   stray "New" surviving on a card is a far smaller problem than mangling
-   a brand nobody can then search for. */
-const NOISE = [
-  /* Condition, as sellers abbreviate it. Bounded so "DS" cannot eat the
-     "DS" in "Nintendo DS". */
-  /\b(?:nwt|nwot|nib|bnib|niob|mib|vnds|euc|guc|dswt|deadstock)\b/gi,
-  /\bds\b(?!\s*(?:lite|xl|i\b))/gi,
-  /\bbrand\s*new\b/gi,
-  /\bnew\s+(?:in\s+box|with\s+tags|w\/?\s*tags|other)\b/gi,
-  /* The leftover half of the phrase above. "Brand New With Tags" loses
-     "Brand New" to the line before this one, and the fuller pattern can no
-     longer match what remains — so a tumbler came out as "Stanley Quencher
-     H2.0 40oz Tumbler With Tags". Removing the fragment on its own is
-     order-independent, which the pair above is not. */
-  /\b(?:with|w\/)\s*tags\b/gi,
-  /\bin\s+(?:original\s+)?box\b/gi,
-  /\b(?:pre[\s-]?owned|preowned|gently\s+used|barely\s+used|like\s+new|mint\s+condition|excellent\s+condition|good\s+condition)\b/gi,
-  /* Marketing. None of it describes the product. */
-  /\b(?:free\s+ship(?:ping)?|fast\s+ship(?:ping)?|ships?\s+(?:free|fast|today|same\s+day)|same[\s-]day\s+ship\w*)\b/gi,
-  /\b(?:100%\s*)?(?:authentic|genuine|guaranteed)\b/gi,
-  /\b(?:rare|htf|hard\s+to\s+find|vintage\s+rare|must\s+see|l@@k|look|wow|sale|hot|trending|limited\s+edition\s+rare)\b/gi,
-  /\b(?:in\s+hand|ready\s+to\s+ship|us\s+seller|fast\s+shipper|smoke\s+free\s+home)\b/gi,
-  /* Quantities and bundles. */
-  /\blot\s+of\s+\d+\b/gi,
-  /\bx\s?\d+\s*(?:pack|pcs?|pieces?)\b/gi,
-  /\bbundle\s+of\s+\d+\b/gi,
-  /* Sizes. A size is a variant of a product, not a different product. */
-  /\b(?:mens?|womens?|youth|kids?|unisex|us|uk|eu)?\s*\bsizes?\b\s*[:\-]?\s*[\dxsml.\/]+\b/gi,
-  /\b(?:mens?|womens?|youth|kids?|unisex)?\s*\bsz\b\s*[:\-]?\s*[\dxsml.\/]+\b/gi,
-  /* The gender word is part of the size, and sellers write it both ways
-     round. Left behind on its own it reads as a trailing fragment —
-     "Jordan 4 Retro Black Cat Mens" — which is how this was found. */
-  /\b(?:mens?|womens?|youth|unisex)\b\s*$/gi,
-  /* Style and model codes: CU1110-010, DH6927 111. Two or more letters
-     followed by digits, which ordinary words are not. */
-  /\b[A-Z]{2,}[\s-]?\d{3,}(?:[\s-]\d{2,})?\b/g,
-  /* Emoji and the decorative junk sellers pad titles with. */
-  /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{2049}\u{203C}]/gu,
-  /[★☆✅✔️❗‼️➡️⭐🔥]/g,
-];
-
-const genericName = (t: string) => {
-  let out = cleanTitle(t);
-
-  /* Parenthetical and bracketed asides are almost always condition or
-     shipping notes. Dropped whole. */
-  out = out.replace(/[([{][^)\]}]*[)\]}]/g, " ");
-
-  for (const re of NOISE) out = out.replace(re, " ");
-
-  /* A leading "NEW", the single most common way a listing opens.
-
-     Bare "New" is deliberately untouched everywhere else in this file,
-     because it is a brand — but at the very front it is nearly always the
-     condition. The brands it could be are few and known, so they are named
-     rather than guessed at: getting this wrong turns New Balance into
-     Balance, which is unsearchable.
-
-     After the noise pass, not before. Titles open "NEW🔥 Nike…" with no
-     space between the word and the decoration, so there is nothing for
-     this to match until the emoji have gone. It was written above the loop
-     first and silently did nothing.
-
-     The separator is `+` and not `*`, which is the whole correctness of
-     this line. With `*` the engine is free to consume nothing and test
-     the exclusion immediately after "New" — where the next text is
-     " Balance", with a leading space, so it does not look like "balance"
-     and the exclusion passes. New Balance became Balance despite a guard
-     written specifically to prevent it. Requiring at least one separator
-     forces the check to happen at the brand. */
-  out = out.replace(/^\s*new\b[\s,\-|]+(?!balance\b|era\b|york\b)/i, "");
-
-  out = out
-    /* Punctuation left stranded by the removals above. */
-    .replace(/\s*[,;:|]\s*(?=[,;:|]|$)/g, " ")
-    .replace(/\s*[-–—]\s*(?=[-–—]|$)/g, " ")
-    .replace(/^[\s,;:|\-–—.!]+/, "")
-    .replace(/[\s,;:|\-–—.!]+$/, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-
-  /* SHOUTING is an advert, not a name. Only when the whole thing is caps —
-     a title with any lower case is left alone, so "PS5" and "iPhone"
-     survive in ordinary titles. */
-  if (out.length > 3 && out === out.toUpperCase() && /[A-Z]{4,}/.test(out)) {
-    /* Word by word, and anything containing a digit is left exactly as it
-       was. Capacities, model numbers and sizes are written in capitals on
-       purpose, and a blanket lower-casing turns "5QT" into "5qt" and
-       "40OZ" into "40oz" — which reads like a typo on a card that is
-       otherwise trying to look like a catalogue. */
-    out = out
-      .split(" ")
-      .map((w) => (/\d/.test(w) ? w : w.toLowerCase().replace(/^[a-z]/, (c) => c.toUpperCase())))
-      .join(" ");
-  }
-
-  /* A name, not a paragraph. Cut at a word boundary so it reads as a name
-     rather than a truncation. */
-  if (out.length > 60) {
-    const cut = out.slice(0, 60);
-    const sp = cut.lastIndexOf(" ");
-    out = (sp > 24 ? cut.slice(0, sp) : cut).trim();
-  }
-
-  /* Everything removable was removed and nothing is left — a title that
-     was pure advertising. The original is better than an empty card. */
-  return out.length >= 3 ? out : cleanTitle(t);
-};
-
 /* Describes the key without revealing it. Safe to log. */
 function fingerprint(raw: string) {
   const trimmed = raw.trim();
@@ -638,7 +511,7 @@ Deno.serve(async (req: Request) => {
         return true;
       })
       .map((r: any) => ({
-        title: genericName(String(r.title)),
+        title: cleanTitle(String(r.title)),
         url: String(r.url),
         market: marketOf(String(r.url)),
         snippet: stripPrices(String(r.content ?? "")).slice(0, 180),

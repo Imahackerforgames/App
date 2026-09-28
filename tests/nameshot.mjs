@@ -6,12 +6,12 @@ import { chromium } from "playwright";
 const require_ = createRequire("/home/user/App/package.json");
 const { transformSync } = require_("esbuild");
 
-const src = readFileSync("/home/user/App/supabase/functions/product-search/index.ts", "utf8");
+const src = readFileSync("/home/user/App/src/App.jsx", "utf8");
 const a = src.indexOf("const stripPrices");
-const b = src.indexOf("/* Describes the key", a);
-const js = transformSync(src.slice(a, b) + "\nexport { genericName, cleanTitle };",
-  { loader: "ts", target: "es2022", format: "esm" }).code;
-const { genericName, cleanTitle } = await import(
+const b = src.indexOf('/* Where "Upgrade to premium"', a);
+const js = transformSync(src.slice(a, b) + "\nexport { genericName, stripPrices };",
+  { loader: "jsx", target: "es2022", format: "esm" }).code;
+const { genericName, stripPrices: cleanTitle } = await import(
   `data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
 
 /* Written the way sellers write them. */

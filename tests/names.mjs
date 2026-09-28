@@ -16,18 +16,23 @@ import { readFileSync } from "fs";
 let pass = 0, fail = 0;
 const ok = (n, c, x = "") => { c ? (pass++, console.log("  PASS  " + n)) : (fail++, console.log("  FAIL  " + n + (x ? "  <- " + x : ""))); };
 
-/* The function is a const inside the Edge Function, which is Deno and full
-   of top-level awaits. Lift just the pieces this needs. */
-const src = readFileSync("/home/user/App/supabase/functions/product-search/index.ts", "utf8");
-const slice = (from, to) => {
-  const a = src.indexOf(from);
-  const b = src.indexOf(to, a);
-  if (a === -1 || b === -1) throw new Error(`could not find ${from}`);
-  return src.slice(a, b);
-};
+/* Lifted out of App.jsx rather than the Edge Function.
+
+   It lives client-side for a deployment reason, not an architectural one:
+   the search function can only be deployed by pasting forty kilobytes into
+   an API call, and a mistyped character in one of these regexes would take
+   product search down for every paying customer. App.jsx ships from git.
+   A cosmetic improvement does not get to risk the core paid feature.
+
+   Slicing the source beats importing App.jsx, which would pull in React,
+   lucide and the whole app. */
+const src = readFileSync("/home/user/App/src/App.jsx", "utf8");
+const a = src.indexOf("const stripPrices");
+const b = src.indexOf('/* Where "Upgrade to premium"', a);
+if (a === -1 || b === -1) throw new Error("could not find genericName in App.jsx");
 const js = transformSync(
-  slice("const stripPrices", "/* Describes the key") + "\nexport { genericName, cleanTitle };",
-  { loader: "ts", target: "es2022", format: "esm" },
+  src.slice(a, b) + "\nexport { genericName, stripPrices };",
+  { loader: "jsx", target: "es2022", format: "esm" },
 ).code;
 const { genericName } = await import(
   `data:text/javascript;base64,${Buffer.from(js).toString("base64")}`
