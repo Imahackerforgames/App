@@ -5956,8 +5956,19 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  the payment — this app never sees your card. Cancelling keeps premium
  until the end of the period you've already paid for.
  </p>
+ {/* An answer, not more instructions.
+
+     This sat in C.dim at 12px directly under an 11.5px C.dead paragraph,
+     so tapping the button produced a third block of grey that read like
+     the help text above it. Nothing on screen moved and nothing looked
+     like a reply, which is indistinguishable from a dead button — and
+     that is exactly how it was reported.
+
+     A response to a tap has to be visibly a response. Accent colour and
+     some weight, so the eye lands on it. */}
  {portalNote && (
- <p role="status" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.6, color: C.dim }}>
+ <p role="status" style={{ fontSize: 13, marginTop: 10, lineHeight: 1.6,
+   color: C.accent, fontWeight: 600 }}>
  {portalNote}
  </p>
  )}

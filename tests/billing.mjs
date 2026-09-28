@@ -100,6 +100,23 @@ async function settingsAs(plan, routes = () => {}) {
   await page.getByRole("button", { name: /manage subscription/i }).click();
   await page.waitForTimeout(1000);
   ok("the reason is shown", /contact support/i.test(await page.locator("body").innerText()));
+
+  /* Reported as "it does not do anything". It did — it showed the reason
+     in C.dim at 12px, directly beneath an 11.5px C.dead paragraph, so the
+     reply was a third block of grey that read like more help text. A
+     response nobody can pick out is the same as no response. */
+  const note = page.locator("[role=status]").filter({ hasText: /contact support/i }).first();
+  const seen = await note.evaluate((el) => {
+    const s = getComputedStyle(el);
+    const prev = el.previousElementSibling ? getComputedStyle(el.previousElementSibling) : null;
+    return { color: s.color, weight: +s.fontWeight, size: parseFloat(s.fontSize),
+             prevColor: prev ? prev.color : null, prevSize: prev ? parseFloat(prev.fontSize) : null };
+  });
+  ok("it does not wear the same colour as the help text above it",
+     seen.color !== seen.prevColor, JSON.stringify(seen));
+  ok("it is heavier than body copy", seen.weight >= 600, String(seen.weight));
+  ok("and not smaller than the paragraph it must be told apart from",
+     seen.size >= (seen.prevSize ?? 0), `${seen.size} vs ${seen.prevSize}`);
   await ctx.close();
 }
 
