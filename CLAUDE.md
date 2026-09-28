@@ -155,6 +155,18 @@ Revoking from `anon` and `authenticated` by name would not help; the grant
 lives on `PUBLIC` and they inherit it. `tests/premiumfns.mjs` fails if
 either line is removed.
 
+Nobody can buy it twice. Every upgrade button is hidden from a premium
+account, and `openCheckout` refuses outright when `checkoutIsPro` — hiding
+a control is a drawing decision, and this is the one that spends money.
+Two subscriptions on one account is one person charged twice for one
+thing: a refund, an apology and quite possibly a chargeback.
+
+Subscription events carry only the customer, so the account is found by
+customer — fine with one subscription, wrong with two, because cancelling
+either looks identical and would switch the account off while the other
+kept charging. `stripe_subscription_id` records which subscription the
+account is actually on, and an event about any other one is left alone.
+
 Removing premium from somebody who pays means cancelling in Stripe, not
 clearing the row. A live subscription re-grants `pro` at the next renewal
 event and the revoke silently undoes itself, so `revoke_premium` returns a

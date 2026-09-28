@@ -107,6 +107,75 @@ ok("signed out, nothing was opened on load", signedOut.opened.length === 0, JSON
 const body = await page.locator("body").innerText();
 ok("no stale payment provider named anywhere", !/commas/i.test(body), body.match(/.{0,40}commas.{0,20}/i)?.[0]);
 
+/* ── Somebody who already pays must not be able to buy it twice ─────────
+   Two subscriptions on one account is one person charged twice for one
+   thing: a refund, an apology, and quite possibly a chargeback.
+
+   Every upgrade button is already hidden from a premium account, which is
+   the real protection and is asserted first. The guard inside openCheckout
+   is the backstop for the cases hiding does not cover — a screen drawn
+   before the plan finished loading, a stale tab, a route nobody thought
+   of. Hiding a control is a drawing decision; this is the one that spends
+   money, so it is checked where the spending happens. */
+{
+  console.log("\n-- with premium already on the account --");
+  const proCtx = await b.newContext({ viewport: { width: 420, height: 950 } });
+  const pro = await proCtx.newPage();
+  pro.on("pageerror", (e) => { console.log("  PAGEERROR " + e.message); fail++; });
+
+  await pro.route("**://*.supabase.co/**", (r) => r.abort());
+  await pro.route(/\/rest\/v1\//, (r) => r.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
+  /* Registered after the catch-all so it matches first — Playwright tries
+     routes in reverse registration order, and a catch-all registered later
+     swallows everything behind it. */
+  await pro.route(/\/rest\/v1\/entitlements/, (r) => r.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify([{ plan: "pro", expires_at: null }]),
+  }));
+
+  await pro.addInitScript((uid) => {
+    localStorage.setItem("ros:session", JSON.stringify({ email: "t@example.com", provider: "email",
+      token: "t", id: uid, refresh: "r", expiresAt: Math.floor(Date.now() / 1000) + 3600 }));
+    localStorage.setItem(`ros:u:${uid}:profile`, JSON.stringify({ username: "tester", onboarded: true,
+      name: "Tester", state: "Georgia", zip: "30106", theme: "obsidian" }));
+    window.__opened = []; window.__alerts = [];
+    window.open = (u) => { window.__opened.push(String(u)); return { closed: false }; };
+    window.alert = (m) => { window.__alerts.push(String(m)); };
+  }, UID);
+
+  await pro.goto("http://localhost:4173/", { waitUntil: "networkidle" });
+  await pro.waitForTimeout(1500);
+
+  const upgrades = await pro.getByRole("button", { name: /upgrade to premium/i }).count();
+  ok("no upgrade button is offered at all", upgrades === 0, String(upgrades));
+
+  const st = await pro.evaluate(() => ({ opened: window.__opened, alerts: window.__alerts }));
+  ok("and no checkout was opened", st.opened.length === 0, JSON.stringify(st.opened));
+
+  await proCtx.close();
+}
+
+/* The backstop itself, read as source. It cannot be reached through the UI
+   precisely because the buttons are hidden, so clicking is not a way to
+   test it — and "unreachable today" is exactly the condition under which a
+   guard quietly stops working. */
+{
+  console.log("\n-- the guard inside openCheckout --");
+  const { readFileSync } = await import("fs");
+  const src = readFileSync("/home/user/App/src/App.jsx", "utf8");
+  const fn = (src.split(/function openCheckout\s*\(/)[1] || "").split(/\n}/)[0];
+
+  ok("openCheckout refuses when the account is already premium",
+     /if\s*\(\s*checkoutIsPro\s*\)/.test(fn), fn.slice(0, 200));
+  ok("it says so rather than failing silently", /alert\(/.test(fn));
+  ok("the refusal comes before the tab is opened",
+     fn.indexOf("checkoutIsPro") < fn.indexOf("window.open"),
+     "a check after window.open is not a check");
+  ok("checkoutIsPro tracks the plan the server reported",
+     /useEffect\(\(\)\s*=>\s*\{\s*checkoutIsPro\s*=\s*isPro;?\s*\}/.test(src));
+  ok("and is cleared on sign-out", /if\s*\(!user\)\s*checkoutIsPro\s*=\s*false/.test(src));
+}
+
 await b.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

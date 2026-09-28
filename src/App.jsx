@@ -132,6 +132,12 @@ const STRIPE_LIVE_URL = "https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00";
    app keeps current is the honest way to have it to hand. */
 let checkoutUserId = null;
 
+/* Whether that account already has premium, mirrored here for the same
+   reason as the id above: openCheckout runs inside a click handler and
+   cannot await a lookup without Safari treating the popup as unsolicited
+   and blocking it. */
+let checkoutIsPro = false;
+
 /* Whether this account has paid, read from the entitlements table.
 
    Every failure lands on free. No session, no row, a request that errors, a
@@ -3271,11 +3277,17 @@ export default function ResellOS() {
    /* Kept current for openCheckout, which needs it synchronously inside a
       click handler and cannot go and look it up. */
    checkoutUserId = user?.id || null;
+   if (!user) checkoutIsPro = false;
    if (!user) { setEnt({ plan: "free", expiresAt: null }); return; }
    let alive = true;
    fetchEntitlement().then((e) => alive && setEnt(e));
    return () => { alive = false; };
  }, [user]);
+
+ /* The other half of that mirror. Whatever the plan turns out to be, and
+    every time it changes, openCheckout is told — so its refusal reflects
+    the answer the server actually gave rather than a stale one. */
+ useEffect(() => { checkoutIsPro = isPro; }, [isPro]);
 
  /* Checkout opens in another tab. Coming back to this one is the moment the
     payment has most likely just landed, so that is when to ask again —
@@ -3921,6 +3933,26 @@ function openCheckout() {
      and be unable to upgrade them, so that does not happen. */
   if (!checkoutUserId) {
     alert("Sign in first, so your payment can be matched to your account.");
+    return;
+  }
+
+  /* Somebody who already pays must not be able to start a second
+     subscription.
+
+     Every upgrade button is already hidden from a premium account, so
+     under normal use this never fires. It is here for the cases where that
+     is not enough: a screen rendered before the plan finished loading, a
+     stale tab, a button reached by some route nobody thought of. Hiding a
+     control is a UI decision; this is the one that actually costs money if
+     it is wrong, so it gets checked at the point of spending rather than
+     at the point of drawing.
+
+     Two subscriptions on one account means a person charged twice for one
+     thing, which is a refund, an apology and quite possibly a chargeback.
+     Refusing a click somebody probably did not mean is much the cheaper
+     mistake. */
+  if (checkoutIsPro) {
+    alert("You already have premium on this account, so there's nothing to buy. If it isn't showing, open Settings and press \u201cI've paid \u2014 check again\u201d.");
     return;
   }
 

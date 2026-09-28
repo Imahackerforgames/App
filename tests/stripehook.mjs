@@ -25,7 +25,8 @@ const PERIOD_END = NOW + 30 * 86400;
 async function run({
   event,                 // the parsed event the signature check yields
   signatureValid = true,
-  customerLookup = null, // what entitlements returns for a customer query
+  customerLookup = null,      // user_id entitlements returns for a customer query
+  customerSubOnRecord = null, // which subscription that account is recorded as being on
   writeFails = false,
   subscription = { id: "sub_1", status: "active", customer: "cus_1", current_period_end: PERIOD_END },
   configured = true,
@@ -77,7 +78,10 @@ async function run({
         : new Response(null, { status: 204 });
     }
     if (u.includes("/entitlements")) {
-      return new Response(JSON.stringify(customerLookup ? [{ user_id: customerLookup }] : []), { status: 200 });
+      return new Response(JSON.stringify(
+        customerLookup
+          ? [{ user_id: customerLookup, stripe_subscription_id: customerSubOnRecord }]
+          : []), { status: 200 });
     }
     return new Response("{}", { status: 200 });
   };
@@ -277,6 +281,72 @@ const paid = (over = {}) => ({
   console.log("\n13. A missing signing secret is still a refusal");
   const { res, writes } = await run({ event: paid(), configured: false, secretKey: "sk_test_x" });
   ok("refused", res.status === 500, String(res.status));
+  ok("nothing written", writes.length === 0, JSON.stringify(writes));
+}
+
+/* ── 14. two subscriptions on one customer ───────────────────────────────
+   These events carry only the customer, so the account is found by
+   customer. With one subscription that is fine. With two it is wrong in a
+   way that costs a paying person their access: cancelling either one looks
+   identical from here, so the account would be switched off while the
+   other subscription carries on charging them.
+
+   stripe_subscription_id records which subscription the account is
+   actually on. An event about any other one is not about this account. */
+{
+  console.log("\n14. Cancelling a second subscription leaves the paid one alone");
+  const { res, writes } = await run({
+    event: { type: "customer.subscription.deleted",
+             data: { object: { id: "sub_DUPLICATE", status: "canceled", customer: "cus_1" } } },
+    customerLookup: "user-abc",
+    customerSubOnRecord: "sub_1",   // the one they actually pay on
+  });
+  ok("acknowledged", res.status === 200, String(res.status));
+  ok("and the account was NOT touched", writes.length === 0,
+     "a second subscription ending is not this one ending — " + JSON.stringify(writes));
+}
+{
+  /* The same protection must not become a way to never downgrade anyone.
+     When the event IS about the recorded subscription, it applies. */
+  console.log("\n15. Cancelling the real subscription still downgrades");
+  const { res, writes } = await run({
+    event: { type: "customer.subscription.deleted",
+             data: { object: { id: "sub_1", status: "canceled", customer: "cus_1" } } },
+    customerLookup: "user-abc",
+    customerSubOnRecord: "sub_1",
+  });
+  ok("acknowledged", res.status === 200, String(res.status));
+  ok("exactly one write", writes.length === 1, String(writes.length));
+  ok("set to free", (writes[0] || {}).plan === "free", JSON.stringify(writes[0]));
+}
+{
+  /* An account with nothing recorded yet — an older row, or events landing
+     out of order before the checkout event. Matching on customer is all
+     there is, so it still applies rather than ignoring a real
+     cancellation. */
+  console.log("\n16. With no subscription recorded, the customer match still applies");
+  const { res, writes } = await run({
+    event: { type: "customer.subscription.deleted",
+             data: { object: { id: "sub_whatever", status: "canceled", customer: "cus_1" } } },
+    customerLookup: "user-abc",
+    customerSubOnRecord: null,
+  });
+  ok("acknowledged", res.status === 200, String(res.status));
+  ok("and it downgrades", (writes[0] || {}).plan === "free", JSON.stringify(writes));
+}
+{
+  /* A renewal on a subscription the account is not on must not refresh
+     their expiry either — that would extend access on the strength of
+     somebody else's billing. */
+  console.log("\n17. A renewal on the other subscription does not extend anything");
+  const { res, writes } = await run({
+    event: { type: "customer.subscription.updated",
+             data: { object: { id: "sub_DUPLICATE", status: "active", customer: "cus_1",
+                               current_period_end: PERIOD_END } } },
+    customerLookup: "user-abc",
+    customerSubOnRecord: "sub_1",
+  });
+  ok("acknowledged", res.status === 200, String(res.status));
   ok("nothing written", writes.length === 0, JSON.stringify(writes));
 }
 

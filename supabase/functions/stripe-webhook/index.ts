@@ -80,14 +80,21 @@ async function upsertEntitlement(row: Record<string, unknown>) {
    Renewals and cancellations carry no user id — only the customer. This is
    the lookup that makes the mapping recorded at checkout time useful, and
    it is why the two stripe_* columns exist. */
-async function userIdForCustomer(customerId: string): Promise<string | null> {
+async function accountForCustomer(
+  customerId: string,
+): Promise<{ userId: string; subId: string | null } | null> {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/entitlements?select=user_id&stripe_customer_id=eq.${encodeURIComponent(customerId)}&limit=1`,
+    `${SUPABASE_URL}/rest/v1/entitlements?select=user_id,stripe_subscription_id&stripe_customer_id=eq.${encodeURIComponent(customerId)}&limit=1`,
     { headers: admin() },
   );
   if (!res.ok) return null;
   const rows = await res.json();
-  return Array.isArray(rows) && rows[0]?.user_id ? String(rows[0].user_id) : null;
+  const row = Array.isArray(rows) ? rows[0] : null;
+  if (!row?.user_id) return null;
+  return {
+    userId: String(row.user_id),
+    subId: row.stripe_subscription_id ? String(row.stripe_subscription_id) : null,
+  };
 }
 
 /* Premium runs until the end of the period that was paid for, plus a day.
@@ -214,12 +221,36 @@ Deno.serve(async (req: Request) => {
         const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
         if (!customerId) break;
 
-        const userId = await userIdForCustomer(customerId);
-        if (!userId) {
+        const account = await accountForCustomer(customerId);
+        if (!account) {
           /* Can happen legitimately if events arrive out of order and the
              checkout event has not landed yet. That one sets the correct
              state when it does, so this is a warning rather than a retry. */
           console.warn(`stripe-webhook: no account for customer ${customerId}; ignoring ${event.type}.`);
+          break;
+        }
+        const { userId, subId: onRecord } = account;
+
+        /* Is this event even about the subscription this account is on?
+
+           The customer is the only handle these events carry, so the
+           account is found by customer. That is fine while a customer has
+           one subscription and wrong the moment they have two: cancelling
+           either one looks identical from here, and the account would be
+           switched off while the other subscription carries on charging
+           them. Somebody paying, locked out of what they are paying for —
+           a refund and probably a chargeback, and the customer is right.
+
+           `stripe_subscription_id` records which subscription the account
+           is actually on, written by the checkout event. An event about
+           any other subscription is not about this account's access, so it
+           does not touch it. The recorded one stays authoritative until a
+           checkout event replaces it. */
+        if (onRecord && sub.id !== onRecord) {
+          console.warn(
+            `stripe-webhook: ${event.type} for ${sub.id}, but ${userId} is on ${onRecord}. ` +
+            `Leaving their plan alone — a second subscription ending is not this one ending.`,
+          );
           break;
         }
 
