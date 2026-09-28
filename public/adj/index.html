@@ -40,6 +40,8 @@ button{cursor:pointer}
 .logo b span:nth-child(3){color:var(--blue);transform:rotate(-4deg)}
 .logo small{font:800 13px/1.2 var(--body);color:var(--muted);max-width:9em;text-align:left;text-transform:uppercase;letter-spacing:.06em}
 .chipbtn{border:3px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;font-weight:800;box-shadow:3px 3px 0 var(--shadow);display:inline-flex;align-items:center;gap:6px;transition:transform .1s}
+.hbtns{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;align-items:center}
+.song{font-weight:800;font-size:13px;color:var(--muted);max-width:16em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chipbtn:hover{transform:translateY(-2px)}
 .chipbtn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--shadow)}
 .chipbtn svg{width:20px;height:20px}
@@ -150,7 +152,7 @@ h2.shelf small{font:800 15px var(--body);color:var(--muted)}
   .tools{grid-template-columns:repeat(auto-fill,64px);justify-content:start}
   .colors{grid-template-columns:repeat(auto-fill,minmax(36px,1fr))}
 }
-@media (max-width:520px){.logo b{font-size:52px}.logo small{display:none}.book .t{font-size:19px}.books{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}}
+@media (max-width:520px){.song{display:none}.chipbtn{padding:6px 10px;font-size:14px}.logo b{font-size:52px}.logo small{display:none}.book .t{font-size:19px}.books{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media print{body{background:#fff;padding:0}body>*:not(#printout){display:none!important}#printout{display:block!important}#printout img{width:100%;page-break-after:always;display:block}}
 </style>
@@ -161,7 +163,12 @@ h2.shelf small{font:800 15px var(--body);color:var(--muted)}
 <div class="wrap">
   <header class="top">
     <button class="logo" id="home" aria-label="adj home"><b><span>a</span><span>d</span><span>j</span></b><small>make-your-own coloring books</small></button>
-    <button class="chipbtn" id="sound" aria-pressed="true" title="Sounds on or off"></button>
+    <div class="hbtns">
+      <span class="song" id="song" aria-live="polite"></span>
+      <button class="chipbtn" id="music" aria-pressed="true"></button>
+      <button class="chipbtn" id="skip" title="Play a different song"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>Shuffle</button>
+      <button class="chipbtn" id="sound" aria-pressed="true" title="Sounds on or off"></button>
+    </div>
   </header>
 
   <main id="shelf">
@@ -206,8 +213,8 @@ h2.shelf small{font:800 15px var(--body);color:var(--muted)}
       </aside>
       <div class="stagebox">
         <div class="stage" id="stage">
-          <canvas id="paint" width="850" height="1100"></canvas>
-          <canvas id="ink" width="850" height="1100"></canvas>
+          <canvas id="paint" width="1275" height="1650"></canvas>
+          <canvas id="ink" width="1275" height="1650"></canvas>
           <div class="loading" id="loading">Getting the page ready…</div>
         </div>
       </div>

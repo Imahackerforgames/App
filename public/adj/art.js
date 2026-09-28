@@ -14,7 +14,9 @@
   const r = (x, y, w, h, rx = 0, fill = '#fff') => `<rect x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" rx="${f(rx)}" fill="${fill}"/>`;
   const mir = (s) => `<g transform="translate(200 0) scale(-1 1)">${s}</g>`;
   const INK = '#222';
-  const eye = (x, y, s = 7) => c(x, y, s) + c(x + s * 0.15, y + s * 0.1, s * 0.55, INK) + c(x - s * 0.1, y - s * 0.15, s * 0.18, '#fff', ' stroke="none"');
+  // Big shiny kawaii eye: white, dark pupil, two sparkle highlights.
+  const eye = (x, y, s = 7) => c(x, y, s) + c(x + s * 0.12, y + s * 0.1, s * 0.62, INK) + c(x - s * 0.12, y - s * 0.16, s * 0.26, '#fff', ' stroke="none"') + c(x + s * 0.34, y + s * 0.34, s * 0.11, '#fff', ' stroke="none"');
+  const blush = (x, y, w = 7) => e(x, y, w, w * 0.55);
   const smile = (x, y, w) => l(`M${f(x - w)} ${f(y)} Q${f(x)} ${f(y + w * 0.9)} ${f(x + w)} ${f(y)}`);
 
   function scallop(cx, cy, rad, n, b) {
@@ -68,7 +70,19 @@
 
   // ---------- subjects ----------
   const S = {};
-  const add = (key, name, kw, draw, pl) => (S[key] = { key, name, pl: pl || name + 's', kw, draw });
+  // Rosy cheeks, added after each subject's own drawing.
+  const BLUSH = {
+    cat: [[78, 88, 6], [122, 88, 6]], bear: [[76, 90, 6], [124, 90, 6]], lion: [[76, 94, 6], [124, 94, 6]], pig: [[82, 102, 7]], chicken: [[78, 86, 6]],
+    whale: [[74, 112, 8]], octopus: [[64, 90, 8], [136, 90, 8]], turtle: [[166, 124, 5]], crab: [[76, 138, 7], [124, 138, 7]], starfish: [[76, 116, 6], [124, 116, 6]],
+    jellyfish: [[68, 84, 7], [132, 84, 7]], trex: [[108, 58, 6]], longneck: [[84, 36, 5]], dragon: [[114, 78, 6]], astronaut: [[82, 72, 5], [118, 72, 5]],
+    cupcake: [[80, 150, 6], [120, 150, 6]], icecream: [[78, 98, 6], [122, 98, 6]], apple: [[68, 122, 8], [132, 122, 8]], bee: [[30, 116, 5], [66, 116, 5]],
+    caterpillar: [[24, 112, 5], [64, 112, 5]], cloud: [[66, 106, 7], [134, 106, 7]], flower: [[84, 82, 4], [116, 82, 4]], planet: [[74, 104, 5], [126, 104, 5]],
+    moon: [[74, 104, 6]], owl: [[60, 106, 6], [140, 106, 6]], cow: [[36, 80, 5], [84, 80, 5]], elephant: [[66, 94, 6]], sun: [[70, 110, 6], [130, 110, 6]],
+  };
+  const add = (key, name, kw, draw, pl) => {
+    const cheeks = (BLUSH[key] || []).map(([x, y, w]) => blush(x, y, w)).join('');
+    return (S[key] = { key, name, pl: pl || name + 's', kw, draw: cheeks ? () => draw() + cheeks : draw });
+  };
 
   add('cat', 'kitty', ['cat', 'cats', 'kitten', 'kitty', 'kitties'], () =>
     p('M135 165 Q192 160 178 100 Q176 86 164 92 Q172 112 165 135 Q155 150 130 150Z') +
@@ -317,6 +331,49 @@
   add('house', 'barn', ['house', 'home', 'barn', 'farm', 'cottage'], () =>
     r(148, 40, 18, 40) + p('M18 96 L100 26 L182 96Z') + r(32, 94, 136, 90) + p('M78 184 L78 128 L122 128 L122 184Z') + l('M78 128 L122 184 M122 128 L78 184') +
     r(44, 110, 26, 26, 3) + r(130, 110, 26, 26, 3) + l('M57 110 L57 136 M143 110 L143 136') + c(100, 72, 12));
+  // ---- Halloween ----
+  add('pumpkin', 'pumpkin', ['pumpkin', 'pumpkins', 'jack-o-lantern', 'jack o lantern', 'jackolantern'], () =>
+    p('M92 44 Q88 22 102 14 L112 22 Q104 30 108 46Z') + l('M108 30 Q126 16 138 26 Q132 38 118 34 Q126 30 124 26') + p(leafD(104, 36, 34, -40)) +
+    e(60, 116, 44, 62) + e(140, 116, 44, 62) + e(100, 116, 48, 68) + l('M78 60 Q70 116 80 176 M122 60 Q130 116 120 176') +
+    eye(84, 106, 11) + eye(116, 106, 11) + p('M82 132 Q100 150 118 132 Q100 140 82 132Z') + p('M95 137 L100 145 L105 137Z') +
+    blush(70, 128, 7) + blush(130, 128, 7));
+  add('ghost', 'ghost', ['ghost', 'ghosts', 'boo', 'spirit', 'ghostie'], () => {
+    const arm = p('M44 104 Q16 108 18 132 Q32 132 46 126Z');
+    return arm + mir(arm) + p('M40 182 L40 92 Q40 22 100 22 Q160 22 160 92 L160 182 Q146 166 132 180 Q116 196 100 180 Q84 166 68 180 Q54 196 40 182Z') +
+      eye(80, 90, 11) + eye(120, 90, 11) + e(100, 118, 8, 10) + blush(64, 110, 8) + blush(136, 110, 8) + p(heartD(132, 150, 9)) + sparkle(62, 150, 7);
+  });
+  add('bat', 'bat', ['bat', 'bats', 'vampire', 'dracula'], () => {
+    const half = p('M90 96 Q60 46 14 62 Q28 74 24 92 Q40 86 48 102 Q58 94 70 112Z') + p('M78 76 L72 40 L94 62Z');
+    return half + mir(half) + c(100, 104, 36) + e(100, 118, 18, 16) + eye(86, 98, 9) + eye(114, 98, 9) +
+      l('M90 116 Q100 124 110 116') + p('M93 117 L96 125 L99 118Z M101 118 L104 125 L107 117Z') + blush(76, 112, 5) + blush(124, 112, 5) +
+      l('M90 140 L88 150 M110 140 L112 150');
+  });
+  add('witchhat', 'witch hat', ['witch', 'witches', 'witch hat', 'wizard', 'hat', 'spell'], () =>
+    e(100, 162, 90, 22) + p('M50 162 Q68 112 86 62 Q94 30 120 16 Q152 8 152 30 Q134 24 126 40 Q116 72 150 162Z') +
+    p('M56 142 L146 142 L152 162 L50 162Z') + r(86, 138, 28, 26, 4) + r(94, 145, 12, 12, 2) + p(starPath(96, 100, 12, 5)) + sparkle(120, 70, 8) + c(80, 124, 4));
+  add('candycorn', 'candy corn', ['candy corn', 'candycorn', 'corn'], () =>
+    p('M100 16 Q118 16 142 108 Q158 172 100 182 Q42 172 58 108 Q82 16 100 16Z') + l('M74 72 Q100 82 126 72 M58 140 Q100 156 142 140') +
+    c(86, 110, 6, INK) + c(114, 110, 6, INK) + c(84, 107, 2, '#fff', ' stroke="none"') + c(112, 107, 2, '#fff', ' stroke="none"') + smile(100, 120, 8) + blush(74, 122, 6) + blush(126, 122, 6), 'candy corns');
+  add('spider', 'spider', ['spider', 'spiders', 'web', 'cobweb'], () => {
+    const legs = l('M72 100 Q44 76 28 94 M70 112 Q38 106 24 126 M72 124 Q44 134 38 158 M80 134 Q62 154 64 176');
+    return l('M100 0 L100 70') + legs + mir(legs) + c(100, 112, 36) + eye(86, 106, 10) + eye(114, 106, 10) + smile(100, 124, 8) + blush(76, 124, 6) + blush(124, 124, 6) + p(heartD(100, 88, 6));
+  });
+  add('candybucket', 'treat bucket', ['bucket', 'trick or treat', 'treats', 'trick-or-treat', 'candy bag'], () =>
+    l('M40 96 Q100 14 160 96') + p('M60 70 L72 60 L74 76Z') + c(84, 80, 16) + p('M100 62 L96 50 L108 56Z M136 66 L146 56 L144 72Z') + e(122, 72, 18, 12) +
+    r(104, 36, 6, 40, 3) + c(107, 34, 12) + l(spiral(107, 34, 10, 2)) +
+    p('M36 94 Q28 186 100 188 Q172 186 164 94Z') + e(100, 94, 66, 14) + l('M70 108 Q64 146 72 180 M130 108 Q136 146 128 180') +
+    eye(84, 132, 8) + eye(116, 132, 8) + p('M86 152 Q100 164 114 152Z') + blush(70, 146, 6) + blush(130, 146, 6));
+  add('cauldron', 'cauldron', ['cauldron', 'potion', 'brew', 'pot'], () =>
+    c(78, 60, 12) + c(108, 44, 17) + c(134, 64, 9) + c(96, 20, 6) +
+    p('M52 170 L42 190 L64 184Z') + p('M148 170 L158 190 L136 184Z') + e(100, 130, 72, 54) + e(100, 86, 74, 16) +
+    p('M40 88 Q46 110 56 96 Q62 118 72 98 Q80 104 84 92Z') + p('M150 90 Q148 112 138 100 Q132 112 124 96Z') + l('M130 84 L160 40') + e(162, 36, 8, 5, '#fff', 'rotate(-55 162 36)') +
+    eye(82, 136, 9) + eye(118, 136, 9) + smile(100, 152, 10) + blush(68, 152, 6) + blush(132, 152, 6));
+  add('haunted', 'haunted house', ['haunted', 'haunted house', 'mansion', 'spooky house'], () =>
+    r(54, 44, 32, 52) + p('M48 46 L70 8 L92 46Z') + c(70, 70, 8) + r(36, 92, 128, 94) + p('M24 96 L100 34 L176 96Z') + c(100, 72, 12) + l('M100 60 L100 84 M88 72 L112 72') +
+    p('M84 186 L84 148 Q100 128 116 148 L116 186Z') + c(108, 168, 2.5, INK) + r(48, 112, 26, 28, 4) + r(126, 112, 26, 28, 4) +
+    c(56, 124, 3.5, INK) + c(66, 124, 3.5, INK) + c(134, 124, 3.5, INK) + c(144, 124, 3.5, INK) + l('M56 132 Q61 136 66 132 M134 132 Q139 136 144 132') +
+    p('M128 40 q-8 -8 -18 -3 q6 3 4 9 q7 -3 14 3 q7 -6 14 -3 q-2 -6 4 -9 q-10 -5 -18 3Z') + r(92, 186, 16, 6, 2) + l('M40 160 L50 150 L44 146'));
+
   add('rainbow', 'rainbow', ['rainbow', 'rainbows'], () =>
     l('M14 150 A86 86 0 0 1 186 150 M32 150 A68 68 0 0 1 168 150 M50 150 A50 50 0 0 1 150 150 M68 150 A32 32 0 0 1 132 150') + p(cloudD(40, 150, 70)) + p(cloudD(160, 150, 70)));
 
@@ -394,11 +451,22 @@
       s += hills('M30 820 Q230 740 430 800 Q640 860 820 770 L820 990 L30 990Z') + tufts(R, 900, 960, 5);
       return { ground: 885, bg: s };
     },
+    spooky(R) {
+      let s = c(690, 160, 72) + c(660, 140, 12) + c(716, 186, 9) + c(700, 124, 6);
+      for (const [x, y, k] of [[180, 150, 1.3], [330, 110, 1], [470, 200, 0.9], [260, 260, 0.8]]) s += `<g transform="translate(${x} ${y}) scale(${k})">` + p('M0 0 q-14 -14 -30 -5 q9 5 7 14 q12 -5 23 5 q12 -10 23 -5 q-2 -9 7 -14 q-16 -9 -30 5Z') + '</g>';
+      for (let i = 0; i < 9; i++) s += sparkle(60 + R() * 740, 330 + R() * 220, 6 + R() * 8);
+      s += p('M30 800 Q230 740 430 790 Q640 840 820 770 L820 990 L30 990Z');
+      for (const [x, y] of [[110, 880], [720, 870]]) s += p(`M${x - 34} ${y} L${x - 34} ${y - 64} Q${x} ${y - 104} ${x + 34} ${y - 64} L${x + 34} ${y}Z`) + l(`M${x} ${y - 76} L${x} ${y - 30} M${x - 16} ${y - 60} L${x + 16} ${y - 60}`);
+      for (const [x, y, r0] of [[250, 930, 26], [600, 940, 20], [420, 955, 16]]) s += l('M' + (x - 2) + ' ' + (y - r0) + ' q-2 -12 8 -14') + e(x - r0 * 0.5, y, r0 * 0.7, r0 * 0.85) + e(x + r0 * 0.5, y, r0 * 0.7, r0 * 0.85) + e(x, y, r0 * 0.7, r0 * 0.9);
+      s += tufts(R, 905, 960, 4);
+      return { ground: 885, bg: s };
+    },
     plain(R) {
-      return { ground: 870, bg: sparkle(110, 120, 28) + sparkle(740, 140, 22) + sparkle(90, 880, 20) + sparkle(760, 860, 30) + c(170, 200, 8) + c(690, 800, 10) };
+      return { ground: 870, bg: '' };
     },
   };
   const SCENE_KW = {
+    spooky: ['halloween', 'spooky', 'ghost', 'pumpkin', 'witch', 'bat', 'haunted', 'boo', 'trick', 'treat', 'monster', 'skeleton', 'zombie', 'vampire', 'october', 'costume'],
     space: ['space', 'astronaut', 'planet', 'rocket', 'moon', 'galaxy', 'alien', 'stars', 'ufo', 'mars'],
     ocean: ['sea', 'ocean', 'underwater', 'beach', 'mermaid', 'shark', 'pirate', 'fish', 'whale', 'reef', 'swim'],
     farm: ['farm', 'barn', 'cow', 'pig', 'chicken', 'tractor', 'horse'],
@@ -406,17 +474,19 @@
     jungle: ['jungle', 'dinosaur', 'dino', 'safari', 'lion', 'monkey', 'tiger', 'forest', 'zoo'],
     kingdom: ['castle', 'princess', 'prince', 'unicorn', 'dragon', 'fairy', 'magic', 'knight', 'kingdom', 'rainbow'],
     candy: ['candy', 'sweet', 'cake', 'cupcake', 'ice cream', 'donut', 'treat', 'dessert', 'pizza', 'food', 'party'],
-    night: ['night', 'sleep', 'owl', 'bedtime', 'dream', 'spooky', 'halloween', 'ghost'],
+    night: ['night', 'sleep', 'owl', 'bedtime', 'dream'],
     meadow: ['garden', 'bug', 'flower', 'meadow', 'park', 'spring', 'bunny', 'pet'],
   };
   const SCENE_PROPS = {
     space: ['star', 'planet', 'moon'], ocean: ['fish', 'starfish', 'jellyfish'], farm: ['apple', 'flower', 'house'], road: ['cloud', 'tree', 'balloon'],
     jungle: ['palm', 'butterfly', 'flower'], kingdom: ['star', 'heart', 'mushroom'], candy: ['lollipop', 'heart', 'cake'], night: ['star', 'moon', 'cloud'],
-    meadow: ['flower', 'butterfly', 'cloud'], plain: ['star', 'heart', 'balloon'],
+    meadow: ['flower', 'butterfly', 'cloud'], spooky: ['candycorn', 'spider', 'bat'], plain: ['star', 'heart', 'balloon'],
   };
 
   // ---------- ready-made books ----------
   const BOOKS = [
+    { id: 'boo', title: 'Spooky Cute Halloween', color: '#FF8C1A', scene: 'spooky', alt: 'night', heroes: ['pumpkin', 'ghost', 'bat', 'witchhat'], props: ['candycorn', 'spider', 'candybucket'] },
+    { id: 'treat', title: 'Trick or Treat!', color: '#A66CFF', scene: 'spooky', alt: 'night', heroes: ['candybucket', 'cat', 'cauldron', 'haunted'], props: ['candycorn', 'pumpkin', 'ghost'] },
     { id: 'dino', title: 'Dino Stomp', color: '#3DD17B', scene: 'jungle', alt: 'meadow', heroes: ['trex', 'longneck', 'stego', 'dragon'], props: ['egg', 'palm', 'volcano'] },
     { id: 'sea', title: 'Under the Sea', color: '#3A86FF', scene: 'ocean', alt: 'ocean', heroes: ['whale', 'octopus', 'turtle', 'crab'], props: ['fish', 'starfish', 'jellyfish'] },
     { id: 'space', title: 'Blast Off!', color: '#8338EC', scene: 'space', alt: 'night', heroes: ['rocket', 'astronaut', 'ufo', 'robot'], props: ['star', 'planet', 'moon'] },
@@ -440,11 +510,28 @@
     if (k && typeof k === 'object') return { key: 'custom', name: k.name, pl: k.pl || k.name + 's', draw: () => k.svg };
     return S[k] || S.star;
   }
-  const place = (k, x, y, s, flip) => {
-    const inner = sub(k).draw(), sc = s / 200;
+  // Two passes give the bold "sticker" look of printed coloring books: a thick
+  // pass whose strokes only survive around the outside of the character, then
+  // a thin pass whose white fills cover the thick strokes everywhere inside.
+  const place = (k, x, y, s, flip, ps = 1) => {
+    const inner = sub(k).draw(), sc = s / 200, w = Math.min(1, Math.max(0.55, s / 480));
     const tr = flip ? `translate(${f(x + s / 2)} ${f(y - s / 2)}) scale(${f(-sc * 1000) / 1000} ${f(sc * 1000) / 1000})` : `translate(${f(x - s / 2)} ${f(y - s / 2)}) scale(${f(sc * 1000) / 1000})`;
-    return `<g transform="${tr}">${inner}</g>`;
+    return `<g transform="${tr}"><g stroke-width="${f(11.5 * w * ps)}">${inner}</g><g stroke-width="${f(4.3 * w * ps)}">${inner}</g></g>`;
   };
+
+  // Little sparkles, hearts, stars and dots in the empty spots of a page.
+  function doodles(R, avoid, n) {
+    let out = '', placed = 0;
+    for (let t = 0; t < 400 && placed < n; t++) {
+      const x = 70 + R() * 710, y = 70 + R() * 880, rad = 26;
+      if (avoid.some(([ax, ay, ar]) => Math.hypot(ax - x, ay - y) < ar + rad)) continue;
+      avoid.push([x, y, rad + 14]); placed++;
+      const kind = (R() * 6) | 0, z = 0.8 + R() * 0.5;
+      out += kind === 0 ? sparkle(x, y, 16 * z) : kind === 1 ? p(heartD(x, y, 13 * z)) : kind === 2 ? p(starPath(x, y, 16 * z, 7 * z))
+        : kind === 3 ? c(x, y, 8 * z) + c(x + 18, y - 14, 4 * z) : kind === 4 ? l(spiral(x, y, 13 * z, 2)) : sparkle(x, y, 10 * z) + c(x + 16, y + 12, 3.5);
+    }
+    return out;
+  }
 
   // Lay out one page. Returns {scene, items, frames, caption, title}.
   function compose(book, i) {
@@ -504,18 +591,28 @@
   }
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
-  function pageSVG(book, i) {
-    const pg = compose(book, i);
-    const sc = SCENES[pg.scene] ? SCENES[pg.scene](rng(book.id + ':scene:' + i)) : SCENES.plain(rng('p'));
-    let body = sc.bg;
-    for (const t of pg.items) body += place(t.k, t.x, t.y, t.s, t.flip);
-    for (const [x, y, w, h] of pg.frames) body += r(x, y, w, h, 34);
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">` +
+  // px is the output width in pixels; line weights are set in those pixels.
+  function pageSVG(book, i, px = W) {
+    const ps = Math.max(0.3, px / W), pg = compose(book, i);
+    const R = rng(book.id + ':scene:' + i);
+    const sc = SCENES[pg.scene] ? SCENES[pg.scene](R) : SCENES.plain(R);
+    let items = '';
+    for (const t of pg.items) items += place(t.k, t.x, t.y, t.s, t.flip, ps);
+    let bg = sc.bg;
+    if (pg.scene === 'plain') {
+      const avoid = pg.items.map((t) => [t.x, t.y, t.s * 0.46]);
+      for (const [x, y, w, h] of pg.frames) for (let yy = y; yy <= y + h; yy += 40) for (let xx = x; xx <= x + w; xx += 40) avoid.push([xx, yy, 20]);
+      if (pg.title) avoid.push(...(i === 0 ? [[425, 190, 190], [250, 190, 150], [600, 190, 150], [120, 190, 80], [730, 190, 80]] : [[425, 520, 170], [230, 520, 120], [620, 520, 120]]));
+      bg += doodles(R, avoid, i === 7 ? 0 : 14);
+    }
+    let frames = '';
+    for (const [x, y, w, h] of pg.frames) frames += r(x, y, w, h, 34);
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${f(W * ps)}" height="${f(H * ps)}" viewBox="0 0 ${W} ${H}">` +
       `<style>*{vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}</style>` +
       `<rect width="${W}" height="${H}" fill="#fff"/>` +
       `<defs><clipPath id="k"><rect x="30" y="30" width="790" height="955" rx="34"/></clipPath></defs>` +
-      `<g stroke="${INK}" stroke-width="5" clip-path="url(#k)">${body}</g>` +
-      `<g stroke="${INK}" stroke-width="6" fill="none"><rect x="30" y="30" width="790" height="1040" rx="34"/><path d="M30 985 L820 985"/></g></svg>`;
+      `<g stroke="${INK}" clip-path="url(#k)"><g stroke-width="${f(3.4 * ps)}">${bg}</g>${items}<g stroke-width="${f(6 * ps)}">${frames}</g></g>` +
+      `<g stroke="${INK}" stroke-width="${f(7 * ps)}" fill="none"><rect x="30" y="30" width="790" height="1040" rx="34"/><path d="M30 985 L820 985"/></g></svg>`;
   }
 
   // Build a book from what a child typed, using only the built-in library.

@@ -1,7 +1,8 @@
 /* adj — shelf, book maker and coloring studio. */
 (function () {
   const A = window.ADJ_ART;
-  const W = A.W, H = A.H;
+  // The studio canvas is 1.5x the drawing's own units, for crisp lines and prints.
+  const K = 1.5, W = A.W * K, H = A.H * K;
   const $ = (id) => document.getElementById(id);
   const DISPLAY = "'Chewy','Comic Sans MS',cursive";
   const store = {
@@ -57,7 +58,7 @@
   function tone(freq, dur = 0.12, type = 'sine', vol = 0.12, slide = 0) {
     if (!soundOn) return;
     try {
-      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      audio();
       const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
       o.type = type; o.frequency.setValueAtTime(freq, t);
       if (slide) o.frequency.exponentialRampToValueAtTime(freq * slide, t + dur);
@@ -79,6 +80,103 @@
   }
   $('sound').onclick = () => { soundOn = !soundOn; store.set('sound', soundOn); paintSoundBtn(); sfx.tick(); };
   paintSoundBtn();
+
+  // ---------- music: shuffles through songs, played live with Web Audio ----------
+  // Public-domain nursery tunes plus two originals. "note:beats", beats default 1.
+  const SONGS = [
+    { name: 'Twinkle, Twinkle, Little Star', key: 'C', bpm: 104, n: 'C4 C4 G4 G4 A4 A4 G4:2 F4 F4 E4 E4 D4 D4 C4:2 G4 G4 F4 F4 E4 E4 D4:2 G4 G4 F4 F4 E4 E4 D4:2 C4 C4 G4 G4 A4 A4 G4:2 F4 F4 E4 E4 D4 D4 C4:2' },
+    { name: 'Mary Had a Little Lamb', key: 'C', bpm: 116, n: 'E4 D4 C4 D4 E4 E4 E4:2 D4 D4 D4:2 E4 G4 G4:2 E4 D4 C4 D4 E4 E4 E4 E4 D4 D4 E4 D4 C4:4' },
+    { name: 'Are You Sleeping', key: 'C', bpm: 112, n: 'C4 D4 E4 C4 C4 D4 E4 C4 E4 F4 G4:2 E4 F4 G4:2 G4:.5 A4:.5 G4:.5 F4:.5 E4 C4 G4:.5 A4:.5 G4:.5 F4:.5 E4 C4 C4 G3 C4:2 C4 G3 C4:2' },
+    { name: 'Row, Row, Row Your Boat', key: 'C', bpm: 100, n: 'C4:1.5 C4:1.5 C4 D4:.5 E4:1.5 E4 D4:.5 E4 F4:.5 G4:3 C5:.5 C5:.5 C5:.5 G4:.5 G4:.5 G4:.5 E4:.5 E4:.5 E4:.5 C4:.5 C4:.5 C4:.5 G4 F4:.5 E4 D4:.5 C4:3' },
+    { name: 'Old MacDonald', key: 'G', bpm: 120, n: 'G4 G4 G4 D4 E4 E4 D4:2 B4 B4 A4 A4 G4:3 D4 G4 G4 G4 D4 E4 E4 D4:2 B4 B4 A4 A4 G4:4' },
+    { name: 'London Bridge', key: 'C', bpm: 116, n: 'G4:1.5 A4:.5 G4 F4 E4 F4 G4:2 D4 E4 F4:2 E4 F4 G4:2 G4:1.5 A4:.5 G4 F4 E4 F4 G4:2 D4:2 G4:2 E4 C4:3' },
+    { name: 'Ode to Joy', key: 'C', bpm: 108, n: 'E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4:1.5 D4:.5 D4:2 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4:1.5 C4:.5 C4:2' },
+    { name: 'Hot Cross Buns', key: 'C', bpm: 112, n: 'E4 D4 C4:2 E4 D4 C4:2 C4:.5 C4:.5 C4:.5 C4:.5 D4:.5 D4:.5 D4:.5 D4:.5 E4 D4 C4:2' },
+    { name: 'Spooky Tiptoe', key: 'Am', bpm: 96, n: 'A3:.5 C4:.5 E4:.5 A4:.5 G#4 E4 F4:.5 E4:.5 D4:.5 C4:.5 B3:2 A3:.5 C4:.5 E4:.5 A4:.5 B4 C5 B4:.5 G#4:.5 E4:.5 B3:.5 A3:2 E4:.5 E4:.5 F4:.5 E4:.5 D4:.5 E4:.5 C4 B3:.5 C4:.5 D4:.5 B3:.5 A3:2' },
+    { name: 'Crayon Dance', key: 'C', bpm: 126, n: 'C4:.5 E4:.5 G4:.5 C5:.5 A4 G4 F4:.5 A4:.5 G4:.5 E4:.5 D4:2 C4:.5 E4:.5 G4:.5 C5:.5 D5 B4 C5:2 A4:.5 A4:.5 G4:.5 E4:.5 F4 D4 E4:.5 D4:.5 C4:.5 D4:.5 C4:2' },
+  ];
+  const TRIADS = { C: [[0, 4, 7], [5, 9, 0], [7, 11, 2]], G: [[7, 11, 2], [0, 4, 7], [2, 6, 9]], Am: [[9, 0, 4], [2, 5, 9], [4, 8, 11]] };
+  const SEMI = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const midi = (t) => { const m = t.match(/^([A-G])(#?)(\d)$/); return 12 * (+m[3] + 1) + SEMI[m[1]] + (m[2] ? 1 : 0); };
+  const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  const INSTRUMENTS = [
+    { name: 'music box', parts: [['sine', 1, 1], ['sine', 2, 0.35], ['sine', 3, 0.12]], decay: 0.9 },
+    { name: 'marimba', parts: [['sine', 1, 1], ['sine', 4, 0.2]], decay: 0.45 },
+    { name: 'flute', parts: [['triangle', 1, 1], ['sine', 2, 0.15]], decay: 0.0 },
+    { name: 'xylophone', parts: [['triangle', 1, 1], ['sine', 3, 0.3]], decay: 0.3 },
+  ];
+  let musicOn = store.get('music', true), musicBus = null, songGain = null, songTimer = null, lastSong = -1, nowPlaying = null;
+  function audio() { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; }
+  function bus() {
+    if (musicBus) return musicBus;
+    const a = audio(), out = a.createGain(), dly = a.createDelay(), fb = a.createGain(), wet = a.createGain();
+    out.gain.value = 0.55; dly.delayTime.value = 0.28; fb.gain.value = 0.25; wet.gain.value = 0.22;
+    out.connect(a.destination); out.connect(dly); dly.connect(fb).connect(dly); dly.connect(wet).connect(a.destination);
+    return (musicBus = out);
+  }
+  function voice(dest, f0, t, len, inst, vol) {
+    const a = audio();
+    for (const [type, mult, amp] of inst.parts) {
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = type; o.frequency.value = f0 * mult;
+      const end = inst.decay ? t + Math.max(inst.decay, len) : t + len;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol * amp, t + 0.015);
+      if (inst.decay) g.gain.exponentialRampToValueAtTime(0.0001, end);
+      else { g.gain.setValueAtTime(vol * amp, Math.max(t + 0.02, end - 0.06)); g.gain.exponentialRampToValueAtTime(0.0001, end); }
+      o.connect(g).connect(dest); o.start(t); o.stop(end + 0.05);
+    }
+  }
+  function playSong(idx) {
+    stopSong();
+    const a = audio(), song = SONGS[idx], inst = INSTRUMENTS[(Math.random() * INSTRUMENTS.length) | 0];
+    const beat = 60 / (song.bpm * (0.94 + Math.random() * 0.12));
+    songGain = a.createGain(); songGain.gain.value = 1; songGain.connect(bus());
+    const notes = song.n.split(' ').map((tok) => { const [nm, b] = tok.split(':'); return { m: midi(nm), b: b ? +b : 1 }; });
+    let t = a.currentTime + 0.15, pos = 0, chord = TRIADS[song.key][0];
+    const t0 = t, total = notes.reduce((x, y) => x + y.b, 0);
+    for (const nt of notes) {
+      voice(songGain, hz(nt.m), t, nt.b * beat * 0.92, inst, 0.11);
+      t += nt.b * beat;
+    }
+    // Oom-pah bass: every two beats pick the chord that holds the melody note there.
+    for (let bt = 0; bt < total; bt += 2) {
+      let acc = 0, m = notes[0].m;
+      for (const nt of notes) { if (acc + nt.b > bt) { m = nt.m; break; } acc += nt.b; }
+      chord = TRIADS[song.key].find((tr) => tr.includes(m % 12)) || chord;
+      const root = 48 + chord[0] - (chord[0] > 7 ? 12 : 0);
+      voice(songGain, hz(root), t0 + bt * beat, beat * 0.8, INSTRUMENTS[2], 0.07);
+      if (bt + 1 < total) voice(songGain, hz(root + ((chord[2] - chord[0] + 12) % 12)), t0 + (bt + 1) * beat, beat * 0.7, INSTRUMENTS[2], 0.05);
+    }
+    nowPlaying = `${song.name} (${inst.name})`;
+    syncMusic();
+    songTimer = setTimeout(() => musicOn && playSong(pickSong()), (total * beat + 2.2) * 1000);
+  }
+  function stopSong() {
+    clearTimeout(songTimer);
+    if (songGain && actx) { const g = songGain; g.gain.setTargetAtTime(0, actx.currentTime, 0.05); setTimeout(() => g.disconnect(), 400); }
+    songGain = null;
+  }
+  function pickSong() {
+    let i; do i = (Math.random() * SONGS.length) | 0; while (i === lastSong && SONGS.length > 1);
+    return (lastSong = i);
+  }
+  function syncMusic() {
+    const b = $('music');
+    b.setAttribute('aria-pressed', musicOn);
+    b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>' + (musicOn ? '' : '<path d="M3 3l18 18"/>') + '</svg>' + (musicOn ? 'Music on' : 'Music off');
+    b.title = musicOn && nowPlaying ? 'Now playing: ' + nowPlaying : 'Turn music on or off';
+    $('skip').hidden = !musicOn;
+    $('song').textContent = musicOn && nowPlaying ? '♪ ' + nowPlaying.replace(/ \(.*/, '') : '';
+  }
+  $('music').onclick = () => { musicOn = !musicOn; store.set('music', musicOn); musicOn ? playSong(pickSong()) : stopSong(); if (!musicOn) nowPlaying = null; syncMusic(); };
+  $('skip').onclick = () => { playSong(pickSong()); sfx.tick(); };
+  // Browsers only allow sound after a tap, so music starts on the first one.
+  const firstTap = (e) => {
+    removeEventListener('pointerdown', firstTap, true);
+    if (musicOn && !songGain && !(e.target.closest && e.target.closest('#music'))) playSong(pickSong());
+  };
+  addEventListener('pointerdown', firstTap, true);
+  syncMusic();
 
   // ---------- toast & confetti ----------
   let toastT;
@@ -128,13 +226,13 @@
   // Returns a canvas holding the page's line art as dark ink on transparent.
   async function renderInk(book, i, w, h) {
     await fontsReady;
-    const svg = A.pageSVG(book, i);
+    const svg = A.pageSVG(book, i, w);
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
     const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
     const ctx = cv.getContext('2d', { willReadFrequently: true });
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
     try { const img = await loadImg(url); ctx.drawImage(img, 0, 0, w, h); } finally { URL.revokeObjectURL(url); }
-    const pg = A.compose(book, i), k = w / W;
+    const pg = A.compose(book, i), k = w / A.W;
     ctx.save(); ctx.scale(k, k); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     if (pg.title) i === 0 ? bubble(ctx, pg.title, 425, 190, 700, 124) : bubble(ctx, pg.title, 425, 520, 640, 170);
     if (pg.caption) {
@@ -284,7 +382,7 @@ Rules for every svg value:
 - Use only path, circle, ellipse, rect, polygon, polyline, line and g.
 - Every closed shape has fill="white". Lines that are only details use fill="none". Only eye pupils may use fill="black". No stroke attributes, colors, gradients, text or filters.
 - Later shapes cover earlier ones, so draw back parts first (tail, back legs, body) and the face last.
-- Bold, simple cartoon shapes with big areas to color, cute faces with big eyes. 12 to 40 elements each.
+- Cute kawaii style like a store-bought kids' coloring book: chubby rounded shapes, big areas to color, big eyes (a white circle, a black pupil, and a small white circle highlight on the pupil), rosy cheek ovals with fill="white", a little smile. Add one or two fun details (a bow, a sparkle, a heart, a pattern of spots). 15 to 45 elements each.
 - Keep each svg under 2500 characters.`;
   }
 
@@ -437,7 +535,7 @@ Rules for every svg value:
     return (x, y) => (((x >> 5) + (y >> 5)) & 1 ? rgb : light);
   }
 
-  function snapshot() { undo.push(pctx.getImageData(0, 0, W, H)); if (undo.length > 12) undo.shift(); redo = []; syncUndo(); }
+  function snapshot() { undo.push(pctx.getImageData(0, 0, W, H)); if (undo.length > 10) undo.shift(); redo = []; syncUndo(); }
   function syncUndo() { $('undo').disabled = !undo.length; $('redo').disabled = !redo.length; }
   $('undo').onclick = () => { if (!undo.length) return; redo.push(pctx.getImageData(0, 0, W, H)); pctx.putImageData(undo.pop(), 0, 0); syncUndo(); changed(); sfx.tick(); };
   $('redo').onclick = () => { if (!redo.length) return; undo.push(pctx.getImageData(0, 0, W, H)); pctx.putImageData(redo.pop(), 0, 0); syncUndo(); changed(); sfx.tick(); };
@@ -466,7 +564,7 @@ Rules for every svg value:
     x = Math.round(x); y = Math.round(y);
     if (walls[y * W + x]) {
       let found = false;
-      for (let r = 1; r < 7 && !found; r++) for (let dy = -r; dy <= r && !found; dy++) for (let dx = -r; dx <= r; dx++) {
+      for (let r = 1; r < 11 && !found; r++) for (let dy = -r; dy <= r && !found; dy++) for (let dx = -r; dx <= r; dx++) {
         const nx = x + dx, ny = y + dy;
         if (nx >= 0 && ny >= 0 && nx < W && ny < H && !walls[ny * W + nx]) { x = nx; y = ny; found = true; break; }
       }
@@ -474,12 +572,12 @@ Rules for every svg value:
     }
     snapshot();
     const m = region(walls, W, H, x, y);
-    grow(m, walls, W, H, 2);
+    grow(m, walls, W, H, 3);
     const img = pctx.getImageData(0, 0, W, H), px = img.data;
     const rgb = hexRGB(prefs.color), fn = magic ? patternFn(prefs.pat, rgb) : null;
     for (let j = 0; j < m.length; j++) {
       if (!m[j]) continue;
-      const c = fn ? fn(j % W, (j / W) | 0) : rgb, q = j * 4;
+      const c = fn ? fn(((j % W) / K) | 0, ((j / W) / K) | 0) : rgb, q = j * 4;
       px[q] = c[0]; px[q + 1] = c[1]; px[q + 2] = c[2]; px[q + 3] = 255;
     }
     pctx.putImageData(img, 0, 0);
@@ -488,7 +586,7 @@ Rules for every svg value:
 
   // Brushes
   let down = false, last = null, hue = 0, sprayT = null;
-  const bsize = () => SIZES[prefs.size];
+  const bsize = () => SIZES[prefs.size] * K;
   function seg(a, b) {
     const t = prefs.tool, s = bsize();
     pctx.save(); pctx.lineCap = pctx.lineJoin = 'round';
@@ -514,7 +612,7 @@ Rules for every svg value:
           const ox = (Math.random() - 0.5) * s, oy = (Math.random() - 0.5) * s;
           if (ox * ox + oy * oy > (s * s) / 4) continue;
           pctx.globalAlpha = 0.35 + Math.random() * 0.5;
-          pctx.fillRect(x + ox, y + oy, 1.8, 1.8);
+          pctx.fillRect(x + ox, y + oy, 2.6, 2.6);
         }
       }
     }
@@ -524,12 +622,12 @@ Rules for every svg value:
     const s = bsize() * 1.5; pctx.fillStyle = prefs.color;
     for (let k = 0; k < 14 + s; k++) {
       const ang = Math.random() * 6.28, rr = Math.sqrt(Math.random()) * s;
-      pctx.fillRect(p.x + Math.cos(ang) * rr, p.y + Math.sin(ang) * rr, 1.6, 1.6);
+      pctx.fillRect(p.x + Math.cos(ang) * rr, p.y + Math.sin(ang) * rr, 2.4, 2.4);
     }
   }
   function stamp(p) {
     snapshot();
-    const s = 30 + bsize() * 2.6;
+    const s = (30 + SIZES[prefs.size] * 2.6) * K;
     pctx.save(); pctx.font = `${s}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`; pctx.textAlign = 'center'; pctx.textBaseline = 'middle';
     pctx.translate(p.x, p.y); pctx.rotate((Math.random() - 0.5) * 0.5); pctx.fillText(STICKERS[prefs.stk], 0, 0); pctx.restore();
     changed(); sfx.stamp();

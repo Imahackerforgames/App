@@ -158,11 +158,15 @@ and no dependencies, and Vite copies it into `dist/`, so it's served at
 `/adj/` next to the app. You can also open `public/adj/index.html`
 straight from disk.
 
-- `art.js` has the drawing library (about 50 line-art subjects), 10 scenes,
-  the 10 ready-made books and the 12-page layout.
+- `art.js` has the drawing library (about 60 kawaii line-art subjects,
+  including a Halloween set), 11 scenes, the 12 ready-made books and the
+  12-page layout. Characters are drawn in two passes, so they get a bold
+  outer outline and thinner inner lines.
 - `app.js` has the bookshelf, the "type anything" book maker and the
   coloring studio (fill, magic pattern fill, crayon, marker, spray,
-  rainbow, glitter, eraser, stickers, undo/redo, save, print).
+  rainbow, glitter, eraser, stickers, undo/redo, save, print). It also has a
+  music player that shuffles public-domain kids' songs, synthesized live
+  with Web Audio, so there are no audio files.
 
 Typed ideas are matched against the drawing library. Anything it doesn't
 know becomes a book with "draw your own ___" pages. Coloring progress is
