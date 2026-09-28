@@ -113,50 +113,34 @@ const stripPrices = (t) => (t || "").replace(/\$\s?[\d,]+(\.\d{1,2})?/g, "").rep
 
    This is a public URL by design. It is not a key and carries no secret;
    the secret key lives only in the Edge Function's environment. */
-/* ⚠️ TEMPORARY — POINTED AT THE $1 SPLIT TEST LINK ⚠️
-   Upgrade currently charges $1/month, not $25. On purpose, and it must be
-   put back the moment the test is read.
+/* Checkout. $25/month, and half of every payment goes to the partner
+   automatically — Stripe splits it at the moment the card is charged, on
+   the first payment and on every renewal, so neither side has to remember
+   to send the other anything.
 
-   Why a dollar rather than nothing. The $0 link proved the plumbing —
-   client_reference_id reaches the webhook, premium switches on — but $0
-   moves no money, so it could not prove the revenue split. A dollar is the
-   smallest amount that produces a real fee, a real application fee and a
-   real transfer, which are the three records that show where the money
-   actually went.
+   52.08% is kept here rather than a round 50. A clean half of the sticker
+   price is not a clean half of the money: Stripe takes $1.03, and with a
+   destination charge the whole of that lands on this side. 52.08% is what
+   makes both sides bank $11.99. Perfectly even is not possible — $25 less
+   $1.03 is $23.97, an odd number of cents — so one side gets the extra
+   penny, and it goes to the side paying the server bills.
 
-   Why it goes through the button rather than the raw link. Opening a
-   payment link directly leaves out client_reference_id, so the payment
-   arrives attached to nobody and premium never activates. Only the button
-   exercises the whole path at once: account id -> checkout -> webhook ->
-   premium, and the split alongside it.
+   Verified against real Stripe records, not arithmetic: a $1 test charge
+   showed a fee of exactly 33c, confirming 2.9% + 30c.
 
-   Expect the $1 split to look lopsided: partner $0.50, us $0.17. Stripe's
-   flat 30c is 30% of a dollar and only 1% of $25, and the whole fee comes
-   off our side, so a dollar test flatters the partner and guts us. At $25
-   it is $12.50 and $11.47.
+   An existing subscription keeps whatever percentage it was created with.
+   Editing this link does NOT change anybody already paying — those have to
+   be updated one at a time. Worth remembering before promising a partner a
+   new split.
 
-   The four links this account has:
-     $25, split 50/50 with the partner   <- the real one, see STRIPE_LIVE_URL
-       https://buy.stripe.com/6oU14p1AkbAgaRkc4I7wA03
-     $25, all to us (pre-partner)
-       https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00
-     $1, split 50/50   <- live right now
-       https://buy.stripe.com/7sY4gBceY0VC4sWb0E7wA04
-     $0, no split
-       https://buy.stripe.com/9B628ten6cEkgbEc4I7wA02                   */
-const STRIPE_CHECKOUT_URL = "https://buy.stripe.com/7sY4gBceY0VC4sWb0E7wA04";
+   The account id is appended as client_reference_id by openCheckout, and
+   it is the only thing that lets the webhook match a payment to an
+   account. A link opened without it takes money attached to nobody. */
+const STRIPE_CHECKOUT_URL = "https://buy.stripe.com/6oU14p1AkbAgaRkc4I7wA03";
 
-/* Where this goes back to once the split is verified: $25/month, half
-   transferred to the partner automatically on every payment and every
-   renewal.
-
-   A straight 50 rather than a figure adjusted for Stripe's cut, because
-   that is what was asked for and it is the one people can check without
-   arithmetic: half the price each. It does mean the whole fee lands on
-   this side — $12.50 to the partner, $11.47 here — so the halves are even
-   on the sticker and $1.03 apart in the bank. Worth remembering when
-   reading a payout and wondering where the difference went. */
-const STRIPE_LIVE_URL = "https://buy.stripe.com/6oU14p1AkbAgaRkc4I7wA03";
+/* Kept so the two are never confused again. Both are $25 and both are
+   live links; this one sends everything here and predates the partner. */
+const STRIPE_SOLO_URL = "https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00";
 
 /* The signed-in account, kept here so openCheckout can read it without a
    round trip.
