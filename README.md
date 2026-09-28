@@ -147,3 +147,23 @@ anyone using the app, so no secret may ever be named that way.
 - `supabase/functions/` — the backend, deployed separately to Supabase
 - `DEPLOY.md` — hosting and the two post-deploy settings
 - `CLAUDE.md` — how the AI integration is wired, and its constraints
+
+---
+
+## adj coloring books (`public/adj/`)
+
+A separate kids' site that lives inside this repo but shares none of
+Reamp's code, backend or keys. It's plain HTML and JS with no build step
+and no dependencies, and Vite copies it into `dist/`, so it's served at
+`/adj/` next to the app. You can also open `public/adj/index.html`
+straight from disk.
+
+- `art.js` has the drawing library (about 50 line-art subjects), 10 scenes,
+  the 10 ready-made books and the 12-page layout.
+- `app.js` has the bookshelf, the "type anything" book maker and the
+  coloring studio (fill, magic pattern fill, crayon, marker, spray,
+  rainbow, glitter, eraser, stickers, undo/redo, save, print).
+
+Typed ideas are matched against the drawing library. Anything it doesn't
+know becomes a book with "draw your own ___" pages. Coloring progress is
+saved in the browser (IndexedDB).

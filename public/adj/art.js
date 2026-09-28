@@ -1,0 +1,582 @@
+/* adj — drawing library, scenes and page composer.
+   Every subject is simple line art in a 200×200 box: closed shapes are
+   filled white (so they hide what's behind them), detail lines have no
+   fill, pupils are filled dark. Pages are 850×1100. */
+(function () {
+  const PI = Math.PI;
+  const f = (n) => Math.round(n * 10) / 10;
+
+  // ---------- primitives ----------
+  const c = (x, y, r, fill = '#fff', extra = '') => `<circle cx="${f(x)}" cy="${f(y)}" r="${f(r)}" fill="${fill}"${extra}/>`;
+  const e = (x, y, rx, ry, fill = '#fff', tr = '') => `<ellipse cx="${f(x)}" cy="${f(y)}" rx="${f(rx)}" ry="${f(ry)}" fill="${fill}"${tr ? ` transform="${tr}"` : ''}/>`;
+  const p = (d, fill = '#fff') => `<path d="${d}" fill="${fill}"/>`;
+  const l = (d) => `<path d="${d}" fill="none"/>`;
+  const r = (x, y, w, h, rx = 0, fill = '#fff') => `<rect x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" rx="${f(rx)}" fill="${fill}"/>`;
+  const mir = (s) => `<g transform="translate(200 0) scale(-1 1)">${s}</g>`;
+  const INK = '#222';
+  const eye = (x, y, s = 7) => c(x, y, s) + c(x + s * 0.15, y + s * 0.1, s * 0.55, INK) + c(x - s * 0.1, y - s * 0.15, s * 0.18, '#fff', ' stroke="none"');
+  const smile = (x, y, w) => l(`M${f(x - w)} ${f(y)} Q${f(x)} ${f(y + w * 0.9)} ${f(x + w)} ${f(y)}`);
+
+  function scallop(cx, cy, rad, n, b) {
+    let d = '';
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * PI * 2, x = cx + rad * Math.cos(a), y = cy + rad * Math.sin(a);
+      if (i === 0) d += `M${f(x)} ${f(y)}`;
+      else {
+        const m = ((i - 0.5) / n) * PI * 2;
+        d += ` Q${f(cx + (rad + b) * Math.cos(m))} ${f(cy + (rad + b) * Math.sin(m))} ${f(x)} ${f(y)}`;
+      }
+    }
+    return d + 'Z';
+  }
+  function starPath(cx, cy, R, rr, n = 5, rot = -90) {
+    let d = '';
+    for (let i = 0; i < n * 2; i++) {
+      const rad = i % 2 ? rr : R, a = ((rot + (i * 180) / n) * PI) / 180;
+      d += `${i ? 'L' : 'M'}${f(cx + rad * Math.cos(a))} ${f(cy + rad * Math.sin(a))} `;
+    }
+    return d + 'Z';
+  }
+  function spiral(cx, cy, rmax, turns) {
+    let d = '';
+    const steps = turns * 28;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, a = t * turns * PI * 2, rad = t * rmax;
+      d += `${i ? 'L' : 'M'}${f(cx + rad * Math.cos(a))} ${f(cy + rad * Math.sin(a))} `;
+    }
+    return d;
+  }
+  const cloudD = (cx, cy, w) =>
+    `M${f(cx - w / 2)} ${f(cy + w * 0.15)} Q${f(cx - w * 0.62)} ${f(cy - w * 0.1)} ${f(cx - w * 0.3)} ${f(cy - w * 0.1)} Q${f(cx - w * 0.25)} ${f(cy - w * 0.42)} ${f(cx + w * 0.02)} ${f(cy - w * 0.3)} Q${f(cx + w * 0.25)} ${f(cy - w * 0.48)} ${f(cx + w * 0.33)} ${f(cy - w * 0.1)} Q${f(cx + w * 0.62)} ${f(cy - w * 0.08)} ${f(cx + w / 2)} ${f(cy + w * 0.15)}Z`;
+  const heartD = (cx, cy, s) =>
+    `M${f(cx)} ${f(cy + s * 0.9)} C${f(cx - s * 1.4)} ${f(cy + s * 0.1)} ${f(cx - s * 0.9)} ${f(cy - s * 1.05)} ${f(cx)} ${f(cy - s * 0.35)} C${f(cx + s * 0.9)} ${f(cy - s * 1.05)} ${f(cx + s * 1.4)} ${f(cy + s * 0.1)} ${f(cx)} ${f(cy + s * 0.9)}Z`;
+  function sunS(cx, cy, rad, face = true) {
+    let s = '';
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * PI * 2, b = 0.17;
+      s += p(`M${f(cx + (rad + 4) * Math.cos(a - b))} ${f(cy + (rad + 4) * Math.sin(a - b))} L${f(cx + (rad + rad * 0.55) * Math.cos(a))} ${f(cy + (rad + rad * 0.55) * Math.sin(a))} L${f(cx + (rad + 4) * Math.cos(a + b))} ${f(cy + (rad + 4) * Math.sin(a + b))}Z`);
+    }
+    s += c(cx, cy, rad);
+    if (face) s += c(cx - rad * 0.3, cy - rad * 0.12, rad * 0.09, INK) + c(cx + rad * 0.3, cy - rad * 0.12, rad * 0.09, INK) + smile(cx, cy + rad * 0.18, rad * 0.35);
+    return s;
+  }
+  const sparkle = (x, y, s) => p(`M${f(x)} ${f(y - s)} Q${f(x + s * 0.18)} ${f(y - s * 0.18)} ${f(x + s)} ${f(y)} Q${f(x + s * 0.18)} ${f(y + s * 0.18)} ${f(x)} ${f(y + s)} Q${f(x - s * 0.18)} ${f(y + s * 0.18)} ${f(x - s)} ${f(y)} Q${f(x - s * 0.18)} ${f(y - s * 0.18)} ${f(x)} ${f(y - s)}Z`);
+  const leafD = (x, y, len, ang) => {
+    const a = (ang * PI) / 180, ex = x + len * Math.cos(a), ey = y + len * Math.sin(a), nx = -Math.sin(a) * len * 0.3, ny = Math.cos(a) * len * 0.3, mx = (x + ex) / 2, my = (y + ey) / 2;
+    return `M${f(x)} ${f(y)} Q${f(mx + nx)} ${f(my + ny)} ${f(ex)} ${f(ey)} Q${f(mx - nx)} ${f(my - ny)} ${f(x)} ${f(y)}Z`;
+  };
+
+  // ---------- subjects ----------
+  const S = {};
+  const add = (key, name, kw, draw, pl) => (S[key] = { key, name, pl: pl || name + 's', kw, draw });
+
+  add('cat', 'kitty', ['cat', 'cats', 'kitten', 'kitty', 'kitties'], () =>
+    p('M135 165 Q192 160 178 100 Q176 86 164 92 Q172 112 165 135 Q155 150 130 150Z') +
+    e(100, 150, 45, 38) + e(100, 158, 22, 20) + e(80, 185, 14, 9) + e(120, 185, 14, 9) +
+    p('M60 64 L56 18 L94 46Z') + p('M140 64 L144 18 L106 46Z') +
+    c(100, 80, 45) + l('M65 50 L63 30 L80 44 M135 50 L137 30 L120 44') +
+    eye(83, 74, 9) + eye(117, 74, 9) + p('M95 89 L105 89 L100 95Z', INK) +
+    l('M100 95 Q94 103 87 98 M100 95 Q106 103 113 98 M70 92 L44 88 M70 99 L44 104 M130 92 L156 88 M130 99 L156 104'), 'kitties');
+  add('dog', 'puppy', ['dog', 'dogs', 'puppy', 'puppies', 'pup', 'doggy'], () =>
+    p('M140 145 Q182 122 172 92 Q164 98 160 118 Q150 134 134 134Z') +
+    e(100, 150, 48, 36) + e(118, 140, 14, 10) + e(75, 183, 14, 9) + e(125, 183, 14, 9) +
+    c(100, 80, 40) +
+    p('M66 58 Q44 58 41 95 Q44 120 62 111 Q70 85 73 64Z') + p('M134 58 Q156 58 159 95 Q156 120 138 111 Q130 85 127 64Z') +
+    e(100, 99, 21, 15) + e(100, 91, 8, 6, INK) + l('M100 97 L100 104') + p('M94 106 Q100 122 106 106Z') + l('M88 104 Q100 112 112 104') +
+    eye(85, 72, 8) + eye(115, 72, 8), 'puppies');
+  add('bunny', 'bunny', ['bunny', 'bunnies', 'rabbit', 'rabbits', 'easter'], () =>
+    c(142, 165, 13) + p('M78 62 Q64 4 85 7 Q99 12 95 62Z') + p('M122 62 Q136 4 115 7 Q101 12 105 62Z') + l('M83 52 Q77 22 86 19 M117 52 Q123 22 114 19') +
+    e(100, 150, 42, 40) + e(100, 156, 24, 24) + e(78, 187, 17, 9) + e(122, 187, 17, 9) +
+    c(100, 86, 36) + eye(87, 81, 7) + eye(113, 81, 7) + e(100, 95, 5, 4, INK) +
+    l('M100 99 Q95 106 89 102 M100 99 Q105 106 111 102') + e(80, 96, 6, 4) + e(120, 96, 6, 4), 'bunnies');
+  add('bear', 'teddy bear', ['bear', 'bears', 'teddy', 'panda', 'grizzly'], () =>
+    c(64, 50, 17) + c(136, 50, 17) + c(64, 50, 8) + c(136, 50, 8) +
+    e(56, 140, 12, 22, '#fff', 'rotate(25 56 140)') + e(144, 140, 12, 22, '#fff', 'rotate(-25 144 140)') +
+    e(100, 150, 44, 40) + e(100, 157, 26, 25) + e(78, 188, 16, 10) + e(122, 188, 16, 10) +
+    c(100, 82, 42) + e(100, 98, 18, 13) + e(100, 92, 8, 5, INK) + l('M100 97 L100 104 M92 105 Q100 111 108 105') +
+    eye(84, 76, 7) + eye(116, 76, 7));
+  add('owl', 'owl', ['owl', 'owls', 'bird', 'birds', 'night'], () =>
+    p('M52 62 L55 22 L82 48Z') + p('M148 62 L145 22 L118 48Z') +
+    p('M44 100 Q18 140 50 172 Q56 130 52 100Z') + p('M156 100 Q182 140 150 172 Q144 130 148 100Z') +
+    e(100, 112, 58, 72) + e(100, 138, 34, 40) + l('M88 128 q6 6 12 0 q6 6 12 0 M82 148 q6 6 12 0 q6 6 12 0 q6 6 12 0') +
+    c(78, 78, 21) + c(122, 78, 21) + c(80, 80, 10, INK) + c(120, 80, 10, INK) + c(77, 76, 3, '#fff', ' stroke="none"') + c(117, 76, 3, '#fff', ' stroke="none"') +
+    p('M92 94 L108 94 L100 110Z') + l('M85 182 l-6 10 M90 184 l0 10 M95 182 l6 10 M105 182 l-6 10 M110 184 l0 10 M115 182 l6 10'));
+  add('frog', 'froggy', ['frog', 'frogs', 'froggy', 'toad', 'pond'], () =>
+    e(45, 172, 26, 14) + e(155, 172, 26, 14) + e(100, 142, 58, 44) + e(100, 152, 32, 26) +
+    c(68, 72, 23) + c(132, 72, 23) + e(100, 104, 62, 38) + c(68, 70, 13) + c(132, 70, 13) + c(69, 71, 7, INK) + c(131, 71, 7, INK) +
+    l('M60 110 Q100 138 140 110') + e(58, 114, 8, 5) + e(142, 114, 8, 5) + c(94, 98, 2, INK) + c(106, 98, 2, INK) +
+    e(78, 184, 15, 8) + e(122, 184, 15, 8), 'froggies');
+  add('elephant', 'elephant', ['elephant', 'elephants', 'safari'], () =>
+    l('M170 118 Q186 134 180 152') + r(68, 150, 24, 40, 8) + r(150, 150, 24, 40, 8) +
+    e(115, 128, 62, 46) + r(92, 152, 22, 38, 8) + r(128, 152, 22, 38, 8) +
+    c(64, 82, 40) + p('M78 50 Q124 34 128 80 Q124 122 82 114 Q94 86 78 50Z') + l('M92 66 Q112 78 104 100') +
+    p('M36 90 Q18 124 30 164 Q35 174 46 169 Q40 150 44 126 Q50 106 52 100Z') + eye(54, 72, 6) + p('M50 104 Q42 120 30 120 Q42 110 42 104Z') +
+    e(40, 100, 5, 3));
+  add('lion', 'lion', ['lion', 'lions', 'king', 'cub'], () =>
+    l('M150 150 Q186 142 180 110') + e(180, 104, 8, 11) + e(112, 150, 45, 35) + e(82, 183, 13, 9) + e(138, 183, 13, 9) +
+    p(scallop(100, 86, 56, 14, 18)) + c(70, 56, 11) + c(130, 56, 11) + c(100, 86, 40) +
+    e(100, 103, 19, 13) + p('M91 93 L109 93 L100 101Z', INK) + l('M100 101 L100 107 M90 109 Q100 115 110 109') + eye(85, 79, 7) + eye(115, 79, 7));
+  add('cow', 'cow', ['cow', 'cows', 'moo', 'calf'], () =>
+    r(62, 150, 18, 38, 6) + r(140, 150, 18, 38, 6) + l('M168 110 Q182 132 174 160') + r(48, 88, 126, 72, 32) +
+    e(98, 110, 18, 13) + e(142, 132, 15, 11) + p('M150 92 Q160 100 170 96 L172 112 Q160 112 150 92Z') +
+    r(86, 150, 18, 38, 6) + r(118, 150, 18, 38, 6) +
+    p('M36 42 Q24 26 32 16 Q38 32 46 40Z') + p('M84 42 Q96 26 88 16 Q82 32 74 40Z') + e(22, 60, 14, 7) + e(98, 60, 14, 7) +
+    e(60, 70, 30, 34) + e(60, 96, 27, 17) + e(51, 96, 4, 5, INK) + e(69, 96, 4, 5, INK) + eye(48, 64, 6) + eye(72, 64, 6));
+  add('pig', 'piggy', ['pig', 'pigs', 'piggy', 'piglet', 'oink'], () =>
+    r(65, 160, 18, 28, 5) + r(140, 160, 18, 28, 5) + l('M163 125 q14 -8 9 -17 q-9 -4 -6 6 q4 10 13 4') +
+    e(105, 135, 60, 45) + r(86, 165, 18, 26, 5) + r(120, 165, 18, 26, 5) +
+    c(62, 95, 38) + p('M34 70 L28 44 L56 62Z') + p('M76 62 L92 46 L90 72Z') + e(50, 106, 17, 12) + e(45, 106, 3, 5, INK) + e(55, 106, 3, 5, INK) +
+    eye(48, 85, 6) + eye(74, 85, 6) + l('M62 122 Q70 128 78 120'), 'piggies');
+  add('chicken', 'chicken', ['chicken', 'chickens', 'hen', 'chick', 'rooster', 'duck'], () =>
+    l('M90 166 L90 190 M80 193 L90 190 L100 193 M122 166 L122 190 M112 193 L122 190 L132 193') +
+    p('M150 108 L186 78 L180 108 L192 124 L156 132Z') + e(106, 126, 56, 44) + p('M88 116 Q115 104 142 120 Q126 146 94 136Z') +
+    p('M52 54 q5 -16 12 -3 q6 -13 13 2 q9 -5 8 9Z') + c(66, 76, 28) + p('M40 78 L22 85 L40 92Z') + e(46, 100, 6, 9) + eye(63, 72, 6));
+  add('fish', 'fish', ['fish', 'fishy', 'goldfish', 'fishes'], () =>
+    p('M150 100 L190 64 L182 100 L190 136Z') + p('M82 60 Q100 28 128 62Z') + e(95, 100, 65, 45) + p('M95 112 Q112 134 128 114Z') +
+    l('M110 84 q9 10 0 20 M126 80 q9 13 0 27 M141 87 q6 8 0 16 M78 74 Q89 100 78 126') + eye(60, 90, 10) + l('M34 108 q8 6 14 0'), 'fish');
+  add('whale', 'whale', ['whale', 'whales', 'orca'], () =>
+    l('M80 50 Q76 26 60 22 M88 50 L88 16 M96 50 Q100 26 116 22') + c(60, 20, 6) + c(116, 20, 6) + c(88, 14, 6) +
+    p('M20 110 Q20 55 90 55 Q150 55 165 100 L190 70 Q197 100 186 120 L190 150 L165 126 Q150 162 90 162 Q20 162 20 110Z') +
+    l('M26 124 Q90 152 158 124 M60 134 L64 150 M86 138 L88 156 M112 138 L112 156') + eye(55, 98, 7) + smile(50, 114, 16));
+  add('octopus', 'octopus', ['octopus', 'squid', 'kraken'], () => {
+    let s = '';
+    for (const x of [42, 70, 98, 126, 154]) s += p(`M${x - 11} 95 Q${x - 20} 140 ${x - 6} 176 Q${x + 8} 192 ${x + 12} 176 Q${x + 4} 140 ${x + 11} 95Z`) + c(x - 2, 150, 3) + c(x, 166, 3);
+    return s + p('M36 104 Q30 24 100 22 Q170 24 164 104Z') + eye(80, 70, 12) + eye(120, 70, 12) + smile(100, 88, 14) + c(62, 42, 6) + c(138, 46, 8) + c(122, 34, 4);
+  }, 'octopuses');
+  add('turtle', 'turtle', ['turtle', 'turtles', 'tortoise'], () =>
+    e(60, 150, 17, 15) + e(150, 150, 17, 15) + e(174, 120, 24, 20) + p('M30 134 L12 142 L30 146Z') +
+    p('M24 140 Q28 54 104 54 Q172 54 178 140Z') + r(18, 132, 164, 16, 8) +
+    p('M88 78 L120 78 L132 104 L120 124 L88 124 L76 104Z') + l('M88 78 L74 60 M120 78 L134 60 M76 104 L32 110 M132 104 L172 110 M88 124 L80 132 M120 124 L130 132') +
+    eye(180, 114, 6) + l('M176 128 q7 5 14 -2'));
+  add('crab', 'crab', ['crab', 'crabs', 'lobster'], () => {
+    const half = l('M58 120 L26 110 L16 126 M56 134 L26 132 L18 148 M60 146 L34 154 L30 168 M66 96 L46 66') + p('M46 66 Q18 56 27 30 L42 47 L48 28 Q68 44 46 66Z');
+    return half + mir(half) + e(100, 126, 52, 36) + l('M86 96 L82 70 M114 96 L118 70') + c(82, 64, 10) + c(82, 64, 5, INK) + c(118, 64, 10) + c(118, 64, 5, INK) + smile(100, 132, 14);
+  });
+  add('starfish', 'starfish', ['starfish', 'sea star'], () =>
+    p(starPath(100, 106, 92, 42)) + eye(88, 100, 7) + eye(112, 100, 7) + smile(100, 116, 10) + c(100, 40, 3) + c(40, 90, 3) + c(160, 90, 3) + c(62, 160, 3) + c(138, 160, 3), 'starfish');
+  add('jellyfish', 'jellyfish', ['jellyfish', 'jelly'], () =>
+    l('M62 104 q-10 20 0 40 q10 20 0 40 M88 106 q10 20 0 40 q-10 20 0 38 M112 106 q-10 20 0 40 q10 20 0 38 M138 104 q10 20 0 40 q-10 20 0 40') +
+    p('M38 100 Q38 34 100 34 Q162 34 162 100 Q147 112 131 100 Q116 112 100 100 Q84 112 69 100 Q54 112 38 100Z') + eye(84, 70, 7) + eye(116, 70, 7) + smile(100, 82, 10), 'jellyfish');
+  add('trex', 'T. rex', ['dinosaur', 'dinosaurs', 'dino', 'dinos', 't-rex', 'trex', 'rex', 'raptor'], () =>
+    p('M120 118 Q172 108 198 152 Q160 140 124 152Z') + p('M128 140 L128 186 L152 186 L148 144Z') + e(112, 126, 46, 42) + e(98, 138, 22, 26) +
+    p('M92 142 L86 186 L114 186 L112 150Z') + p('M112 58 L124 46 L126 62 L138 54 L136 72 L148 70 L140 86Z') +
+    p('M54 26 Q102 16 122 44 Q126 76 96 82 L48 82 Q26 80 26 60 Q28 32 54 26Z') + l('M32 66 L96 68') +
+    p('M44 66 L49 74 L54 67Z M64 67 L69 75 L74 68Z M84 67 L88 74 L92 68Z') + eye(90, 44, 8) + c(38, 44, 2.5, INK) +
+    p('M84 112 L66 120 L64 132 L72 126 L90 122Z'), 'T. rexes');
+  add('longneck', 'long-neck dino', ['brachiosaurus', 'brontosaurus', 'diplodocus', 'longneck'], () =>
+    r(70, 150, 20, 40, 6) + r(150, 150, 20, 40, 6) + p('M162 132 Q196 140 198 164 Q180 152 158 150Z') + e(118, 138, 56, 32) +
+    r(95, 154, 18, 36, 6) + r(127, 154, 18, 36, 6) + c(112, 124, 8) + c(138, 134, 6) + c(94, 140, 6) +
+    p('M72 132 Q54 74 58 36 L84 36 Q84 82 102 120Z') + e(66, 32, 28, 17) + eye(70, 26, 5) + c(44, 30, 2, INK) + l('M46 38 Q56 44 66 40'));
+  add('stego', 'stegosaurus', ['stegosaurus', 'stego'], () => {
+    let s = '';
+    for (const [x, y] of [[48, 102], [74, 90], [100, 86], [126, 88], [150, 98]]) s += p(`M${x - 15} ${y + 8} L${x} ${y - 28} L${x + 15} ${y + 8}Z`);
+    return s + r(55, 140, 20, 42, 6) + r(145, 140, 20, 42, 6) + p('M160 118 Q190 128 198 150 Q186 146 160 146Z') + p('M184 136 L194 118 L194 142Z') +
+      e(105, 126, 70, 40) + r(80, 146, 18, 38, 6) + r(120, 146, 18, 38, 6) + l('M60 130 Q105 150 150 130') +
+      e(32, 142, 25, 17) + eye(28, 136, 5) + l('M12 148 Q20 152 30 149');
+  });
+  add('egg', 'dino egg', ['egg', 'eggs'], () =>
+    p('M100 18 Q162 20 166 118 Q166 182 100 182 Q34 182 34 118 Q38 20 100 18Z') + l('M36 108 L56 94 L72 112 L90 92 L108 112 L126 92 L144 110 L164 98') +
+    e(76, 60, 10, 8) + e(128, 140, 14, 10) + e(70, 150, 8, 6) + e(132, 62, 7, 5));
+  add('volcano', 'volcano', ['volcano', 'volcanoes', 'lava'], () =>
+    c(88, 36, 15) + c(110, 26, 17) + c(130, 40, 13) + p('M18 186 L74 64 L126 64 L182 186Z') + e(100, 64, 26, 8) +
+    p('M76 64 Q84 96 92 72 Q100 104 108 72 Q116 98 124 64Z') + l('M52 140 L60 150 M140 130 L150 146 M90 160 L96 172'), 'volcanoes');
+  add('palm', 'palm tree', ['palm', 'palm tree', 'island', 'beach'], () =>
+    p('M96 192 Q88 122 104 70 L116 72 Q102 122 112 192Z') + l('M94 170 L110 168 M94 145 L108 142 M96 120 L110 118 M100 96 L112 96') +
+    p(leafD(110, 66, 80, 200)) + p(leafD(110, 66, 80, 340)) + p(leafD(110, 66, 70, 250)) + p(leafD(110, 66, 70, 300)) + p(leafD(110, 66, 64, 160)) +
+    c(102, 78, 8) + c(118, 80, 8));
+  add('rocket', 'rocket', ['rocket', 'rockets', 'spaceship', 'blast'], () =>
+    p('M66 128 L34 172 L70 160Z') + p('M134 128 L166 172 L130 160Z') + p('M78 164 Q100 208 122 164 Q111 182 100 172 Q89 182 78 164Z') +
+    p('M100 8 Q142 40 138 100 L138 166 L62 166 L62 100 Q58 40 100 8Z') + c(100, 82, 20) + c(100, 82, 12) + l('M62 132 L138 132 M72 44 Q100 56 128 44') + r(94, 140, 12, 30, 5));
+  add('planet', 'planet', ['planet', 'planets', 'saturn', 'world', 'earth'], () =>
+    e(100, 106, 92, 22) + c(100, 100, 56) + l('M8 106 A92 22 0 0 0 192 106 M28 106 A72 13 0 0 0 172 106') +
+    c(80, 72, 8) + e(128, 76, 7, 5) + eye(84, 94, 6) + eye(116, 94, 6) + smile(100, 104, 9));
+  add('ufo', 'flying saucer', ['ufo', 'alien', 'aliens', 'martian', 'saucer'], () =>
+    c(100, 82, 42) + l('M92 58 L84 38 M108 58 L116 38') + c(84, 36, 5) + c(116, 36, 5) + e(100, 84, 22, 24) + eye(91, 80, 6) + eye(109, 80, 6) + smile(100, 94, 6) +
+    e(100, 118, 88, 26) + e(100, 110, 56, 12) + c(40, 120, 6) + c(70, 128, 6) + c(100, 131, 6) + c(130, 128, 6) + c(160, 120, 6) +
+    p('M70 142 L50 186 L150 186 L130 142Z') + l('M80 160 L120 160 M72 176 L128 176'));
+  add('astronaut', 'astronaut', ['astronaut', 'astronauts', 'spaceman', 'cosmonaut'], () =>
+    r(40, 104, 22, 50, 11) + r(138, 104, 22, 50, 11) + c(51, 156, 11) + c(149, 156, 11) +
+    r(68, 156, 26, 30, 8) + r(106, 156, 26, 30, 8) + e(81, 188, 18, 8) + e(119, 188, 18, 8) +
+    r(60, 102, 80, 62, 20) + r(84, 118, 32, 22, 5) + c(94, 129, 4) + c(106, 129, 4) +
+    c(100, 62, 46) + e(100, 64, 32, 25) + c(88, 62, 4, INK) + c(112, 62, 4, INK) + smile(100, 70, 7) + l('M116 50 Q124 56 124 66'));
+  add('moon', 'moon', ['moon', 'moons', 'crescent'], () =>
+    p('M128 16 A88 88 0 1 0 176 154 A66 66 0 1 1 128 16Z') + c(62, 90, 6, INK) + l('M56 116 Q66 126 78 118') + c(74, 60, 8) + c(94, 160, 10) + c(50, 150, 5));
+  add('star', 'star', ['star', 'stars', 'twinkle', 'shooting'], () =>
+    p(starPath(100, 108, 92, 42)) + eye(86, 102, 7) + eye(114, 102, 7) + smile(100, 116, 10) + e(76, 118, 6, 4) + e(124, 118, 6, 4));
+  add('robot', 'robot', ['robot', 'robots', 'bot', 'android', 'machine'], () =>
+    l('M100 30 L100 14') + c(100, 11, 7) + r(22, 104, 22, 48, 10) + r(156, 104, 22, 48, 10) + c(33, 160, 12) + c(167, 160, 12) +
+    r(64, 166, 26, 24, 5) + r(110, 166, 26, 24, 5) + r(88, 88, 24, 12) + r(44, 97, 112, 72, 12) + r(62, 110, 42, 30, 5) + c(126, 118, 7) + c(126, 140, 7) + p(heartD(83, 125, 9)) +
+    r(46, 46, 12, 26, 4) + r(142, 46, 12, 26, 4) + r(56, 30, 88, 60, 12) + c(80, 56, 12) + c(80, 56, 5, INK) + c(120, 56, 12) + c(120, 56, 5, INK) +
+    r(78, 74, 44, 10, 3) + l('M89 74 L89 84 M100 74 L100 84 M111 74 L111 84'));
+  add('car', 'race car', ['car', 'cars', 'racecar', 'race', 'racing', 'drive'], () =>
+    p('M18 142 L18 112 Q20 100 40 98 L60 98 L80 64 Q85 58 96 58 L136 58 Q146 58 152 68 L170 98 Q186 100 186 116 L186 142Z') +
+    p('M68 98 L86 70 L110 70 L110 98Z') + p('M120 70 L140 70 L156 98 L120 98Z') + l('M115 100 L115 140 M124 110 L136 110') + e(180, 114, 5, 8) +
+    c(55, 146, 23) + c(55, 146, 9) + c(150, 146, 23) + c(150, 146, 9) + c(40, 120, 10));
+  add('truck', 'monster truck', ['truck', 'trucks', 'monster truck', 'firetruck', 'dump'], () =>
+    r(14, 52, 110, 86, 6) + l('M30 70 L108 70 M30 90 L108 90 M30 110 L108 110') + p('M124 138 L124 74 L160 74 Q170 74 176 90 L190 112 L190 138Z') + p('M134 84 L160 84 L174 108 L134 108Z') +
+    r(180, 126, 14, 12, 3) + c(46, 148, 24) + c(46, 148, 9) + c(100, 148, 24) + c(100, 148, 9) + c(160, 148, 24) + c(160, 148, 9));
+  add('train', 'choo-choo train', ['train', 'trains', 'choo', 'railway', 'locomotive'], () =>
+    c(46, 22, 11) + c(66, 10, 8) + r(34, 44, 24, 40, 3) + r(29, 36, 34, 11, 3) + r(18, 80, 88, 58, 12) + l('M40 80 L40 138 M66 80 L66 138') +
+    r(100, 50, 72, 90, 6) + r(92, 40, 88, 14, 5) + r(116, 62, 40, 30, 4) + p('M20 138 L4 162 L40 162Z') + r(14, 134, 164, 16, 4) +
+    c(48, 156, 18) + c(48, 156, 6) + c(92, 156, 18) + c(92, 156, 6) + c(148, 152, 24) + c(148, 152, 8));
+  add('plane', 'airplane', ['plane', 'planes', 'airplane', 'jet', 'fly', 'flying', 'pilot'], () =>
+    p('M96 94 L62 38 L86 38 L126 94Z') + p('M26 92 L14 54 L40 58 L58 92Z') +
+    p('M18 110 Q18 90 44 88 L166 86 Q192 88 194 101 Q192 114 166 116 L44 116 Q18 116 18 110Z') + p('M166 88 Q182 90 186 100 L166 100Z') +
+    c(70, 101, 5) + c(90, 101, 5) + c(110, 101, 5) + c(130, 101, 5) + p('M96 108 L64 164 L90 164 L130 108Z'));
+  add('boat', 'sailboat', ['boat', 'boats', 'sailboat', 'ship', 'pirate', 'sail'], () =>
+    l('M100 132 L100 18') + p('M100 18 L100 6 L122 12Z') + p('M104 26 L104 120 L166 120Z') + p('M96 36 L96 120 L44 120Z') +
+    p('M18 130 L182 130 L156 172 L44 172Z') + c(70, 150, 7) + c(100, 150, 7) + c(130, 150, 7) + l('M10 186 q15 -10 30 0 q15 10 30 0 q15 -10 30 0 q15 10 30 0 q15 -10 30 0 q15 10 30 0'));
+  add('castle', 'castle', ['castle', 'castles', 'palace', 'kingdom', 'knight'], () =>
+    r(76, 52, 48, 60) + p('M70 54 L100 6 L130 54Z') + l('M100 6 L100 -6') +
+    r(20, 70, 44, 114) + r(136, 70, 44, 114) + p('M14 72 L42 20 L70 72Z') + p('M130 72 L158 20 L186 72Z') +
+    p('M60 184 L60 96 L70 96 L70 86 L82 86 L82 96 L94 96 L94 86 L106 86 L106 96 L118 96 L118 86 L130 86 L130 96 L140 96 L140 184Z') +
+    p('M84 184 L84 154 Q100 134 116 154 L116 184Z') + p('M34 110 Q42 98 50 110 L50 128 L34 128Z') + p('M150 110 Q158 98 166 110 L166 128 L150 128Z') + c(100, 80, 9) +
+    l('M60 120 L76 120 M124 120 L140 120 M20 150 L64 150 M136 150 L180 150'));
+  add('unicorn', 'unicorn', ['unicorn', 'unicorns', 'pony', 'horse', 'magic', 'rainbow'], () =>
+    r(76, 134, 14, 48, 5) + r(146, 134, 14, 48, 5) + p('M152 106 Q192 98 186 152 Q176 130 160 128Z') + e(114, 120, 50, 32) +
+    r(96, 140, 14, 44, 5) + r(126, 140, 14, 44, 5) + l('M96 176 L110 176 M126 176 L140 176') +
+    p('M64 116 L54 60 L90 54 L96 108Z') + e(54, 56, 30, 20, '#fff', 'rotate(-22 54 56)') + p('M72 40 L80 18 L86 44Z') +
+    p('M56 38 L60 0 L70 34Z') + l('M58 28 L66 26 M58 17 L64 15') +
+    p('M80 42 Q104 50 98 70 Q110 86 98 104 Q82 92 84 72Z') + l('M42 52 Q50 46 58 52') + c(32, 64, 2, INK) + l('M34 72 Q42 76 48 72'));
+  add('crown', 'crown', ['crown', 'crowns', 'princess', 'prince', 'queen', 'king', 'royal'], () =>
+    p('M26 152 L20 56 L60 96 L100 36 L140 96 L180 56 L174 152Z') + r(24, 130, 152, 26, 6) + c(100, 143, 8) + c(60, 143, 6) + c(140, 143, 6) +
+    c(20, 50, 9) + c(100, 30, 9) + c(180, 50, 9) + e(100, 96, 11, 15));
+  add('dragon', 'dragon', ['dragon', 'dragons', 'fire'], () =>
+    p('M128 92 Q182 44 192 80 Q172 88 176 110 Q156 104 140 120Z') + p('M138 160 Q192 172 186 128 L198 118 L174 116 Q176 150 138 150Z') +
+    e(106, 130, 46, 46) + e(100, 138, 26, 32) + l('M78 124 L122 124 M76 140 L124 140 M80 156 L120 156') + e(80, 178, 16, 9) + e(126, 178, 16, 9) +
+    p('M72 46 L60 18 L84 40Z') + p('M104 42 L114 14 L120 44Z') + e(90, 70, 38, 32) + e(60, 84, 20, 15) + c(52, 80, 2.5, INK) + c(64, 78, 2.5, INK) +
+    eye(98, 62, 8) + l('M48 94 Q62 102 78 94') + p('M126 60 L138 56 L134 68 L146 70 L136 80Z'));
+  add('mushroom', 'mushroom house', ['mushroom', 'mushrooms', 'fairy', 'gnome', 'elf'], () =>
+    r(56, 98, 88, 86, 16) + p('M84 184 L84 152 Q100 136 116 152 L116 184Z') + c(110, 168, 2, INK) + c(128, 124, 11) + l('M117 124 L139 124 M128 113 L128 135') +
+    p('M18 104 Q22 20 100 20 Q178 20 182 104Z') + c(70, 52, 12) + c(128, 44, 14) + c(158, 80, 9) + c(44, 84, 8) + c(100, 82, 9));
+  add('cupcake', 'cupcake', ['cupcake', 'cupcakes', 'muffin', 'cake', 'party'], () =>
+    p('M44 110 L60 186 L140 186 L156 110Z') + l('M66 112 L76 186 M88 112 L92 186 M112 112 L108 186 M134 112 L124 186') +
+    p('M38 114 Q28 96 50 90 Q44 64 76 64 Q80 40 100 44 Q126 40 128 64 Q160 64 152 90 Q174 96 162 114Z') +
+    l('M100 20 Q104 8 114 4') + c(100, 32, 12) + r(70, 76, 10, 4, 2) + r(118, 82, 10, 4, 2) + r(92, 96, 10, 4, 2) + r(132, 100, 10, 4, 2) + r(60, 98, 10, 4, 2) +
+    c(86, 140, 4, INK) + c(114, 140, 4, INK) + smile(100, 150, 10));
+  add('icecream', 'ice cream', ['ice cream', 'icecream', 'ice-cream', 'gelato', 'cone', 'sundae'], () =>
+    p('M58 104 L100 192 L142 104Z') + l('M72 120 L112 170 M88 108 L124 146 M108 104 L134 124 M128 120 L88 170 M112 108 L76 146 M92 104 L66 124') +
+    c(100, 94, 42) + p('M58 100 Q64 116 74 106 Q80 124 90 110 Q100 128 110 110 Q120 124 128 106 Q138 118 142 100Z') + c(100, 50, 32) + c(100, 16, 10) + l('M100 6 Q106 -2 114 -4') +
+    c(88, 90, 4, INK) + c(112, 90, 4, INK) + smile(100, 100, 8), 'ice creams');
+  add('donut', 'donut', ['donut', 'donuts', 'doughnut'], () => {
+    let s = c(100, 104, 82) + p(scallop(100, 104, 66, 12, 12)) + c(100, 104, 24);
+    for (const [x, y, a] of [[60, 70, 30], [140, 72, -40], [150, 128, 20], [64, 142, -30], [100, 52, 80], [104, 158, 10], [48, 104, 70], [150, 100, 60]])
+      s += `<rect x="${x - 7}" y="${y - 2.5}" width="14" height="5" rx="2.5" fill="#fff" transform="rotate(${a} ${x} ${y})"/>`;
+    return s;
+  });
+  add('pizza', 'pizza', ['pizza', 'pizzas', 'pepperoni'], () =>
+    p('M100 188 L24 40 Q100 14 176 40Z') + p('M24 40 Q100 14 176 40 L168 58 Q100 34 32 58Z') + c(86, 82, 13) + c(124, 96, 12) + c(100, 136, 11) + c(72, 108, 7) +
+    p('M60 80 Q66 96 70 84Z') + c(90, 84, 3, INK), 'pizzas');
+  add('apple', 'apple', ['apple', 'apples', 'fruit', 'fruits'], () =>
+    l('M100 58 Q98 36 106 20') + p('M106 36 Q132 14 152 30 Q132 46 106 36Z') +
+    p('M100 56 Q140 30 170 70 Q190 130 140 180 Q120 194 100 180 Q80 194 60 180 Q10 130 30 70 Q60 30 100 56Z') + l('M52 82 Q46 96 48 112') +
+    c(82, 110, 5, INK) + c(118, 110, 5, INK) + smile(100, 124, 12));
+  add('lollipop', 'lollipop', ['lollipop', 'lollipops', 'candy', 'sweets', 'sweet'], () =>
+    r(94, 112, 12, 84, 5) + c(100, 68, 58) + l(spiral(100, 68, 54, 3)) + p('M88 128 L70 116 L72 140Z') + p('M112 128 L130 116 L128 140Z') + c(100, 128, 8));
+  add('cake', 'birthday cake', ['birthday', 'cakes', 'birthday cake'], () =>
+    e(100, 182, 88, 12) + r(24, 118, 152, 62, 10) + r(44, 72, 112, 50, 10) +
+    p('M44 86 Q54 100 64 88 Q74 102 84 88 Q94 102 104 88 Q114 102 124 88 Q134 102 144 88 Q150 96 156 88 L156 80 Q100 70 44 80Z') +
+    l('M24 140 Q60 154 100 140 Q140 154 176 140') + r(66, 42, 10, 30, 3) + r(95, 36, 10, 36, 3) + r(124, 42, 10, 30, 3) +
+    p('M71 40 Q64 30 71 18 Q78 30 71 40Z') + p('M100 34 Q93 24 100 12 Q107 24 100 34Z') + p('M129 40 Q122 30 129 18 Q136 30 129 40Z') + c(60, 160, 5) + c(100, 162, 5) + c(140, 160, 5));
+  add('butterfly', 'butterfly', ['butterfly', 'butterflies', 'moth'], () => {
+    const w = p('M98 92 Q60 16 20 42 Q8 90 94 104Z') + p('M96 106 Q40 110 44 160 Q70 178 98 118Z') + c(52, 60, 10) + c(60, 142, 8) + e(76, 84, 6, 8);
+    return w + mir(w) + e(100, 108, 9, 40) + c(100, 64, 13) + l('M96 54 Q86 30 76 24 M104 54 Q114 30 124 24') + c(76, 24, 5) + c(124, 24, 5) + c(95, 62, 2.5, INK) + c(105, 62, 2.5, INK) + smile(100, 68, 4);
+  }, 'butterflies');
+  add('bee', 'bumblebee', ['bee', 'bees', 'bumblebee', 'honey'], () =>
+    e(84, 56, 22, 32, '#fff', 'rotate(-20 84 56)') + e(122, 56, 22, 32, '#fff', 'rotate(20 122 56)') + p('M160 114 L188 110 L160 126Z') +
+    e(104, 116, 60, 44) + l('M84 74 Q74 116 84 158 M114 72 Q104 116 114 160 M142 82 Q134 116 142 150') +
+    l('M36 84 Q30 60 40 48 M52 80 Q54 58 66 50') + c(40, 46, 5) + c(66, 48, 5) + c(48, 108, 30) + eye(40, 102, 6) + eye(60, 102, 6) + smile(50, 116, 9));
+  add('ladybug', 'ladybug', ['ladybug', 'ladybugs', 'ladybird', 'beetle'], () =>
+    l('M42 90 L20 80 M36 120 L12 120 M42 150 L20 164 M158 90 L180 80 M164 120 L188 120 M158 150 L180 164 M88 36 Q80 16 68 12 M112 36 Q120 16 132 12') + c(68, 12, 5) + c(132, 12, 5) +
+    e(100, 52, 34, 26) + c(100, 116, 68) + l('M100 48 L100 184') + c(74, 94, 12) + c(128, 94, 12) + c(70, 140, 10) + c(132, 140, 10) +
+    p('M60 64 Q100 36 140 64 Q120 76 100 76 Q80 76 60 64Z') + eye(88, 50, 6) + eye(112, 50, 6));
+  add('snail', 'snail', ['snail', 'snails', 'slug'], () =>
+    l('M40 128 L30 96 M52 128 L56 96') + c(30, 92, 7) + c(30, 92, 3, INK) + c(56, 92, 7) + c(56, 92, 3, INK) +
+    p('M16 172 Q16 130 44 124 Q64 122 66 150 L176 152 Q192 154 190 172Z') + c(118, 100, 56) + l(spiral(118, 100, 50, 2.6)) + smile(44, 146, 8));
+  add('flower', 'flower', ['flower', 'flowers', 'daisy', 'rose', 'tulip', 'garden', 'spring'], () => {
+    let s = p('M96 110 Q90 150 98 196 L106 196 Q100 150 104 110Z') + p(leafD(100, 160, 50, 200)) + p(leafD(102, 150, 50, -20));
+    for (let i = 0; i < 8; i++) s += e(100, 44, 17, 30, '#fff', `rotate(${i * 45} 100 76)`);
+    return s + c(100, 76, 26) + c(92, 72, 3, INK) + c(108, 72, 3, INK) + smile(100, 80, 8);
+  });
+  add('caterpillar', 'caterpillar', ['caterpillar', 'caterpillars', 'worm', 'worms'], () => {
+    let s = '';
+    for (let i = 4; i >= 0; i--) {
+      const x = 170 - i * 28, y = 130 + (i % 2 ? -10 : 0);
+      s += l(`M${x - 6} ${y + 22} L${x - 8} ${y + 34} M${x + 6} ${y + 22} L${x + 8} ${y + 34}`) + c(x, y, 24);
+    }
+    return s + l('M36 80 Q28 56 20 50 M52 78 Q56 54 66 48') + c(20, 48, 5) + c(66, 46, 5) + c(44, 104, 32) + eye(34, 98, 6) + eye(56, 98, 6) + smile(45, 114, 9);
+  });
+  add('tree', 'tree', ['tree', 'trees', 'forest', 'woods'], () =>
+    p('M86 190 L90 120 L70 100 L92 108 L100 90 L108 108 L130 98 L110 120 L114 190Z') + p(scallop(100, 76, 58, 11, 22)) + c(76, 64, 7) + c(122, 58, 7) + c(110, 96, 7) + c(80, 100, 6) + c(140, 84, 6));
+  add('sun', 'sunshine', ['sun', 'sunny', 'sunshine', 'summer'], () => sunS(100, 100, 50));
+  add('cloud', 'cloud', ['cloud', 'clouds', 'rain', 'weather'], () => p(cloudD(100, 100, 180)) + eye(80, 92, 6) + eye(120, 92, 6) + smile(100, 106, 10) + l('M60 140 L54 156 M100 142 L94 162 M140 140 L134 156'));
+  add('heart', 'heart', ['heart', 'hearts', 'love', 'valentine'], () => p(heartD(100, 104, 78)) + eye(82, 86, 7) + eye(118, 86, 7) + smile(100, 104, 11) + e(68, 106, 8, 5) + e(132, 106, 8, 5));
+  add('balloon', 'balloons', ['balloon', 'balloons'], () =>
+    l('M60 94 Q70 140 100 196 M100 84 L100 196 M144 90 Q132 140 100 196') + e(60, 60, 34, 42) + e(144, 58, 34, 42) + e(100, 48, 36, 44) +
+    p('M56 100 L64 100 L60 94Z') + p('M140 98 L148 98 L144 92Z') + p('M96 90 L104 90 L100 84Z') + l('M86 30 Q82 40 84 52'), 'balloon bunches');
+  add('house', 'barn', ['house', 'home', 'barn', 'farm', 'cottage'], () =>
+    r(148, 40, 18, 40) + p('M18 96 L100 26 L182 96Z') + r(32, 94, 136, 90) + p('M78 184 L78 128 L122 128 L122 184Z') + l('M78 128 L122 184 M122 128 L78 184') +
+    r(44, 110, 26, 26, 3) + r(130, 110, 26, 26, 3) + l('M57 110 L57 136 M143 110 L143 136') + c(100, 72, 12));
+  add('rainbow', 'rainbow', ['rainbow', 'rainbows'], () =>
+    l('M14 150 A86 86 0 0 1 186 150 M32 150 A68 68 0 0 1 168 150 M50 150 A50 50 0 0 1 150 150 M68 150 A32 32 0 0 1 132 150') + p(cloudD(40, 150, 70)) + p(cloudD(160, 150, 70)));
+
+  // ---------- keyword lookup ----------
+  const KW = [];
+  for (const s of Object.values(S)) for (const k of s.kw) KW.push([k, s.key]);
+  KW.sort((a, b) => b[0].length - a[0].length);
+
+  // ---------- scenes (page coordinates) ----------
+  const W = 850, H = 1100;
+  const hills = (d) => p(d);
+  const tufts = (R, y0, y1, n) => {
+    let s = '';
+    for (let i = 0; i < n; i++) { const x = 60 + R() * 730, y = y0 + R() * (y1 - y0); s += l(`M${f(x)} ${f(y)} l6 -16 l5 14 l6 -18 l5 16 l6 -14`); }
+    return s;
+  };
+  const miniFlower = (x, y) => { let s = l(`M${x} ${y} L${x} ${y + 30}`); for (let i = 0; i < 5; i++) { const a = (i / 5) * PI * 2; s += c(x + 11 * Math.cos(a), y + 11 * Math.sin(a), 8); } return s + c(x, y, 7); };
+  const SCENES = {
+    meadow(R) {
+      return { ground: 880, bg: sunS(135, 150, 48) + p(cloudD(560, 150, 200)) + p(cloudD(735, 270, 140)) +
+        hills('M30 840 Q220 770 430 830 Q640 890 820 800 L820 990 L30 990Z') + tufts(R, 900, 960, 7) + miniFlower(110, 910) + miniFlower(740, 900) };
+    },
+    ocean(R) {
+      let s = l('M30 100 q35 -22 70 0 q35 22 70 0 q35 -22 70 0 q35 22 70 0 q35 -22 70 0 q35 22 70 0 q35 -22 70 0 q35 22 70 0 q35 -22 70 0 q35 22 70 0 q35 -22 70 0 q35 22 70 0');
+      s += p('M30 880 Q220 850 430 885 Q640 915 820 870 L820 990 L30 990Z');
+      for (const x of [70, 760]) s += p(`M${x} 900 Q${x - 32} 820 ${x} 760 Q${x + 32} 700 ${x} 640 L${x + 20} 640 Q${x + 52} 700 ${x + 20} 760 Q${x - 12} 820 ${x + 20} 900Z`);
+      for (let i = 0; i < 12; i++) { const side = i % 2, x = side ? 660 + R() * 130 : 70 + R() * 130, y = 170 + R() * 420; s += c(x, y, 7 + R() * 12); }
+      s += e(220, 915, 55, 26) + e(620, 925, 40, 20) + p(starPath(440, 935, 22, 10));
+      return { ground: 895, bg: s };
+    },
+    space(R) {
+      let s = '';
+      for (let i = 0; i < 14; i++) s += p(starPath(60 + R() * 730, 60 + R() * 880, 10 + R() * 12, 5 + R() * 4));
+      for (let i = 0; i < 22; i++) s += c(50 + R() * 750, 50 + R() * 900, 3, INK);
+      s += e(700, 175, 80, 18) + c(700, 170, 46) + l('M620 175 A80 18 0 0 0 780 175') + p('M120 110 A70 70 0 1 0 170 230 A52 52 0 1 1 120 110Z');
+      return { ground: null, bg: s };
+    },
+    farm(R) {
+      let s = sunS(720, 150, 46) + p(cloudD(260, 150, 180)) + hills('M30 760 Q250 680 480 740 Q650 780 820 700 L820 990 L30 990Z');
+      s += r(30, 772, 790, 16) + r(30, 822, 790, 16);
+      for (let x = 50; x < 810; x += 95) s += r(x, 742, 22, 120, 4);
+      s += hills('M30 862 Q430 832 820 862 L820 990 L30 990Z') + tufts(R, 910, 960, 6);
+      return { ground: 905, bg: s };
+    },
+    road(R) {
+      let s = p(cloudD(200, 160, 170)) + p(cloudD(640, 220, 150)) + hills('M30 700 Q200 600 380 690 Q560 600 820 680 L820 990 L30 990Z');
+      s += r(30, 850, 790, 110);
+      for (let x = 60; x < 800; x += 130) s += r(x, 899, 64, 12, 5);
+      return { ground: 915, bg: s };
+    },
+    jungle(R) {
+      let s = '';
+      s += p(leafD(30, 60, 200, 20)) + p(leafD(30, 60, 180, 60)) + p(leafD(30, 200, 160, 0)) + p(leafD(820, 60, 200, 160)) + p(leafD(820, 60, 180, 120)) + p(leafD(820, 220, 160, 180));
+      s += l('M300 30 Q312 160 290 280 M560 30 Q548 140 570 230') + p(leafD(305, 140, 40, 20)) + p(leafD(296, 220, 40, 160)) + p(leafD(552, 120, 40, 160)) + p(leafD(565, 200, 40, 20));
+      s += p(scallop(90, 860, 70, 8, 22)) + p(scallop(770, 850, 80, 9, 22)) + hills('M30 860 Q430 820 820 860 L820 990 L30 990Z') + tufts(R, 910, 960, 6);
+      return { ground: 890, bg: s };
+    },
+    kingdom(R) {
+      let s = '';
+      for (const rad of [330, 290, 250, 210]) s += l(`M${425 - rad} 540 A${rad} ${rad} 0 0 1 ${425 + rad} 540`);
+      s += p(cloudD(135, 545, 190)) + p(cloudD(715, 545, 190)) + hills('M30 820 Q250 760 440 810 Q640 860 820 790 L820 990 L30 990Z') + tufts(R, 900, 960, 5);
+      s += sparkle(110, 150, 26) + sparkle(740, 130, 22) + sparkle(640, 330, 14);
+      return { ground: 885, bg: s };
+    },
+    candy(R) {
+      let s = p(cloudD(260, 140, 170)) + p(cloudD(640, 180, 150));
+      s += hills('M30 780 Q200 700 380 770 Q560 830 820 740 L820 990 L30 990Z');
+      for (const [x, y] of [[100, 520], [750, 560]]) s += r(x - 8, y + 40, 16, 300, 6) + c(x, y, 56) + l(spiral(x, y, 52, 3));
+      s += l('M60 870 q20 -14 40 0 q20 14 40 0 M640 900 q20 -14 40 0 q20 14 40 0') + c(260, 920, 10) + c(520, 940, 12) + c(380, 900, 8);
+      return { ground: 885, bg: s };
+    },
+    night(R) {
+      let s = p('M690 90 A80 80 0 1 0 760 230 A60 60 0 1 1 690 90Z');
+      for (let i = 0; i < 12; i++) s += p(starPath(60 + R() * 560, 60 + R() * 420, 10 + R() * 12, 5 + R() * 4));
+      s += hills('M30 820 Q230 740 430 800 Q640 860 820 770 L820 990 L30 990Z') + tufts(R, 900, 960, 5);
+      return { ground: 885, bg: s };
+    },
+    plain(R) {
+      return { ground: 870, bg: sparkle(110, 120, 28) + sparkle(740, 140, 22) + sparkle(90, 880, 20) + sparkle(760, 860, 30) + c(170, 200, 8) + c(690, 800, 10) };
+    },
+  };
+  const SCENE_KW = {
+    space: ['space', 'astronaut', 'planet', 'rocket', 'moon', 'galaxy', 'alien', 'stars', 'ufo', 'mars'],
+    ocean: ['sea', 'ocean', 'underwater', 'beach', 'mermaid', 'shark', 'pirate', 'fish', 'whale', 'reef', 'swim'],
+    farm: ['farm', 'barn', 'cow', 'pig', 'chicken', 'tractor', 'horse'],
+    road: ['car', 'truck', 'road', 'race', 'city', 'town', 'bus', 'train', 'drive'],
+    jungle: ['jungle', 'dinosaur', 'dino', 'safari', 'lion', 'monkey', 'tiger', 'forest', 'zoo'],
+    kingdom: ['castle', 'princess', 'prince', 'unicorn', 'dragon', 'fairy', 'magic', 'knight', 'kingdom', 'rainbow'],
+    candy: ['candy', 'sweet', 'cake', 'cupcake', 'ice cream', 'donut', 'treat', 'dessert', 'pizza', 'food', 'party'],
+    night: ['night', 'sleep', 'owl', 'bedtime', 'dream', 'spooky', 'halloween', 'ghost'],
+    meadow: ['garden', 'bug', 'flower', 'meadow', 'park', 'spring', 'bunny', 'pet'],
+  };
+  const SCENE_PROPS = {
+    space: ['star', 'planet', 'moon'], ocean: ['fish', 'starfish', 'jellyfish'], farm: ['apple', 'flower', 'house'], road: ['cloud', 'tree', 'balloon'],
+    jungle: ['palm', 'butterfly', 'flower'], kingdom: ['star', 'heart', 'mushroom'], candy: ['lollipop', 'heart', 'cake'], night: ['star', 'moon', 'cloud'],
+    meadow: ['flower', 'butterfly', 'cloud'], plain: ['star', 'heart', 'balloon'],
+  };
+
+  // ---------- ready-made books ----------
+  const BOOKS = [
+    { id: 'dino', title: 'Dino Stomp', color: '#3DD17B', scene: 'jungle', alt: 'meadow', heroes: ['trex', 'longneck', 'stego', 'dragon'], props: ['egg', 'palm', 'volcano'] },
+    { id: 'sea', title: 'Under the Sea', color: '#3A86FF', scene: 'ocean', alt: 'ocean', heroes: ['whale', 'octopus', 'turtle', 'crab'], props: ['fish', 'starfish', 'jellyfish'] },
+    { id: 'space', title: 'Blast Off!', color: '#8338EC', scene: 'space', alt: 'night', heroes: ['rocket', 'astronaut', 'ufo', 'robot'], props: ['star', 'planet', 'moon'] },
+    { id: 'farm', title: 'Farm Friends', color: '#FF9F1C', scene: 'farm', alt: 'meadow', heroes: ['cow', 'pig', 'chicken', 'dog'], props: ['apple', 'flower', 'house'] },
+    { id: 'go', title: 'Vroom Vroom', color: '#FF5A5F', scene: 'road', alt: 'meadow', heroes: ['car', 'truck', 'train', 'plane'], props: ['cloud', 'tree', 'balloon'] },
+    { id: 'magic', title: 'Magic Kingdom', color: '#FF6FB5', scene: 'kingdom', alt: 'night', heroes: ['unicorn', 'dragon', 'castle', 'crown'], props: ['star', 'heart', 'mushroom'] },
+    { id: 'sweet', title: 'Sweet Treats', color: '#F15BB5', scene: 'candy', alt: 'plain', heroes: ['cupcake', 'icecream', 'donut', 'pizza'], props: ['lollipop', 'heart', 'cake'] },
+    { id: 'bugs', title: 'Bug Garden', color: '#9BD13D', scene: 'meadow', alt: 'meadow', heroes: ['butterfly', 'bee', 'ladybug', 'snail'], props: ['flower', 'caterpillar', 'cloud'] },
+    { id: 'pets', title: 'Pet Pals', color: '#FFBE0B', scene: 'meadow', alt: 'plain', heroes: ['cat', 'dog', 'bunny', 'bear'], props: ['heart', 'balloon', 'flower'] },
+    { id: 'wild', title: 'Jungle Jam', color: '#00B4A0', scene: 'jungle', alt: 'night', heroes: ['lion', 'elephant', 'frog', 'owl'], props: ['palm', 'butterfly', 'flower'] },
+  ];
+
+  // ---------- helpers ----------
+  function rng(seedStr) {
+    let h = 1779033703 ^ seedStr.length;
+    for (let i = 0; i < seedStr.length; i++) { h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+    let a = h >>> 0;
+    return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+  function sub(k) {
+    if (k && typeof k === 'object') return { key: 'custom', name: k.name, pl: k.pl || k.name + 's', draw: () => k.svg };
+    return S[k] || S.star;
+  }
+  const place = (k, x, y, s, flip) => {
+    const inner = sub(k).draw(), sc = s / 200;
+    const tr = flip ? `translate(${f(x + s / 2)} ${f(y - s / 2)}) scale(${f(-sc * 1000) / 1000} ${f(sc * 1000) / 1000})` : `translate(${f(x - s / 2)} ${f(y - s / 2)}) scale(${f(sc * 1000) / 1000})`;
+    return `<g transform="${tr}">${inner}</g>`;
+  };
+
+  // Lay out one page. Returns {scene, items, frames, caption, title}.
+  function compose(book, i) {
+    const R = rng(book.id + ':' + i);
+    const H4 = book.heroes, P = book.props;
+    const n = (j) => sub(H4[j % H4.length]).name;
+    const the = (j) => 'the ' + n(j);
+    const main = book.scene || 'plain', alt = book.alt || main;
+    const gy = (sceneKey, s) => { const g = SCENES[sceneKey](rng('g')).ground; return g ? g - s * 0.44 : 540; };
+    const it = (k, x, y, s, flip = false) => ({ k, x, y, s, flip });
+    const word = book.word;
+    const out = { scene: main, items: [], frames: [], caption: '', title: null };
+    switch (i) {
+      case 0:
+        out.scene = 'plain'; out.title = book.title; out.items.push(it(H4[0], 425, 620, 500)); out.caption = 'This book belongs to: ____________'; break;
+      case 1:
+        out.items.push(it(H4[0], 425, gy(main, 520), 520, R() < 0.3)); out.caption = `Say hi to ${the(0)}!`; break;
+      case 2:
+        if (word) { out.scene = 'plain'; out.frames.push([110, 110, 630, 600]); out.items.push(it(H4[1], 250, 860, 240)); out.caption = `Draw your own ${word}!`; break; }
+        out.items.push(it(H4[1], 425, gy(main, 500), 500, R() < 0.5)); out.caption = `Here comes ${the(1)}!`; break;
+      case 3:
+        out.items.push(it(H4[0], 245, gy(main, 350), 350), it(H4[1], 610, gy(main, 350), 350, true)); out.caption = `${cap(the(0))} and ${the(1)} are best friends!`; break;
+      case 4:
+        out.items.push(it(P[1], 160, 230, 150), it(P[1], 690, 250, 130, true), it(H4[2], 425, gy(main, 470), 470)); out.caption = `${cap(the(2))} is having a great day!`; break;
+      case 5: {
+        const N = 3 + Math.floor(R() * 4), pts = [];
+        for (let t = 0; pts.length < N && t < 400; t++) {
+          const x = 130 + R() * 590, y = 150 + R() * 560;
+          if (pts.every(([a, b]) => Math.hypot(a - x, b - y) > 190)) pts.push([x, y]);
+        }
+        out.scene = main === 'space' ? 'space' : 'plain';
+        for (const [x, y] of pts) out.items.push(it(P[0], x, y, 160, R() < 0.5));
+        out.items.push(it(H4[3], 425, 840, 220));
+        out.caption = `Can you count the ${pts.length} ${sub(P[0]).pl}?`; break;
+      }
+      case 6:
+        if (word) { out.scene = alt; out.frames.push([140, 140, 570, 520]); out.caption = `Draw a ${word} having fun!`; out.items.push(it(H4[3], 640, gy(alt, 240), 240)); break; }
+        out.scene = alt; out.items.push(it(H4[3], 425, gy(alt, 500), 500, R() < 0.5)); out.caption = `${cap(the(3))} loves to play!`; break;
+      case 7: {
+        out.scene = 'plain';
+        const ks = [H4[0], P[1], H4[1], P[2], H4[2], P[0]];
+        for (let row = 0; row < 4; row++) for (let col = 0; col < 3; col++) out.items.push(it(ks[(row * 3 + col) % ks.length], 175 + col * 250, 150 + row * 225, 180, row % 2 === 1));
+        out.caption = 'Color the pattern!'; break;
+      }
+      case 8:
+        out.items.push(it(H4[0], 170, gy(main, 250), 250), it(H4[2], 425, gy(main, 250), 250), it(H4[3], 680, gy(main, 250), 250)); out.caption = 'Time for a parade!'; break;
+      case 9:
+        if (word) { out.scene = 'plain'; out.frames.push([90, 100, 670, 820]); out.caption = `A GIANT ${word.toUpperCase()}!`; break; }
+        out.scene = 'plain'; out.items.push(it(H4[1], 425, 530, 760)); out.caption = `A GIANT ${n(1).toUpperCase()}!`; break;
+      case 10:
+        out.frames.push([100, 90, 650, 560]); out.items.push(it(H4[0], 250, 830, 280), it(P[2], 630, 850, 180)); out.caption = `Draw a new friend for ${the(0)}!`; out.scene = 'plain'; break;
+      case 11:
+        out.scene = 'plain'; out.title = 'The End!';
+        out.items.push(it(H4[0], 200, 245, 250), it(H4[1], 650, 245, 250, true), it(H4[2], 200, 790, 250), it(H4[3], 650, 790, 250, true)); break;
+    }
+    return out;
+  }
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  function pageSVG(book, i) {
+    const pg = compose(book, i);
+    const sc = SCENES[pg.scene] ? SCENES[pg.scene](rng(book.id + ':scene:' + i)) : SCENES.plain(rng('p'));
+    let body = sc.bg;
+    for (const t of pg.items) body += place(t.k, t.x, t.y, t.s, t.flip);
+    for (const [x, y, w, h] of pg.frames) body += r(x, y, w, h, 34);
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">` +
+      `<style>*{vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}</style>` +
+      `<rect width="${W}" height="${H}" fill="#fff"/>` +
+      `<defs><clipPath id="k"><rect x="30" y="30" width="790" height="955" rx="34"/></clipPath></defs>` +
+      `<g stroke="${INK}" stroke-width="5" clip-path="url(#k)">${body}</g>` +
+      `<g stroke="${INK}" stroke-width="6" fill="none"><rect x="30" y="30" width="790" height="1040" rx="34"/><path d="M30 985 L820 985"/></g></svg>`;
+  }
+
+  // Build a book from what a child typed, using only the built-in library.
+  function bookFromWords(text) {
+    const t = ' ' + text.toLowerCase().replace(/[^a-z\- ]/g, ' ') + ' ';
+    const heroes = [];
+    for (const [k, key] of KW) if (t.includes(' ' + k + ' ') && !heroes.includes(key)) heroes.push(key);
+    let scene = null;
+    for (const [sk, words] of Object.entries(SCENE_KW)) if (words.some((w) => t.includes(' ' + w + ' ') || t.includes(' ' + w + 's '))) { scene = sk; break; }
+    const known = heroes.length > 0;
+    if (!scene) scene = known ? guessScene(heroes[0]) : 'meadow';
+    const pool = BOOKS.find((b) => b.scene === scene) || BOOKS[8];
+    for (const k of pool.heroes) if (heroes.length < 4 && !heroes.includes(k)) heroes.push(k);
+    const clean = text.trim().replace(/\s+/g, ' ').slice(0, 40);
+    return {
+      heroes: known ? heroes.slice(0, 4) : ['star', 'heart', 'rainbow', 'balloon'],
+      scene, alt: scene === 'space' ? 'night' : 'meadow', props: SCENE_PROPS[scene] || SCENE_PROPS.plain,
+      title: titleFor(clean), word: known ? null : clean.toLowerCase(), matched: known,
+    };
+  }
+  function guessScene(key) {
+    for (const b of BOOKS) if (b.heroes.includes(key)) return b.scene;
+    return 'meadow';
+  }
+  function titleFor(t) {
+    const s = t.replace(/^(a|an|the)\s+/i, '');
+    const tc = s.split(' ').map((w) => (w.length > 2 ? cap(w) : w)).join(' ');
+    return tc.length > 26 ? tc.slice(0, 24).trim() + '…' : tc || 'My Book';
+  }
+
+  // Keep only simple drawing elements from AI-made SVG.
+  function sanitizeSVG(str) {
+    if (typeof str !== 'string' || str.length > 12000) return '';
+    const doc = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg">${str.replace(/<\/?svg[^>]*>/g, '')}</svg>`, 'image/svg+xml');
+    if (doc.querySelector('parsererror')) return '';
+    const OK = new Set(['g', 'path', 'circle', 'ellipse', 'rect', 'polygon', 'polyline', 'line']);
+    const AT = new Set(['d', 'cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'width', 'height', 'x1', 'y1', 'x2', 'y2', 'points', 'transform']);
+    const dark = (v) => {
+      if (!v) return false;
+      if (v === 'black') return true;
+      const m = v.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+      if (!m) return false;
+      const h = m[1].length === 3 ? m[1].split('').map((x) => x + x).join('') : m[1];
+      const [R, G, B] = [0, 2, 4].map((j) => parseInt(h.slice(j, j + 2), 16));
+      return R * 0.3 + G * 0.59 + B * 0.11 < 90;
+    };
+    let out = '', count = 0;
+    (function walk(node, depth) {
+      for (const ch of node.children) {
+        const tag = ch.tagName.toLowerCase();
+        if (!OK.has(tag) || depth > 6 || ++count > 300) continue;
+        let a = '';
+        for (const at of ch.attributes) if (AT.has(at.name) && /^[-0-9.,\sa-zA-Z()]*$/.test(at.value)) a += ` ${at.name}="${at.value}"`;
+        if (tag === 'g') { out += `<g${a}>`; walk(ch, depth + 1); out += '</g>'; continue; }
+        const fv = (ch.getAttribute('fill') || '').trim().toLowerCase();
+        const fill = fv === 'none' || tag === 'line' || (tag === 'polyline' && !fv) ? 'none' : dark(fv) ? INK : '#fff';
+        out += `<${tag}${a} fill="${fill}"/>`;
+      }
+    })(doc.documentElement, 0);
+    return out;
+  }
+
+  window.ADJ_ART = { W, H, S, SCENES, SCENE_PROPS, BOOKS, compose, pageSVG, bookFromWords, sanitizeSVG, titleFor, rng, place };
+})();

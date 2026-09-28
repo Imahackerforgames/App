@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!--ADJ-PAGE-START-->
+<title>adj coloring books</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&family=Nunito:wght@600;800;900&display=swap">
+<style>
+:root{
+  --bg:#E8F5FF; --dot:#CFE8FF; --card:#FFFFFF; --ink:#23203B; --muted:#5E5B80; --line:#23203B;
+  --red:#FF5A5F; --orange:#FF9F1C; --yellow:#FFD23F; --green:#3DD17B; --blue:#3A86FF; --purple:#8338EC; --pink:#FF6FB5;
+  --shadow:#23203B; --soft:#F3F0FF; --field:#FFFFFF;
+  --display:'Chewy','Comic Sans MS','Chalkboard SE',cursive; --body:'Nunito','Trebuchet MS',system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#17152C; --dot:#231F42; --card:#26224A; --ink:#F6F3FF; --muted:#B7B2E0; --line:#0B0A18; --shadow:#07060F; --soft:#312C5C; --field:#1D1A38; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#17152C; --dot:#231F42; --card:#26224A; --ink:#F6F3FF; --muted:#B7B2E0; --line:#0B0A18; --shadow:#07060F; --soft:#312C5C; --field:#1D1A38; color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);background-image:radial-gradient(var(--dot) 2.5px,transparent 3px);background-size:26px 26px;color:var(--ink);font:600 16px/1.5 var(--body);padding-inline:16px;padding-block:0 40px;overflow-x:hidden}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:4px solid var(--blue);outline-offset:3px;border-radius:12px}
+.wrap{max-width:1180px;margin:0 auto}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:18px 6px}
+.logo{display:flex;align-items:center;gap:10px;background:none;border:0;padding:0}
+.logo b{font:400 64px/0.9 var(--display);letter-spacing:1px;display:flex}
+.logo b span{display:inline-block;-webkit-text-stroke:3px var(--line);paint-order:stroke fill;text-shadow:4px 4px 0 var(--shadow)}
+.logo b span:nth-child(1){color:var(--red);transform:rotate(-8deg)}
+.logo b span:nth-child(2){color:var(--yellow);transform:translateY(-4px) rotate(5deg)}
+.logo b span:nth-child(3){color:var(--blue);transform:rotate(-4deg)}
+.logo small{font:800 13px/1.2 var(--body);color:var(--muted);max-width:9em;text-align:left;text-transform:uppercase;letter-spacing:.06em}
+.chipbtn{border:3px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;font-weight:800;box-shadow:3px 3px 0 var(--shadow);display:inline-flex;align-items:center;gap:6px;transition:transform .1s}
+.chipbtn:hover{transform:translateY(-2px)}
+.chipbtn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--shadow)}
+.chipbtn svg{width:20px;height:20px}
+
+/* maker */
+.maker{position:relative;margin-top:18px;background:var(--yellow);border:4px solid var(--line);border-radius:34px;padding:26px clamp(18px,4vw,40px) 28px;box-shadow:8px 8px 0 var(--shadow);color:#23203B;overflow:hidden}
+.maker::before,.maker::after{content:"";position:absolute;border-radius:50%;border:4px solid #23203B;z-index:0}
+.maker::before{width:180px;height:180px;right:-50px;top:-60px;background:var(--pink)}
+.maker::after{width:110px;height:110px;right:90px;bottom:-60px;background:var(--green)}
+.maker>*{position:relative;z-index:1}
+.maker h1{font:400 clamp(34px,5.5vw,58px)/1.02 var(--display);margin:0 0 6px;text-wrap:balance;max-width:14em}
+.maker p.lead{margin:0 0 18px;font-weight:800;font-size:17px;max-width:40em}
+.ask{display:flex;gap:10px;flex-wrap:wrap}
+.ask input{flex:1 1 280px;min-width:0;border:4px solid #23203B;border-radius:22px;padding:14px 18px;font-weight:800;font-size:19px;background:#fff;color:#23203B}
+.ask input::placeholder{color:#8A86A8}
+.big{border:4px solid #23203B;border-radius:22px;padding:12px 22px;font:400 24px/1 var(--display);letter-spacing:.5px;box-shadow:5px 5px 0 #23203B;transition:transform .1s;display:inline-flex;align-items:center;gap:8px}
+.big:hover{transform:translateY(-2px) rotate(-1deg)}
+.big:active{transform:translate(3px,3px);box-shadow:2px 2px 0 #23203B}
+.big.go{background:var(--red);color:#fff}
+.big.alt{background:#fff;color:#23203B}
+.ideas{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
+.ideas span{font-weight:900;font-size:14px;text-transform:uppercase;letter-spacing:.06em;margin-right:4px}
+.idea{border:3px solid #23203B;border-radius:999px;background:#fff;padding:5px 12px;font-weight:800;font-size:15px;color:#23203B}
+.idea:hover{background:#FFF3B8}
+.mode{margin:14px 0 0;font-weight:800;font-size:14px;display:flex;gap:8px;align-items:center}
+.mode i{display:inline-block;width:12px;height:12px;border-radius:50%;background:#23203B;border:2px solid #23203B}
+.mode.ai i{background:var(--green)}
+
+/* shelves */
+h2.shelf{font:400 34px/1.1 var(--display);margin:40px 0 14px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+h2.shelf small{font:800 15px var(--body);color:var(--muted)}
+.books{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:22px}
+.book{position:relative;border:4px solid var(--line);border-radius:14px 22px 22px 14px;background:var(--bc,#3DD17B);padding:12px 12px 12px 22px;box-shadow:6px 6px 0 var(--shadow);text-align:left;display:flex;flex-direction:column;gap:10px;transition:transform .15s;color:#23203B}
+.book::before{content:"";position:absolute;left:8px;top:0;bottom:0;border-left:3px dashed rgba(35,32,59,.45)}
+.book:hover{transform:translateY(-4px) rotate(-1.5deg)}
+.book .cov{aspect-ratio:850/1100;width:100%;background:#fff;border:3px solid #23203B;border-radius:10px;display:block;object-fit:cover}
+.book .t{font:400 22px/1.05 var(--display);text-wrap:balance}
+.book .meta{display:flex;justify-content:space-between;align-items:center;font-weight:900;font-size:13px}
+.stars{display:inline-flex;align-items:center;gap:3px;background:#fff;border:2px solid #23203B;border-radius:999px;padding:1px 8px}
+.stars svg{width:14px;height:14px}
+.book .del{position:absolute;top:-12px;right:-12px;width:34px;height:34px;border-radius:50%;border:3px solid #23203B;background:#fff;display:grid;place-items:center;font-weight:900;padding:0}
+.book .del.sure{width:auto;padding:0 10px;border-radius:999px;background:var(--red);color:#fff}
+.empty{border:4px dashed var(--muted);border-radius:22px;padding:22px;color:var(--muted);font-weight:800;text-align:center}
+.foot{margin-top:40px;color:var(--muted);font-weight:700;font-size:14px;text-align:center}
+
+/* studio */
+#studio{padding-top:10px}
+.bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.bar h2{font:400 clamp(26px,3.6vw,38px)/1 var(--display);margin:0;flex:1 1 200px;text-wrap:balance}
+.pg{font-weight:900;background:var(--card);border:3px solid var(--line);border-radius:999px;padding:4px 12px;font-variant-numeric:tabular-nums}
+.desk{display:grid;grid-template-columns:auto minmax(0,1fr) 230px;gap:16px;align-items:start}
+.panel{background:var(--card);border:4px solid var(--line);border-radius:24px;box-shadow:5px 5px 0 var(--shadow);padding:12px}
+.tools{display:grid;grid-template-columns:repeat(2,64px);gap:8px}
+.tool{width:64px;height:64px;border:3px solid var(--line);border-radius:18px;background:var(--soft);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:11px;font-weight:900;padding:2px;line-height:1.1}
+.tool svg{width:28px;height:28px}
+.tool[aria-pressed="true"]{background:var(--yellow);color:#23203B;transform:rotate(-3deg);box-shadow:3px 3px 0 var(--shadow)}
+.sub{margin-top:10px;display:grid;gap:8px}
+.sub label{font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.sizes,.pats,.stks{display:flex;flex-wrap:wrap;gap:6px}
+.sz,.pat,.stk{border:3px solid var(--line);background:var(--soft);border-radius:14px;height:40px;min-width:40px;display:grid;place-items:center;padding:0 6px}
+.sz i{display:block;border-radius:50%;background:var(--ink)}
+.sz[aria-pressed="true"],.pat[aria-pressed="true"],.stk[aria-pressed="true"]{background:var(--yellow);color:#23203B}
+.pat canvas{width:28px;height:28px;border-radius:8px;border:2px solid #23203B}
+.stk{font-size:22px}
+.stagebox{display:flex;justify-content:center}
+.stage{position:relative;width:min(100%,calc((100dvh - 150px) * .7727));aspect-ratio:850/1100;background:#fff;border:4px solid var(--line);border-radius:18px;box-shadow:8px 8px 0 var(--shadow);overflow:hidden;touch-action:none}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%}
+#ink{cursor:crosshair}
+.stage .loading{position:absolute;inset:0;display:grid;place-items:center;background:#fff;color:#23203B;font:400 26px var(--display)}
+.colors{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
+.sw{aspect-ratio:1;border-radius:50%;border:3px solid var(--line);padding:0;transition:transform .1s}
+.sw[aria-pressed="true"]{transform:scale(1.18);box-shadow:0 0 0 3px var(--card),0 0 0 6px var(--ink)}
+.now{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-weight:900}
+.now i{width:44px;height:44px;border-radius:14px;border:3px solid var(--line);display:block}
+.now label{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer}
+.now input[type=color]{width:40px;height:34px;border:3px solid var(--line);border-radius:10px;padding:0;background:none}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.act{border:3px solid var(--line);background:var(--soft);border-radius:14px;padding:8px 6px;font-weight:900;font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px}
+.act svg{width:18px;height:18px}
+.act:disabled{opacity:.45;cursor:default}
+.act.done{grid-column:1/-1;background:var(--green);color:#23203B;font:400 22px var(--display)}
+.act.danger.sure{background:var(--red);color:#fff}
+.strip{display:flex;gap:10px;overflow-x:auto;padding:14px 4px 10px;margin-top:14px;scroll-snap-type:x mandatory}
+.th{flex:0 0 auto;width:78px;border:3px solid var(--line);border-radius:10px;background:#fff;padding:0;position:relative;scroll-snap-align:start;box-shadow:3px 3px 0 var(--shadow)}
+.th img{display:block;width:100%;aspect-ratio:850/1100;border-radius:7px}
+.th b{position:absolute;left:-8px;top:-10px;background:var(--card);color:var(--ink);border:2px solid var(--line);border-radius:999px;font-size:12px;min-width:24px;text-align:center;padding:0 5px;font-variant-numeric:tabular-nums}
+.th[aria-current="true"]{outline:4px solid var(--blue);outline-offset:2px}
+.th .ok{position:absolute;right:-10px;top:-10px;width:26px;height:26px}
+.nav{display:flex;gap:8px}
+
+/* generating overlay */
+.gen{position:fixed;inset:0;background:rgba(23,21,44,.72);display:grid;place-items:center;z-index:20;padding:16px}
+.gen .box{background:var(--yellow);color:#23203B;border:4px solid #23203B;border-radius:30px;padding:26px;max-width:420px;width:100%;text-align:center;box-shadow:8px 8px 0 #07060F}
+.gen h3{font:400 30px/1.1 var(--display);margin:6px 0}
+.gen p{margin:0 0 14px;font-weight:800}
+.crayons{display:flex;justify-content:center;gap:8px;height:70px;align-items:flex-end}
+.crayons i{display:block;width:16px;height:56px;border:3px solid #23203B;border-radius:4px 4px 6px 6px;animation:bob 1s ease-in-out infinite;position:relative}
+.crayons i::before{content:"";position:absolute;left:-3px;right:-3px;top:-14px;height:14px;background:inherit;border:3px solid #23203B;border-bottom:0;clip-path:polygon(50% 0,100% 100%,0 100%)}
+.crayons i:nth-child(2){animation-delay:.12s}.crayons i:nth-child(3){animation-delay:.24s}.crayons i:nth-child(4){animation-delay:.36s}.crayons i:nth-child(5){animation-delay:.48s}
+@keyframes bob{50%{transform:translateY(-14px)}}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--bg);border-radius:18px;padding:10px 18px;font-weight:800;z-index:30;max-width:calc(100% - 32px);box-shadow:4px 4px 0 var(--shadow)}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:25;width:100%;height:100%}
+
+@media (max-width:960px){
+  .desk{grid-template-columns:1fr}
+  .desk .stagebox{order:-1}
+  .stage{width:min(100%,560px)}
+  .tools{grid-template-columns:repeat(auto-fill,64px);justify-content:start}
+  .colors{grid-template-columns:repeat(auto-fill,minmax(36px,1fr))}
+}
+@media (max-width:520px){.logo b{font-size:52px}.logo small{display:none}.book .t{font-size:19px}.books{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media print{body{background:#fff;padding:0}body>*:not(#printout){display:none!important}#printout{display:block!important}#printout img{width:100%;page-break-after:always;display:block}}
+</style>
+<!--ADJ-HEAD-END-->
+</head>
+<body>
+<!--ADJ-BODY-START-->
+<div class="wrap">
+  <header class="top">
+    <button class="logo" id="home" aria-label="adj home"><b><span>a</span><span>d</span><span>j</span></b><small>make-your-own coloring books</small></button>
+    <button class="chipbtn" id="sound" aria-pressed="true" title="Sounds on or off"></button>
+  </header>
+
+  <main id="shelf">
+    <section class="maker" aria-labelledby="makeh">
+      <h1 id="makeh">What should your coloring book be about?</h1>
+      <p class="lead">Type anything: a cartoon character, an animal, a food, a truck. adj makes a 12-page book you can color right here.</p>
+      <form class="ask" id="askf">
+        <input id="idea" type="text" maxlength="80" autocomplete="off" placeholder="a dragon who loves pizza" aria-label="Book idea">
+        <button class="big go" type="submit">Make my book!</button>
+        <button class="big alt" type="button" id="surprise">Surprise me</button>
+      </form>
+      <div class="ideas" id="ideas"><span>Try</span></div>
+      <p class="mode" id="mode"><i></i><span>Books come from adj's drawing box: animals, dinos, space, trucks, sweets, bugs and more.</span></p>
+    </section>
+
+    <h2 class="shelf" id="mineh" hidden>Your books <small>made by you</small></h2>
+    <div class="books" id="mine" hidden></div>
+
+    <h2 class="shelf">Ready-made books <small>10 books, 12 pages each</small></h2>
+    <div class="books" id="ready"></div>
+    <p class="foot">Your coloring is saved in this browser, so you can come back and finish a page later.</p>
+  </main>
+
+  <main id="studio" hidden>
+    <div class="bar">
+      <button class="chipbtn" id="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Bookshelf</button>
+      <h2 id="btitle">Book</h2>
+      <span class="pg" id="pgn">1 / 12</span>
+      <div class="nav">
+        <button class="chipbtn" id="prev" aria-label="Previous page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <button class="chipbtn" id="next" aria-label="Next page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+      </div>
+    </div>
+    <div class="desk">
+      <aside class="panel" aria-label="Tools">
+        <div class="tools" id="tools"></div>
+        <div class="sub">
+          <div id="sizeRow"><label>Size</label><div class="sizes" id="sizes"></div></div>
+          <div id="patRow" hidden><label>Magic pattern</label><div class="pats" id="pats"></div></div>
+          <div id="stkRow" hidden><label>Sticker</label><div class="stks" id="stks"></div></div>
+        </div>
+      </aside>
+      <div class="stagebox">
+        <div class="stage" id="stage">
+          <canvas id="paint" width="850" height="1100"></canvas>
+          <canvas id="ink" width="850" height="1100"></canvas>
+          <div class="loading" id="loading">Getting the page ready…</div>
+        </div>
+      </div>
+      <aside class="panel" aria-label="Colors">
+        <div class="now"><i id="cur"></i><span id="curName">Color</span>
+          <label>Mix<input type="color" id="mix" value="#ff5a5f" aria-label="Mix your own color"></label></div>
+        <div class="colors" id="colors"></div>
+        <div class="acts">
+          <button class="act" id="undo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/></svg>Undo</button>
+          <button class="act" id="redo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 000 10h3"/></svg>Redo</button>
+          <button class="act danger" id="clear">Start over</button>
+          <button class="act" id="save">Save picture</button>
+          <button class="act" id="print" hidden>Print page</button>
+          <button class="act" id="printBook" hidden>Print book</button>
+          <button class="act done" id="done">I'm done!</button>
+        </div>
+      </aside>
+    </div>
+    <div class="strip" id="strip" aria-label="Pages"></div>
+  </main>
+</div>
+
+<div class="gen" id="gen" hidden>
+  <div class="box" role="status" aria-live="polite">
+    <div class="crayons"><i style="background:#FF5A5F"></i><i style="background:#FF9F1C"></i><i style="background:#FFD23F"></i><i style="background:#3DD17B"></i><i style="background:#3A86FF"></i></div>
+    <h3 id="genT">Drawing your book…</h3>
+    <p id="genM">Sharpening the crayons</p>
+    <button class="big alt" id="stop" type="button">Stop</button>
+  </div>
+</div>
+<canvas id="confetti" hidden></canvas>
+<div class="toast" id="toast" hidden></div>
+<div id="printout" hidden></div>
+
+<script src="art.js"></script>
+<script src="app.js"></script>
+<!--ADJ-BODY-END-->
+</body>
+</html>
