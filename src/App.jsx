@@ -6,6 +6,7 @@ import {
  Plus, TrendingUp, TrendingDown, Package, Bell, Calculator as CalcIcon,
  Check, Send, ChevronRight, ChevronDown, X, Target, ShoppingBag, Wrench,
  Droplets, Footprints, Shirt, Watch, Gem, Minus, FileText, Bookmark,
+ CreditCard,
 } from "lucide-react";
 import AIAssistant from "./components/AIAssistant.jsx";
 
@@ -212,6 +213,7 @@ async function fetchQuota(endpoint) {
 }
 
 const AI_FN = `${SUPABASE_URL}/functions/v1/ai-assistant`;
+const PORTAL_FN = `${SUPABASE_URL}/functions/v1/billing-portal`;
 
 /** The signed-in user's access token, for the JWT-gated Edge Functions.
 
@@ -3961,6 +3963,38 @@ function openCheckout() {
   window.open(url.toString(), "_blank", "noopener,noreferrer");
 }
 
+/* The other direction: out of a subscription rather than into one.
+
+   Stripe's own billing portal, not a cancel button of ours. Cancelling is
+   the moment somebody is most likely to feel tricked, and Stripe's page is
+   built and maintained by the company that actually knows what is being
+   charged — ours would be one deploy away from disagreeing with them.
+
+   The link is minted server-side per request and expires, so there is
+   nothing to hardcode and nothing worth stealing out of the bundle. */
+async function openBillingPortal() {
+  const res = await fetch(PORTAL_FN, { method: "POST", headers: await fnHeaders(), body: "{}" });
+  const d = await res.json().catch(() => ({}));
+
+  if (res.ok && d.url) {
+    /* Same tab. A cancellation is a decision somebody came here to make,
+       and a popup blocker eating it would read as the app refusing to let
+       them leave — which is the exact impression this feature exists to
+       avoid. */
+    window.location.href = d.url;
+    return { ok: true };
+  }
+
+  /* Premium granted by hand rather than bought. Not a failure, and worth
+     saying out loud: somebody told there is nothing to cancel will stop
+     looking, where an error would send them to support. */
+  if (res.status === 404 && d.error === "no_subscription") {
+    return { ok: false, note: "This account was given premium directly, so there's no subscription to manage. Nothing is being charged." };
+  }
+
+  return { ok: false, note: d.error || "Couldn't open billing just now. Try again in a moment." };
+}
+
 function Discover({ db, put, jump, go, isPro, requirePro }) {
  /* Both AI Discover and Product Search are premium. Saved is not — it is
     the person's own watchlist — so a free account lands there rather than
@@ -5660,6 +5694,23 @@ function Essentials() {
 }
 
 function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitlement, entLoading, entNote }) {
+ /* Opening the portal is a round trip to Stripe, so the button has to say
+    it is working. Without that, a slow network reads as a dead button and
+    the person taps it repeatedly. */
+ const [portalBusy, setPortalBusy] = useState(false);
+ const [portalNote, setPortalNote] = useState(null);
+ const manageBilling = async () => {
+   setPortalBusy(true); setPortalNote(null);
+   try {
+     const r = await openBillingPortal();
+     /* On success the browser is already navigating to Stripe, so there is
+        nothing to say. Only a refusal needs words. */
+     if (!r.ok) setPortalNote(r.note);
+   } catch {
+     setPortalNote("Couldn't reach the server. Check your connection and try again.");
+   } finally { setPortalBusy(false); }
+ };
+
  /* null | "terms" | "privacy" */
  const [legal, setLegal] = useState(null);
 
@@ -5849,6 +5900,34 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  <Row l="Plan" r={isPro ? "Premium" : "Free"} />
  {isPro && ent.expiresAt && (
  <Row l="Renews / expires" r={new Date(ent.expiresAt).toLocaleDateString()} />
+ )}
+
+ {/* Leaving has to be as easy as arriving.
+
+     A subscription you cannot see or stop from inside the product feels
+     like a trap, and somebody who feels trapped disputes the charge
+     rather than cancelling it — which costs more than the subscription
+     was worth and takes the goodwill with it. This is one tap from the
+     same screen that shows the plan. */}
+ {isPro && (
+ <>
+ <button onClick={manageBilling} disabled={portalBusy} className="fx fx-chip"
+ style={{ ...pillBtn(false), width: "100%", padding: "12px", marginTop: 12, fontWeight: 700,
+   cursor: portalBusy ? "wait" : "pointer",
+   display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+ <CreditCard size={15} /> {portalBusy ? "Opening…" : "Manage subscription"}
+ </button>
+ <p style={{ fontSize: 11.5, color: C.dead, marginTop: 10, lineHeight: 1.6 }}>
+ Cancel, change your card or read your invoices. Opens Stripe, who handle
+ the payment — this app never sees your card. Cancelling keeps premium
+ until the end of the period you've already paid for.
+ </p>
+ {portalNote && (
+ <p role="status" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.6, color: C.dim }}>
+ {portalNote}
+ </p>
+ )}
+ </>
  )}
 
  {!isPro && (

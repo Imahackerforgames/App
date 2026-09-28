@@ -167,6 +167,23 @@ either looks identical and would switch the account off while the other
 kept charging. `stripe_subscription_id` records which subscription the
 account is actually on, and an event about any other one is left alone.
 
+Leaving is as easy as arriving. Settings -> Billing offers a premium
+member **Manage subscription**, which calls `billing-portal` for a
+short-lived link into Stripe's own portal: cancel, change card, read
+invoices. Stripe's page rather than a cancel button of ours, because a
+homegrown one is a deploy away from disagreeing with Stripe about whether
+somebody still pays us — and because a subscription that feels like a trap
+gets charged back rather than cancelled.
+
+`billing-portal` needs a real `STRIPE_SECRET_KEY`; there is no offline way
+to mint a portal link, so unlike the webhook it cannot degrade. It reads
+the Stripe customer from `entitlements` against the id in a verified token
+and never from the request — a caller-supplied customer id would open
+somebody else's billing. An account with no `stripe_customer_id` (comped,
+or granted by hand) gets a 404 `no_subscription`, which the app renders as
+an explanation rather than an error. Stripe's portal must also be switched
+on once in the dashboard.
+
 Removing premium from somebody who pays means cancelling in Stripe, not
 clearing the row. A live subscription re-grants `pro` at the next renewal
 event and the revoke silently undoes itself, so `revoke_premium` returns a

@@ -7,3 +7,6 @@ dist
 
 # test screenshots
 shot-*.png
+
+# Screenshots produced by tests/billingshot.mjs
+billing-*.png
