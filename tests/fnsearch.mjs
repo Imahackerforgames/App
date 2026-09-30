@@ -593,7 +593,7 @@ console.log("\nThe monthly cap holds even when the hourly one allows");
     rateLimitAllows: true,      // plenty left this hour
     monthAllows: false,         // but the month is spent
     rateLimitRow: { count: 2, window_start: new Date().toISOString() },
-    monthRow: { count: 150, window_start: new Date().toISOString() },
+    monthRow: { count: SEARCH_MONTH_MAX, window_start: new Date().toISOString() },
   });
   ok("refused with 429", res.status === 429, String(res.status));
   /* The message has to name the right window. Telling somebody to wait an
@@ -619,12 +619,17 @@ console.log("\nThe monthly cap holds even when the hourly one allows");
   const { data, calls } = await runHandler({
     body: { peek: true }, tavily: okReply,
     rateLimitRow: { count: 9, window_start: new Date().toISOString() },
-    monthRow: { count: 40, window_start: new Date().toISOString() },
+    /* Twelve, not forty. The monthly cap is now 40 itself, so a fixture of
+       40 would leave zero remaining and the assertion below would pass for
+       the wrong reason — it would be checking that nothing is left rather
+       than that the subtraction works. */
+    monthRow: { count: 12, window_start: new Date().toISOString() },
     onConsume: () => { consumed++; },
   });
   ok("window balance", data.quota.remaining === SEARCH_MAX - 9, JSON.stringify(data.quota));
-  ok("monthly balance", data.quota.month.remaining === 110, JSON.stringify(data.quota.month));
-  ok("and the monthly limit is the real one", data.quota.month.limit === 150, String(data.quota.month?.limit));
+  ok("monthly balance", data.quota.month.remaining === SEARCH_MONTH_MAX - 12, JSON.stringify(data.quota.month));
+  ok("and the monthly limit is the one the function declares",
+     data.quota.month.limit === SEARCH_MONTH_MAX, String(data.quota.month?.limit));
   ok("neither was spent", consumed === 0, String(consumed));
   ok("and no search ran", calls.length === 0, String(calls.length));
 }

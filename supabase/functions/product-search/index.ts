@@ -134,29 +134,42 @@ const envWhole = (name: string, fallback: number): number => {
    and an in-process counter is bypassed by landing on a different one. */
 const SEARCH_MAX = envWhole("SEARCH_MAX", 40), SEARCH_WINDOW = envWhole("SEARCH_WINDOW_SECONDS", 3 * 60 * 60);
 
-/* And how many in a month.
+/* And how many in a month. This is the number that has to fit a budget.
+
+   Sized against a real ceiling rather than a feeling: Tavily's $100 plan is
+   15,000 credits, one product-search call costs five or six of them, and the
+   launch is planned for up to 50 subscribers. 50 x 40 x 6 = 12,000, leaving
+   3,000 in reserve for the per-call estimate being optimistic. Fifty a month
+   would land exactly on 15,000 with no margin at all, which is why it is 40.
+
+   Realistically this is never reached — 50 subscribers averaging fifteen
+   calls a month spend about 4,500 credits, under a third of the plan. The
+   cap is not there to shape that; it is there so the worst case still fits.
+
+   Recompute it if any of the three inputs move. The formula is
+   subscribers x cap x credits-per-call <= plan credits, and the input most
+   likely to be wrong is credits-per-call — check a real Tavily bill against
+   it after the first month.
 
    The window limit stops a burst. It does nothing about sustained use:
    forty every three hours, around the clock, is perfectly legal under it
    and comes to nine thousand searches a month from one account paying $25.
 
-   Note how quickly the monthly cap becomes the binding one, and that
-   raising the window made it worse rather than better: 150 a month against
-   40 a window is under four full sittings. Somebody who uses a whole window
-   has spent eight days' worth of their month in an evening. The window is
-   not really the allowance any more — the month is — so raising one without
-   the other mostly changes WHEN a subscriber hits a wall, not how much they
-   get. This is the number to raise first if real subscribers complain.
+   The window is not really the allowance — the month is. Forty a month
+   against forty a window means one full sitting spends the whole month, so
+   somebody who uses the window limit once is done until it rolls. That is
+   the shape a fixed credit budget forces, and it is the first thing to
+   revisit when the budget grows.
 
-   So there is a second limit the first cannot substitute for. A hundred
-   and fifty a month is five a day — far more than a real subscriber uses,
-   which is the point. It is not there to shape normal behaviour, it is
-   there so that one account cannot cost more than it pays.
+   Nothing here caps the TOTAL. Fifty accounts is fifty times this number,
+   and the arithmetic above only holds while subscriber count does. Past 50
+   subscribers this cap no longer protects the budget — either lower it
+   again, or add a shared counter across all accounts.
 
    The window is rolling rather than calendar: it starts on the first
    request and resets thirty days after that, which is what the counter
    already does and is fairer than everyone resetting on the 1st. */
-const SEARCH_MONTH_MAX = envWhole("SEARCH_MONTH_MAX", 150), SEARCH_MONTH_WINDOW = 30 * 24 * 60 * 60;
+const SEARCH_MONTH_MAX = envWhole("SEARCH_MONTH_MAX", 40), SEARCH_MONTH_WINDOW = 30 * 24 * 60 * 60;
 
 /* What is left, without spending any of it.
 

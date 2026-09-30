@@ -243,7 +243,7 @@ when the database is unreachable is worse than the spending it prevents.
 |---|---|---|
 | Sign-in attempts | 10/hour | IP address |
 | Sign-in attempts | 6/hour | username |
-| Product searches | 40 per **3 hours** **and 150/month** | account |
+| Product searches | 40 per **3 hours** **and 40/month** | account |
 | Market research | shares the search buckets | account |
 | Assistant questions | 40 per **3 hours** **and 250/month** | account |
 
@@ -283,14 +283,12 @@ month from one account paying $25 — and even a human asking steadily
 through a working day costs more than they pay. The monthly cap is what
 makes a single account unable to cost more than it brings in.
 
-**The window is no longer really the allowance — the month is.** At 40 a
-window, 150 searches a month is under four full sittings: somebody who uses
-one whole window has spent eight days' worth of their month in an evening.
-The same applies to questions, 250 against 40. Raising the window without
-raising the month mostly changes *when* a subscriber hits a wall, not how
-much they get, so the monthly pair is what to move if real subscribers
-complain. It is deliberate that the month binds — the month is what bounds
-the bill — but it should be a decision rather than a surprise.
+**The window is no longer really the allowance — the month is.** Search is
+40 a window against 40 a month, so one full sitting spends the entire month.
+Questions are 40 against 250, about six sittings. That shape is what a fixed
+credit budget forces on the search side; it is the first thing to revisit
+when the budget grows. Raising a window without raising its month only
+changes *when* a subscriber hits the wall, not how much they get.
 
 **The monthly assistant cap is the number most likely to lose money.** At
 250 questions on `claude-opus-5` with `max_tokens` 16000, a subscriber who
@@ -309,15 +307,29 @@ once one real month of usage has been billed.
 The search number is low because one call is not one Tavily credit. It
 fans out to a search per marketplace plus a page extract, so a call costs
 five or six credits and an analysis costs around a dozen. Forty per three
-hours is about 240 credits per window for one account, and the monthly cap
-of 150 is roughly 900 credits a month. A hundred subscribers all maxing out
-is 90,000 credits a month — check what the plan actually includes before
-promoting to that many people.
+hours is about 240 credits per window for one account.
 
-Every limit here is per account. Nothing caps the **total**, so 100
-subscribers is 100 times the worst case. The only hard ceiling on the bill
-is a spend cap set with Anthropic and Tavily themselves, which no bug in
-this code can bypass.
+**The monthly search cap is sized against a real budget, not a feeling.**
+Tavily's $100 plan is 15,000 credits, a call costs five or six of them, and
+the launch is planned for up to 50 subscribers: 50 × 40 × 6 = 12,000, with
+3,000 held back for the per-call estimate being optimistic. Fifty a month
+would land exactly on 15,000 with no margin, which is why it is 40.
+
+Recompute it when any input moves. The formula is `subscribers × cap ×
+credits-per-call ≤ plan credits`, and the input most likely to be wrong is
+credits-per-call — check it against a real Tavily bill after month one.
+
+Realistically it is never reached: 50 subscribers averaging fifteen calls a
+month spend about 4,500 credits, under a third of the plan. The cap exists
+so the worst case fits, not to shape normal use.
+
+**Past 50 subscribers this cap stops protecting the budget.** Nothing here
+caps the total — fifty accounts is fifty times the per-account number, so
+the arithmetic only holds while the subscriber count does. Beyond that,
+either lower the cap again or add a counter shared across all accounts.
+
+The only hard ceiling on the bill is a spend cap set with Anthropic and
+Tavily themselves, which no bug in this code can bypass.
 
 ## A free account spends nothing
 
