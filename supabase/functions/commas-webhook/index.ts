@@ -2,10 +2,7 @@
 // supabase/functions/commas-webhook/index.ts
 //
 // Somebody pays through Commas, Commas tells this endpoint, and this
-// endpoint writes `pro` into entitlements. The Commas counterpart of
-// stripe-webhook, and deliberately the same shape — the two run side by
-// side while the switch happens, and anything that reads differently
-// between them is a place a bug can hide.
+// endpoint writes `pro` into entitlements.
 //
 // verify_jwt is OFF and must be: Commas has no Supabase session and cannot
 // send one. The signature is the security. Nothing else here trusts the
@@ -17,21 +14,33 @@
 //   COMMAS_WEBHOOK_SECRET   REQUIRED. The signing secret from the Commas
 //                           webhook endpoint you register.
 //
-// ── What is assumed, and what to check on the first real event ──
+// ── The payload, as actually observed ──
 //
-// Commas' API docs are not reachable from where this was written, so the
-// payload shape below is taken from their published description rather
-// than from a document:
+// A real $1 subscription produced three events: payment.failed from an
+// earlier attempt, then payment.succeeded and subscription.created, both
+// carrying the same body. The shape below is copied from it, not guessed:
 //
-//   - signed HMAC-SHA256 over the raw body, signature in x-webhook-signature
-//   - `metadata` set on the checkout session comes back on the payment event
-//   - `payment.succeeded` fires for a one-off and for a subscription's
-//     first charge; `subscription.renewed` fires on each renewal
+//   { id, type, data: {
+//       payment_id, amount, currency, status: "succeeded",
+//       payment_type: "subscription", payment_method: "card",
+//       buyer: { id, name, email, phone, address },
+//       item:  { id, title, type },
+//       api_metadata: { data: { user_id, app, ... } },   <- our metadata
+//       subscription: { id, status: "active", ... } } }
 //
-// Field names inside the payload are a guess, so every read below tries
-// several spellings and the whole body is logged on the first event of a
-// kind. Fix the readers once a real payload has been seen — and delete
-// this paragraph when they are no longer guesses.
+// The one that mattered: the `metadata` object sent when the checkout
+// session is created comes back as `api_metadata`, with our object under a
+// further `data` key — so `data.api_metadata.data.user_id`. The first
+// version of this file read `data.metadata.user_id`, found nothing, and
+// left a customer who had genuinely paid on the free plan.
+//
+// Still not observed, and still guessed: the renewal event's name, the
+// cancellation event's name, and the billing period's field. The period
+// falls back to 30 days, which is right because that is what this app asks
+// for when it creates the session.
+//
+// Signature: HMAC-SHA256 over the raw body in x-webhook-signature,
+// confirmed working — real events pass the check.
 // ═══════════════════════════════════════════════════════════════
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -62,8 +71,7 @@ async function upsertEntitlement(row: Record<string, unknown>) {
 }
 
 /* Which account a later event belongs to, when the event carries only a
-   Commas customer or subscription rather than our own id. Mirrors
-   stripe-webhook's lookup and exists for the same reason: only the first
+   Commas customer or subscription rather than our own id. Only the first
    event knows who paid. */
 async function accountForRef(column: string, value: string) {
   const res = await fetch(
@@ -116,16 +124,16 @@ async function signatureValid(raw: string, header: string): Promise<boolean> {
   return constantTimeEqual(sent.toLowerCase(), hex) || constantTimeEqual(sent, b64);
 }
 
-/* The same grace day as the Stripe path, for the same reason: expiring to
-   the minute drops somebody to Free while their renewal is still in
-   flight, and being locked out of something you have paid for is a worse
-   failure than a day of free access. */
+/* Expiring to the minute drops somebody to Free while their renewal is
+   still in flight, and being locked out of something you have paid for is a
+   worse failure than a day of free access. */
 const GRACE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_PERIOD_DAYS = 30;
 
 /* Read a field that might be spelled several ways, at the top level or
-   nested one deep. Written this way because the payload shape is a guess;
-   once a real event has been seen this can collapse to a single path. */
+   nested. The first path in each call below is the observed one; the rest
+   are kept because they cost nothing and a shape that changed once can
+   change again. */
 const pick = (obj: any, ...paths: string[]): any => {
   for (const p of paths) {
     const v = p.split(".").reduce((o, k) => (o == null ? o : o[k]), obj);
@@ -152,10 +160,8 @@ Deno.serve(async (req: Request) => {
        granting themselves premium. A failure is a refusal, never a
        warning.
 
-       401 rather than the 400 the Stripe path returns, because Commas
-       asks for it: a signature failure is an authentication problem, not
-       a malformed request, and keeping them apart is what makes a log
-       readable when something is actually wrong. */
+       401 rather than 400, because Commas asks for it: a signature failure
+       is an authentication problem, not a malformed request. */
     console.error("commas-webhook: signature rejected.");
     return json({ error: "Invalid signature." }, 401);
   }
@@ -173,14 +179,38 @@ Deno.serve(async (req: Request) => {
 
   try {
     switch (true) {
-      /* A payment landed. Covers a one-off and a subscription's first
-         charge, per Commas' own description of payment.succeeded. */
+      /* payment.failed is a real event and not an unknown one. It is
+         deliberately not a revoke: a card that fails once is retried, and
+         switching somebody off mid-dunning takes away something they are
+         still paying for. Named here so it stops being logged as a mystery. */
+      case /^(payment|charge)\.failed$/i.test(type):
+        console.log(`commas-webhook: ${type} — no action; a retry may still succeed.`);
+        break;
+
       case /^(payment|charge)\.(succeeded|paid|completed)$/i.test(type):
-      case /^subscription\.(renewed|payment_succeeded)$/i.test(type): {
-        /* The account id we put on the checkout session. Without it the
-           money is attached to nobody. */
+      case /^subscription\.(created|renewed|payment_succeeded)$/i.test(type): {
+        /* subscription.created arrives alongside payment.succeeded carrying
+           the same payload, so it is handled rather than ignored: two events
+           that both grant are harmless, because the write is an upsert keyed
+           on the account. One event that should have granted and did not is
+           what leaves somebody paid-up and on the free plan.
+
+           Guarded on the payment status all the same. A subscription that
+           exists is not a subscription that has been paid for. */
+        const paidStatus = String(pick(data, "status", "payment_status") ?? "succeeded");
+        if (!/^(succeeded|paid|completed|active)$/i.test(paidStatus)) {
+          console.log(`commas-webhook: ${type} with status "${paidStatus}" — not granting.`);
+          break;
+        }
         const userId = String(
-          pick(data, "metadata.user_id", "metadata.userId", "metadata.reference",
+          /* api_metadata.data.user_id is where it really is, seen on a real
+             payment. The `metadata` object sent when the checkout session is
+             created comes back wrapped twice: as `api_metadata`, with our
+             object under a further `data` key.
+
+             This cost a customer their premium on a completed payment. */
+          pick(data, "api_metadata.data.user_id", "api_metadata.user_id",
+               "metadata.user_id", "metadata.userId", "metadata.reference",
                "checkout_session.metadata.user_id", "session.metadata.user_id") ?? "",
         );
         if (!userId) {
@@ -189,15 +219,21 @@ Deno.serve(async (req: Request) => {
              person rather than a redelivery loop. */
           console.error(
             "commas-webhook: paid event with no user id in metadata — cannot match an account.",
-            JSON.stringify(event).slice(0, 800),
+            JSON.stringify(event).slice(0, 2000),
           );
           return json({ received: true, matched: false });
         }
 
-        const days = Number(pick(data, "frequency_days", "subscription.frequency_days", "interval_days"))
+        /* Observed: the subscription is an object at data.subscription with
+           its own id, and the payer is data.buyer. The billing period is not
+           in the payload seen so far, so the fallback does the work — and it
+           is the right number, because this app is what asked for 30 days
+           when it created the session. */
+        const days = Number(pick(data, "subscription.frequency_days", "subscription.interval_days",
+                                 "subscription.frequency", "frequency_days", "interval_days"))
           || DEFAULT_PERIOD_DAYS;
-        const subId = pick(data, "subscription_id", "subscription.id", "id");
-        const customerId = pick(data, "customer_id", "customer.id", "customer");
+        const subId = pick(data, "subscription.id", "subscription_id", "id");
+        const customerId = pick(data, "buyer.id", "customer_id", "customer.id", "customer");
 
         await upsertEntitlement({
           user_id: userId,
@@ -213,14 +249,17 @@ Deno.serve(async (req: Request) => {
         break;
       }
 
-      /* Cancelled, refunded, or the subscription otherwise ended. The
-         exact spelling is not documented anywhere reachable, so this
-         matches the family rather than a literal. */
+      /* Cancelled, refunded, or the subscription otherwise ended. The exact
+         spelling is still not observed, so this matches the family rather
+         than a literal. */
       case /^subscription\.(cancell?ed|ended|expired|deleted)$/i.test(type):
       case /^(payment|charge)\.(refunded|disputed|chargeback)$/i.test(type): {
-        const subId = pick(data, "subscription_id", "subscription.id", "id");
-        const customerId = pick(data, "customer_id", "customer.id", "customer");
-        const direct = String(pick(data, "metadata.user_id", "metadata.userId") ?? "");
+        const subId = pick(data, "subscription.id", "subscription_id", "id");
+        const customerId = pick(data, "buyer.id", "customer_id", "customer.id", "customer");
+        const direct = String(
+          pick(data, "api_metadata.data.user_id", "api_metadata.user_id",
+               "metadata.user_id", "metadata.userId") ?? "",
+        );
 
         let userId = direct;
         let onRecord: string | null = null;
@@ -237,10 +276,10 @@ Deno.serve(async (req: Request) => {
           break;
         }
 
-        /* Is this event about the subscription this account is on? The
-           same guard as the Stripe path: with two subscriptions on one
-           customer, cancelling either looks identical from here, and the
-           account would be switched off while the other kept charging. */
+        /* Is this event about the subscription this account is on? With two
+           subscriptions on one customer, cancelling either looks identical
+           from here, and the account would be switched off while the other
+           kept charging. */
         if (onRecord && subId && String(subId) !== onRecord) {
           console.warn(
             `commas-webhook: ${type} for ${subId}, but ${userId} is on ${onRecord}. Leaving their plan alone.`,
@@ -260,11 +299,11 @@ Deno.serve(async (req: Request) => {
       }
 
       default:
-        /* Logged rather than ignored, because the event names above are
+        /* Logged rather than ignored, because the remaining event names are
            guesses. An unhandled event that should have granted premium is
            silent otherwise, and this is how we find out. Acknowledged so
            Commas does not mark the endpoint unhealthy. */
-        console.log(`commas-webhook: unhandled event "${type}":`, JSON.stringify(event).slice(0, 800));
+        console.log(`commas-webhook: unhandled event "${type}":`, JSON.stringify(event).slice(0, 2000));
         break;
     }
 

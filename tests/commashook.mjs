@@ -59,13 +59,36 @@ async function run(body, { secret = SECRET, signature, configured = true, writeF
   return { res, body: await res.json().catch(() => ({})), writes };
 }
 
-const paid = (over = {}) => ({
+/* The real thing, copied from a live payment.succeeded that Commas sent for
+   a completed $1 subscription — not a shape anybody guessed.
+
+   The guessed shape is why this matters. It had `metadata.user_id` and a
+   flat `subscription_id`, both of which passed these tests and neither of
+   which exists. A customer paid, the handler could not find an account, and
+   the money landed attached to nobody. A fixture invented alongside the code
+   it tests can only ever confirm the author's assumptions. */
+const REAL_PAID = {
+  id: "b73ccf7c-3a66-450a-a626-9ebdc6ac5364",
   type: "payment.succeeded",
   data: {
-    subscription_id: "sub_c1", customer_id: "cus_c1", frequency_days: 30,
-    metadata: { user_id: "user-abc", app: "reamp" },
-    ...over,
+    payment_id: "ORD-7KSX-D14D-N7H2",
+    amount: 1,
+    currency: "USD",
+    status: "succeeded",
+    payment_type: "subscription",
+    payment_method: "card",
+    buyer: { id: null, name: "A Buyer", email: "buyer@example.com", phone: null, address: null },
+    item: { id: "olnDB", title: "Reamp Premium", type: "subscription" },
+    api_metadata: { data: { user_id: "user-abc", app: "reamp", payment_type: "subscription" } },
+    subscription: { id: "loD97", status: "active" },
   },
+};
+
+/* Deep-merges into data so a test can vary one field without rebuilding the
+   whole payload. */
+const paid = (over = {}) => ({
+  ...REAL_PAID,
+  data: { ...REAL_PAID.data, ...over },
 });
 
 /* ── 1. the only thing between this and the internet ────────────────── */
@@ -126,25 +149,29 @@ console.log("\n2. A paid event upgrades the right account");
   const w = writes[0] || {};
   ok("to the account in the metadata", w.user_id === "user-abc", JSON.stringify(w.user_id));
   ok("set to pro", w.plan === "pro", JSON.stringify(w.plan));
-  ok("the customer is recorded", w.commas_customer_id === "cus_c1", JSON.stringify(w.commas_customer_id));
-  ok("and the subscription", w.commas_subscription_id === "sub_c1", JSON.stringify(w.commas_subscription_id));
+  /* buyer.id is null on a real payment, so there is nothing to record and
+     null is the honest value. The subscription is what identifies the
+     account later, and it is nested at data.subscription.id. */
+  ok("the subscription is recorded", w.commas_subscription_id === "loD97", JSON.stringify(w.commas_subscription_id));
+  ok("a null buyer id is stored as null, not the string 'null'",
+     w.commas_customer_id === null, JSON.stringify(w.commas_customer_id));
   /* Thirty days plus the grace day, so a renewal in flight cannot drop
      somebody to Free. */
   const days = (new Date(w.expires_at).getTime() - Date.now()) / 86400e3;
   ok("expires about 31 days out", days > 30.5 && days < 31.5, `${days.toFixed(2)} days`);
 }
 {
-  const { writes } = await run(paid({ frequency_days: 365 }));
+  const { writes } = await run(paid({ subscription: { id: "loD97", frequency_days: 365 } }));
   const days = (new Date(writes[0].expires_at).getTime() - Date.now()) / 86400e3;
   ok("an annual plan gets a year", days > 365 && days < 367, `${days.toFixed(1)} days`);
 }
 {
-  /* frequency_days missing entirely — the month is a floor, not a
-     guess that silently grants a day. */
-  const e = paid(); delete e.data.frequency_days;
-  const { writes } = await run(e);
+  /* No billing period anywhere in the real payload, which is the case that
+     actually happens. A month is the right fallback because a month is what
+     this app asked for when it created the session. */
+  const { writes } = await run(paid());
   const days = (new Date(writes[0].expires_at).getTime() - Date.now()) / 86400e3;
-  ok("a missing period falls back to a month", days > 30.5 && days < 31.5, `${days.toFixed(2)} days`);
+  ok("a payload with no period falls back to a month", days > 30.5 && days < 31.5, `${days.toFixed(2)} days`);
 }
 
 console.log("\n3. A renewal extends it");
@@ -155,9 +182,36 @@ console.log("\n3. A renewal extends it");
 }
 
 /* ── 4. a payment nobody can be matched to ──────────────────────────── */
+/* ── the other events a real purchase produced ──────────────────────────
+   One checkout produced payment.succeeded, subscription.created and, from
+   an earlier attempt, payment.failed. Only the first was handled; the other
+   two were logged as unknown. That was survivable here only because
+   payment.succeeded also fires — if it ever does not, the grant has to come
+   from somewhere. */
+console.log("\n3b. The rest of what a real purchase sends");
+{
+  const { res, writes } = await run({ ...paid(), type: "subscription.created" });
+  ok("subscription.created grants too", res.status === 200 && (writes[0] || {}).plan === "pro",
+     JSON.stringify(writes));
+  ok("to the same account", (writes[0] || {}).user_id === "user-abc");
+}
+{
+  /* A subscription can exist without having been paid for. */
+  const { writes } = await run({ ...paid(), type: "subscription.created",
+                                 data: { ...paid().data, status: "pending" } });
+  ok("but not when the payment has not succeeded", writes.length === 0, JSON.stringify(writes));
+}
+{
+  /* A card that fails once gets retried. Switching somebody off mid-dunning
+     takes away something they are still paying for. */
+  const { res, writes } = await run({ type: "payment.failed", data: { payment_id: "ORD-X" } });
+  ok("a failed payment is acknowledged", res.status === 200);
+  ok("and revokes nothing", writes.length === 0, JSON.stringify(writes));
+}
+
 console.log("\n4. A payment with no account id");
 {
-  const e = paid(); delete e.data.metadata;
+  const e = paid(); delete e.data.api_metadata;
   const { res, body, writes } = await run(e);
   /* 200, not an error: redelivery will not add an id that was never sent,
      and the money is real, so this needs a person rather than a loop. */
@@ -170,8 +224,8 @@ console.log("\n4. A payment with no account id");
 console.log("\n5. Cancelling takes it away");
 {
   const { res, writes } = await run(
-    { type: "subscription.cancelled", data: { subscription_id: "sub_c1", customer_id: "cus_c1" } },
-    { lookup: { user_id: "user-abc", commas_subscription_id: "sub_c1" } },
+    { type: "subscription.cancelled", data: { subscription: { id: "loD97" }, buyer: { id: "cus_c1" } } },
+    { lookup: { user_id: "user-abc", commas_subscription_id: "loD97" } },
   );
   ok("acknowledged", res.status === 200);
   ok("set to free", (writes[0] || {}).plan === "free", JSON.stringify(writes[0]));
@@ -183,15 +237,15 @@ console.log("\n5. Cancelling takes it away");
      that silently does nothing leaves somebody paying for nothing, or
      keeping access they stopped paying for. */
   const { writes } = await run(
-    { type: "subscription.canceled", data: { subscription_id: "sub_c1" } },
-    { lookup: { user_id: "user-abc", commas_subscription_id: "sub_c1" } },
+    { type: "subscription.canceled", data: { subscription: { id: "loD97" } } },
+    { lookup: { user_id: "user-abc", commas_subscription_id: "loD97" } },
   );
   ok("one L works too", (writes[0] || {}).plan === "free", JSON.stringify(writes[0]));
 }
 {
   const { writes } = await run(
-    { type: "payment.refunded", data: { subscription_id: "sub_c1" } },
-    { lookup: { user_id: "user-abc", commas_subscription_id: "sub_c1" } },
+    { type: "payment.refunded", data: { subscription: { id: "loD97" } } },
+    { lookup: { user_id: "user-abc", commas_subscription_id: "loD97" } },
   );
   ok("a refund also removes it", (writes[0] || {}).plan === "free", JSON.stringify(writes[0]));
 }
@@ -200,8 +254,8 @@ console.log("\n5. Cancelling takes it away");
 console.log("\n6. Cancelling a second subscription leaves the paid one alone");
 {
   const { res, writes } = await run(
-    { type: "subscription.cancelled", data: { subscription_id: "sub_DUPLICATE", customer_id: "cus_c1" } },
-    { lookup: { user_id: "user-abc", commas_subscription_id: "sub_c1" } },
+    { type: "subscription.cancelled", data: { subscription: { id: "sub_DUPLICATE" }, buyer: { id: "cus_c1" } } },
+    { lookup: { user_id: "user-abc", commas_subscription_id: "loD97" } },
   );
   ok("acknowledged", res.status === 200);
   ok("and the account is untouched", writes.length === 0,
