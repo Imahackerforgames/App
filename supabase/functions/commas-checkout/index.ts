@@ -23,10 +23,10 @@
 //   COMMAS_API_BASE  optional. Set it to https://qa.dev-fan-basis.com to
 //                    run against Commas' sandbox instead of live.
 //   COMMAS_PRICE_CENTS / COMMAS_FREQUENCY_DAYS  optional overrides, so the
-//                    price can change without a deploy. Set
-//                    COMMAS_PRICE_CENTS=0 for a free run-through and delete
-//                    it afterwards; anything unparseable falls back to the
-//                    real price rather than to a cheaper one.
+//                    price can change without a deploy. The default is
+//                    TEMPORARILY $1 for testing — see the banner below.
+//                    Setting COMMAS_PRICE_CENTS=2500 restores the real
+//                    price without waiting for a deploy.
 //
 // ── Where the shape below comes from ──
 //
@@ -69,10 +69,31 @@ const whole = (name: string, fallback: number, min: number) => {
   return n;
 };
 
-/* Zero is allowed here on purpose: a free subscription is how this gets
-   tested end to end without moving money. Commas may refuse it, and if it
-   does the refusal is logged with their own message. */
-const PRICE_CENTS = whole("COMMAS_PRICE_CENTS", 2500, 0);
+/* ── TEMPORARY: $1, not $25 ──────────────────────────────────────────────
+   A dollar is the smallest amount that produces a real charge, a real
+   webhook and a real entitlement row, which is what has never once been
+   proven end to end. Zero would be cheaper still, but a processor that
+   refuses free subscriptions would fail the test for a reason that has
+   nothing to do with this code.
+
+   PUT THIS BACK TO 2500 BEFORE TAKING REAL CUSTOMERS. While it stands,
+   anybody who subscribes pays $1 a month, indefinitely, and Commas will
+   keep honouring that price on their subscription long after this line is
+   changed — the same way a Stripe subscription kept its original split.
+   That is the real cost of forgetting, not the lost $24.
+
+   Every checkout logs the amount it sent, so the log says plainly which
+   price is live rather than leaving it to memory.
+   ─────────────────────────────────────────────────────────────────────── */
+const REAL_PRICE_CENTS = 2500;
+const TEST_PRICE_CENTS = 100;
+const PRICE_CENTS = whole("COMMAS_PRICE_CENTS", TEST_PRICE_CENTS, 0);
+if (PRICE_CENTS !== REAL_PRICE_CENTS) {
+  console.warn(
+    `commas-checkout: TEST PRICE ACTIVE — charging ${PRICE_CENTS} cents, not ${REAL_PRICE_CENTS}. ` +
+    "Set COMMAS_PRICE_CENTS=2500, or restore the default in this file, before real customers buy.",
+  );
+}
 const FREQUENCY_DAYS = whole("COMMAS_FREQUENCY_DAYS", 30, 1);
 const RETURN_URL = Deno.env.get("APP_URL") ?? "https://www.reamp.store";
 
@@ -187,6 +208,10 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Couldn't start checkout just now. Try again in a moment." }, 502);
     }
 
+    /* The amount, on the success path too. The banner above promises the
+       log says which price is live; without this it only said so when a
+       checkout failed, which is the one case where it does not matter. */
+    console.log(`commas-checkout: session for ${userId} at ${PRICE_CENTS} cents / ${FREQUENCY_DAYS} days.`);
     return json({ url: String(url) });
   } catch (e) {
     console.error(`commas-checkout: could not reach ${endpoint}:`, String(e).slice(0, 400));
