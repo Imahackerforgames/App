@@ -138,6 +138,12 @@ produces a 401 that reads exactly like a bad key:
 is `subscription`; `metadata` and `success_url` are accepted; the response
 carries `payment_link`.
 
+The `payment_link` it returns is on a **different host from the API** —
+`https://commas.com/checkout/<token>`, observed on a real session. So
+`commas.com` is the customer-facing brand and `www.fanbasis.com` is the
+API. Neither one substitutes for the other; sending API calls to
+commas.com is a plausible-looking guess that will not work.
+
 Secrets, both server-side only: `COMMAS_API_KEY`, `COMMAS_WEBHOOK_SECRET`.
 
 Field names inside the webhook payload have not yet been seen against a
