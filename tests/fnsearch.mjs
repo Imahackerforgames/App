@@ -12,6 +12,23 @@ const src = readFileSync("/home/user/App/supabase/functions/product-search/index
   .replace(/^import "jsr:[^"]*";\s*$/m, "");   // Deno-only type import
 const js = transformSync(src, { loader: "ts", target: "es2022", format: "esm" }).code;
 
+/* Read from the function rather than repeated here. These numbers are a
+   business decision that moves — the window went from one hour to three and
+   the cap from 25 to 40 — and a test that restates them fails on the change
+   rather than on a fault, which teaches everyone to edit the number until
+   the suite goes quiet. What is worth asserting is the relationship:
+   remaining is limit minus used, a peek spends nothing, a refusal carries
+   the balance. */
+const fallbackOf = (name) => {
+  const m = src.match(new RegExp(`envWhole\\("${name}",\\s*([0-9*\\s]+)\\)`));
+  if (!m) throw new Error(`could not read the ${name} fallback out of product-search`);
+  return eval(m[1]);
+};
+const SEARCH_MAX = fallbackOf("SEARCH_MAX");
+const SEARCH_WINDOW_S = fallbackOf("SEARCH_WINDOW_SECONDS");
+const SEARCH_MONTH_MAX = fallbackOf("SEARCH_MONTH_MAX");
+console.log(`  (allowance read from source: ${SEARCH_MAX} per ${SEARCH_WINDOW_S / 3600}h, ${SEARCH_MONTH_MAX}/month)`);
+
 /* A token shaped like the one the gateway hands this function. Only the
    subject claim is read — the signature is never checked here, because by
    the time the function runs the gateway has already verified it. */
@@ -357,7 +374,7 @@ const okReply = (sent) => new Response(JSON.stringify({
     body: { query: "x", maxResults: 24 }, tavily: okReply, rateLimitAllows: false,
     /* A refusal means the counter is at the cap, so the row has to say so
        too — otherwise the fixture describes a state that cannot happen. */
-    rateLimitRow: { count: 25, window_start: new Date().toISOString() } });
+    rateLimitRow: { count: SEARCH_MAX, window_start: new Date().toISOString() } });
   ok("refused with 429", res.status === 429, String(res.status));
   ok("and says why in words", /used all your searches/i.test(data.error || ""), JSON.stringify(data.error));
   /* The refusal carries the balance too, so the app can say when it lifts
@@ -502,6 +519,23 @@ console.log("\nEvery result carries a direct link");
    A limit nobody can see is indistinguishable from the app being broken.
    The two things that must hold: asking what is left must not spend one,
    and the number must be the real one rather than something invented. */
+/* ── the limits are settable from a secret ──────────────────────────────
+   Deploying this function means pasting 34KB into an API call, so tuning a
+   number must not require it. Read as source: the clamp is what stops a
+   typo'd extra zero in a dashboard becoming a policy change nobody
+   reviewed, and it is unreachable through the handler. */
+{
+  console.log("\nLimits can be tuned without a deploy, within bounds");
+  ok("the cap reads an env override", /envWhole\("SEARCH_MAX"/.test(src));
+  ok("so does the window", /envWhole\("SEARCH_WINDOW_SECONDS"/.test(src));
+  ok("and the monthly cap", /envWhole\("SEARCH_MONTH_MAX"/.test(src));
+  ok("an unparseable value falls back rather than opening up",
+     /Number\.isInteger\(n\)/.test(src) && /return fallback;/.test(src));
+  ok("and an override is clamped, so a stray zero is not a policy change",
+     /Math\.min\(n,\s*fallback \* 10\)/.test(src),
+     "without this, SEARCH_MAX=400 typed as 4000 quietly costs real money");
+}
+
 console.log("\nThe search allowance can be read without spending it");
 {
   let consumed = 0;
@@ -512,9 +546,9 @@ console.log("\nThe search allowance can be read without spending it");
     onConsume: () => { consumed++; },
   });
   ok("a peek answers 200", res.status === 200, String(res.status));
-  ok("the limit is the real one", data.quota.limit === 25, JSON.stringify(data.quota));
+  ok("the limit is the one the function declares", data.quota.limit === SEARCH_MAX, JSON.stringify(data.quota));
   ok("used comes from the counter", data.quota.used === 9, String(data.quota?.used));
-  ok("and remaining is the difference", data.quota.remaining === 16, String(data.quota?.remaining));
+  ok("and remaining is the difference", data.quota.remaining === SEARCH_MAX - 9, String(data.quota?.remaining));
   ok("peeking spends nothing", consumed === 0, String(consumed));
   ok("and runs no search", calls.length === 0, String(calls.length));
   ok("it says when it resets", typeof data.quota.resetsAt === "string", JSON.stringify(data.quota.resetsAt));
@@ -524,9 +558,13 @@ console.log("\nThe search allowance can be read without spending it");
      the past — which is what a naive read of the row would report. */
   const { data } = await runHandler({
     body: { peek: true }, tavily: okReply,
-    rateLimitRow: { count: 15, window_start: new Date(Date.now() - 3 * 60 * 60_000).toISOString() },
+    /* Comfortably past the window rather than exactly on it. This said
+       "3 hours ago", which was safely lapsed while the window was an hour
+       and became the boundary itself when it became three — a fixture that
+       would have passed or failed on the millisecond. */
+    rateLimitRow: { count: 15, window_start: new Date(Date.now() - (SEARCH_WINDOW_S * 1000 + 60_000)).toISOString() },
   });
-  ok("a lapsed window reads as untouched", data.quota.used === 0 && data.quota.remaining === 25,
+  ok("a lapsed window reads as untouched", data.quota.used === 0 && data.quota.remaining === SEARCH_MAX,
      JSON.stringify(data.quota));
   ok("with no reset pending", data.quota.resetsAt === null, JSON.stringify(data.quota.resetsAt));
 }
@@ -539,7 +577,7 @@ console.log("\nThe search allowance can be read without spending it");
     body: { query: "airpods" }, tavily: okReply,
     rateLimitRow: { count: 4, window_start: new Date().toISOString() },
   });
-  ok("a real search reports the balance back", data.quota?.remaining === 21,
+  ok("a real search reports the balance back", data.quota?.remaining === SEARCH_MAX - 4,
      JSON.stringify(data.quota));
 }
 
@@ -569,11 +607,11 @@ console.log("\nThe monthly cap holds even when the hourly one allows");
   const { res, data } = await runHandler({
     body: { query: "airpods" }, tavily: okReply,
     rateLimitAllows: false, monthAllows: true,
-    rateLimitRow: { count: 25, window_start: new Date().toISOString() },
+    rateLimitRow: { count: SEARCH_MAX, window_start: new Date().toISOString() },
     monthRow: { count: 10, window_start: new Date().toISOString() },
   });
-  ok("hourly refusal names the hour", /hour/i.test(String(data.error)), JSON.stringify(data.error));
-  ok("and still reports both", data.quota?.month?.remaining === 140, JSON.stringify(data.quota?.month));
+  ok("the refusal says when it lifts", /every 3 hours/i.test(String(data.error)), JSON.stringify(data.error));
+  ok("and still reports both", data.quota?.month?.remaining === SEARCH_MONTH_MAX - 10, JSON.stringify(data.quota?.month));
 }
 {
   console.log("\nA peek reports both windows without spending either");
@@ -584,7 +622,7 @@ console.log("\nThe monthly cap holds even when the hourly one allows");
     monthRow: { count: 40, window_start: new Date().toISOString() },
     onConsume: () => { consumed++; },
   });
-  ok("hourly balance", data.quota.remaining === 16, JSON.stringify(data.quota));
+  ok("window balance", data.quota.remaining === SEARCH_MAX - 9, JSON.stringify(data.quota));
   ok("monthly balance", data.quota.month.remaining === 110, JSON.stringify(data.quota.month));
   ok("and the monthly limit is the real one", data.quota.month.limit === 150, String(data.quota.month?.limit));
   ok("neither was spent", consumed === 0, String(consumed));

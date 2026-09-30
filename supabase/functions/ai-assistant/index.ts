@@ -215,7 +215,29 @@ function callerUserId(req: Request): string | null {
   }
 }
 
-/* How many questions an account may ask in an hour.
+/* Limits are settable without a deploy.
+
+   Deploying product-search means pasting thirty-four kilobytes into an API
+   call, where one mistyped character in a regex takes search down for every
+   paying customer. Tuning a number should never require running that risk,
+   and these numbers are explicitly meant to be retuned once a real month of
+   usage has been billed.
+
+   A value that will not parse falls back to the constant below it, never to
+   something larger: getting this wrong in the safe direction costs a
+   refused request, getting it wrong the other way costs money quietly. */
+const envWhole = (name: string, fallback: number): number => {
+  const raw = Deno.env.get(name);
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) {
+    console.error(`${name} is "${raw}", which is not a whole number >= 1. Using ${fallback}.`);
+    return fallback;
+  }
+  return Math.min(n, fallback * 10);   // a typo'd extra zero is not a policy change
+};
+
+/* How many questions an account may ask in a three-hour window.
 
    The assistant had no limit at all, which was the largest uncapped cost in
    the product: premium is checked, and a premium account could then ask
@@ -223,35 +245,50 @@ function callerUserId(req: Request): string | null {
    One person could run up a serious bill in an afternoon, deliberately or
    by leaving something looping.
 
-   Forty is chosen to be invisible. A real conversation is five to fifteen
-   messages, so nobody using this normally will ever see it, while the worst
-   case per account per hour becomes a number you can actually budget for. */
-const ASK_MAX = 40, ASK_WINDOW = 60 * 60;
+   Sixty per three hours is chosen to be invisible. A real conversation is
+   five to fifteen messages, so nobody using this normally will ever see it,
+   while the worst case per account becomes a number you can budget for.
+
+   Three hours rather than one, and sixty rather than forty. That is a
+   larger single sitting and a LOWER sustained rate: an hourly forty allowed
+   a hundred and twenty in any three hours, this allows sixty. A window is
+   there to bound a burst, and somebody working through a problem asks a
+   dozen questions and stops — an hourly cut-off interrupted that while
+   still permitting twice as much per day. */
+const ASK_MAX = envWhole("ASK_MAX", 60), ASK_WINDOW = envWhole("ASK_WINDOW_SECONDS", 3 * 60 * 60);
 
 /* And how many in a month.
 
-   The hourly limit stops a burst. It does nothing about sustained use:
-   forty an hour, every hour, is legal under it and comes to twenty-eight
-   thousand questions a month from one account paying $25. Even a human
-   asking hourly through a working day costs more than they pay.
+   The short window stops a burst. It does nothing about sustained use:
+   sixty every three hours, around the clock, is legal under it and comes to
+   fourteen thousand questions a month from one account paying $25. Even a
+   human asking steadily through a working day costs more than they pay.
 
    Two hundred and fifty a month is about eight a day — well above what a
    real subscriber uses, which is the point. It is not there to shape
    normal behaviour, it is there so one account cannot cost more than it
    pays.
 
+   This is the number most likely to be wrong, and wrong in the expensive
+   direction. Two hundred and fifty answers on the largest model at 16k
+   tokens each plausibly costs more than the $25 the account pays. It has
+   not been lowered on a guess, because a guess is how it got here — but it
+   is the first thing to check against a real bill, and the rule it has to
+   satisfy is that a subscriber who maxes out still costs less than they
+   pay.
+
    Rolling rather than calendar: the window starts on the first question
    and resets thirty days later, which is what the counter already does. */
-const ASK_MONTH_MAX = 250, ASK_MONTH_WINDOW = 30 * 24 * 60 * 60;
+const ASK_MONTH_MAX = envWhole("ASK_MONTH_MAX", 250), ASK_MONTH_WINDOW = 30 * 24 * 60 * 60;
 
-/* Hourly and monthly together. Reporting only the hourly balance would
-   read as "40 left" to somebody the monthly cap is refusing. */
+/* Both windows together. Reporting only the three-hour balance would read
+   as "60 left" to somebody the monthly cap is refusing. */
 async function bothQuotas(asker: string) {
-  const [hour, month] = await Promise.all([
+  const [window, month] = await Promise.all([
     quotaFor(`ask:${asker}`, ASK_MAX, ASK_WINDOW),
     quotaFor(`ask:month:${asker}`, ASK_MONTH_MAX, ASK_MONTH_WINDOW),
   ]);
-  return hour ? { ...hour, month } : null;
+  return window ? { ...window, month } : null;
 }
 
 /* What is left, without spending any of it.
@@ -390,16 +427,16 @@ Deno.serve(async (req: Request) => {
      would let a request slip between them under load, and the pair is what
      bounds the spend. Refused if either says no. */
   const id = asker ?? "unknown";
-  const [hourOk, monthOk] = await Promise.all([
+  const [windowOk, monthOk] = await Promise.all([
     allow(`ask:${id}`, ASK_MAX, ASK_WINDOW),
     allow(`ask:month:${id}`, ASK_MONTH_MAX, ASK_MONTH_WINDOW),
   ]);
-  if (!hourOk || !monthOk) {
-    console.warn(`ai-assistant: rate limited (${!hourOk ? "hour" : "month"}).`);
+  if (!windowOk || !monthOk) {
+    console.warn(`ai-assistant: rate limited (${!windowOk ? "window" : "month"}).`);
     return json({
-      error: hourOk
+      error: windowOk
         ? "You've asked all your questions for this month. They refresh at the start of your next cycle."
-        : "You've asked all your questions for this hour. They refresh shortly.",
+        : "You've asked all your questions for now. They refresh every 3 hours.",
       quota: await bothQuotas(id),
     }, 429);
   }

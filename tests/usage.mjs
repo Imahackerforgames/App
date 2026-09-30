@@ -72,7 +72,7 @@ const body = (page) => page.locator("body").innerText();
   ok("with the server's numbers", /16 of 25 left/.test(t), t.match(/.{0,30}of 25.{0,10}/)?.[0]);
   ok("the assistant row", /Assistant questions/i.test(t));
   ok("with its own numbers", /28 of 40 left/.test(t), t.match(/.{0,30}of 40.{0,10}/)?.[0]);
-  ok("each says what was used", (t.match(/You've used \d+ this hour/g) || []).length === 2,
+  ok("each says what was used", (t.match(/You've used \d+ in the last 3 hours/g) || []).length === 2,
      JSON.stringify(t.match(/You've used \d+ this hour/g)));
   ok("and when it resets", (t.match(/Resets at /g) || []).length === 2);
 
@@ -110,7 +110,11 @@ const body = (page) => page.locator("body").innerText();
   const { c, page } = await app({ search: quota(25, 25), ask: quota(40, 3) });
   const t = await body(page);
   ok("zero left is shown", /0 of 25 left/.test(t), t.match(/.{0,20}of 25.{0,10}/)?.[0]);
-  ok("and named", /used this hour's searches/i.test(t), t.match(/.{0,50}this hour's.{0,20}/)?.[0]);
+  /* The window is three hours, so the copy must not say "hour". A screen
+     that names the wrong reset is a screen lying to somebody who is paying,
+     and they will believe it over the server. */
+  ok("and named", /used this window's searches/i.test(t), t.match(/.{0,60}window's.{0,20}/)?.[0]);
+  ok("and nothing still claims an hourly reset", !/this hour/i.test(t), t.match(/.{0,40}this hour.{0,20}/)?.[0]);
   ok("the other is unaffected", /37 of 40 left/.test(t));
   await c.close();
 }

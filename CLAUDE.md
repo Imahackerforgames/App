@@ -243,19 +243,36 @@ when the database is unreachable is worse than the spending it prevents.
 |---|---|---|
 | Sign-in attempts | 10/hour | IP address |
 | Sign-in attempts | 6/hour | username |
-| Product searches | 25/hour **and 150/month** | account |
+| Product searches | 40 per **3 hours** **and 150/month** | account |
 | Market research | shares the search buckets | account |
-| Assistant questions | 40/hour **and 250/month** | account |
+| Assistant questions | 60 per **3 hours** **and 250/month** | account |
+
+The short window is three hours, not one. That is a bigger single sitting
+and a **lower** sustained rate than before: an hourly 25 allowed 75 searches
+in any three hours, where 40 per three hours allows 40. Somebody
+researching properly does twenty searches in an evening and then stops, and
+an hourly cut-off interrupted that while still permitting far more per day.
+
+`product-search` and `market-research` share one counter row, so both must
+declare the same `SEARCH_MAX` and `SEARCH_WINDOW`. A mismatch would make
+the reset time depend on which endpoint was called last.
 
 Both search and assistant answer a `{ peek: true }` request with the
 balance without spending any of it. Settings reads them that way.
 
-Two windows, because one cannot do the other's job. The hourly limit
-stops a burst; it says nothing about sustained use. Forty questions an
-hour, every hour, is legal under an hourly cap and comes to 28,000
-questions a month from one account paying $25 — and even a human asking
-hourly through a working day costs more than they pay. The monthly cap is
-what makes a single account unable to cost more than it brings in.
+Two windows, because one cannot do the other's job. The short limit stops
+a burst; it says nothing about sustained use. Sixty questions every three
+hours, around the clock, is legal under it and comes to 14,000 questions a
+month from one account paying $25 — and even a human asking steadily
+through a working day costs more than they pay. The monthly cap is what
+makes a single account unable to cost more than it brings in.
+
+**The monthly assistant cap is the number most likely to lose money.** At
+250 questions on `claude-opus-5` with `max_tokens` 16000, a subscriber who
+maxes it out plausibly costs more in tokens than the $25 they pay. Nobody
+has measured it, so it has not been changed on a guess — but it is the
+first thing to check against a real bill, and the rule it has to satisfy is
+simple: a subscriber who maxes out must still cost less than they pay.
 
 Both are deliberately far above normal use. They are not there to shape
 behaviour, only to bound the worst case.
@@ -266,9 +283,11 @@ once one real month of usage has been billed.
 
 The search number is low because one call is not one Tavily credit. It
 fans out to a search per marketplace plus a page extract, so a call costs
-five or six credits and an analysis costs around a dozen. Twenty-five an
-hour is about 150 credits an hour for one account. Raise it only after
-checking what the plan actually includes.
+five or six credits and an analysis costs around a dozen. Forty per three
+hours is about 240 credits per window for one account, and the monthly cap
+of 150 is roughly 900 credits a month. A hundred subscribers all maxing out
+is 90,000 credits a month — check what the plan actually includes before
+promoting to that many people.
 
 ## A free account spends nothing
 

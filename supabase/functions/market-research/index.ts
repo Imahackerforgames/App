@@ -96,13 +96,40 @@ async function allow(bucket: string, max: number, windowSeconds: number): Promis
   }
 }
 
-/* Deliberately the SAME bucket product-search uses.
+/* Limits are settable without a deploy.
+
+   Deploying product-search means pasting thirty-four kilobytes into an API
+   call, where one mistyped character in a regex takes search down for every
+   paying customer. Tuning a number should never require running that risk,
+   and these numbers are explicitly meant to be retuned once a real month of
+   usage has been billed.
+
+   A value that will not parse falls back to the constant below it, never to
+   something larger: getting this wrong in the safe direction costs a
+   refused request, getting it wrong the other way costs money quietly. */
+const envWhole = (name: string, fallback: number): number => {
+  const raw = Deno.env.get(name);
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) {
+    console.error(`${name} is "${raw}", which is not a whole number >= 1. Using ${fallback}.`);
+    return fallback;
+  }
+  return Math.min(n, fallback * 10);   // a typo'd extra zero is not a policy change
+};
+
+/* Deliberately the SAME bucket product-search uses, with deliberately the
+   SAME numbers.
 
    Both spend the same Tavily budget, so two separate allowances would mean
    an account could exhaust one and carry straight on spending through the
-   other. One budget, one counter. */
-const SEARCH_MAX = 25, SEARCH_WINDOW = 60 * 60;
-const SEARCH_MONTH_MAX = 150, SEARCH_MONTH_WINDOW = 30 * 24 * 60 * 60;
+   other. One budget, one counter.
+
+   And because it is one counter row, the numbers here must match
+   product-search exactly. A different window in one of them would make the
+   reset time depend on which endpoint happened to be called last. */
+const SEARCH_MAX = envWhole("SEARCH_MAX", 40), SEARCH_WINDOW = envWhole("SEARCH_WINDOW_SECONDS", 3 * 60 * 60);
+const SEARCH_MONTH_MAX = envWhole("SEARCH_MONTH_MAX", 150), SEARCH_MONTH_WINDOW = 30 * 24 * 60 * 60;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -142,16 +169,16 @@ Deno.serve(async (req: Request) => {
     /* Both windows, both shared with product-search. One Tavily budget,
        one pair of counters. */
     const who = callerId(req);
-    const [hourOk, monthOk] = await Promise.all([
+    const [windowOk, monthOk] = await Promise.all([
       allow(`search:${who}`, SEARCH_MAX, SEARCH_WINDOW),
       allow(`search:month:${who}`, SEARCH_MONTH_MAX, SEARCH_MONTH_WINDOW),
     ]);
-    if (!hourOk || !monthOk) {
-      console.warn(`market-research: rate limited (${!hourOk ? "hour" : "month"}).`);
+    if (!windowOk || !monthOk) {
+      console.warn(`market-research: rate limited (${!windowOk ? "window" : "month"}).`);
       return json({
-        error: hourOk
+        error: windowOk
           ? "You've used all your searches for this month. They refresh at the start of your next cycle."
-          : "You've used all your searches for this hour. They refresh shortly.",
+          : "You've used all your searches for now. They refresh every 3 hours.",
       }, 429);
     }
 

@@ -321,7 +321,7 @@ async function fetchEntitlement({ force = false } = {}) {
   }
 }
 
-/* How much of an hourly allowance is left. Costs nothing to ask — the
+/* How much of the current allowance is left. Costs nothing to ask — the
    function reads the counter rather than incrementing it. Both the search
    and the assistant endpoints answer the same `peek` request.
 
@@ -5886,7 +5886,7 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  /* null | "terms" | "privacy" */
  const [legal, setLegal] = useState(null);
 
- /* What is left of both hourly allowances. Only asked for on a premium
+ /* What is left of both allowances. Only asked for on a premium
     account, because a free one has neither. Re-read whenever this screen is
     opened, so it is current rather than whatever it was at sign-in.
 
@@ -6024,7 +6024,7 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  ))}
  </Group>
 
- {/* What is left of this hour's searches.
+ {/* What is left of this window's searches.
 
      A limit you cannot see is indistinguishable from the app being broken:
      you press search, nothing happens, and there is no way to find out why.
@@ -6045,13 +6045,13 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  </div>
  <p style={{ fontSize: 11.5, color: C.dead, marginTop: 8, lineHeight: 1.6 }}>
  {q.remaining === 0
-   ? `You've used this hour's ${noun}.`
-   : `You've used ${q.used} this hour.`}
+   ? `You've used this window's ${noun}.`
+   : `You've used ${q.used} in the last 3 hours.`}
  {q.resetsAt
    ? ` Resets at ${new Date(q.resetsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`
    : " The full allowance is available."}
  {/* The monthly line matters most when it is the one refusing. Showing
-     only the hourly balance would read as "25 left" to somebody the
+     only the 3-hour balance would read as "40 left" to somebody the
      monthly cap is turning away, which is worse than no number at all. */}
  {q.month && (
  <>

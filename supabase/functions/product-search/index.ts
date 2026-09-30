@@ -83,28 +83,60 @@ const SOLD_PAGE: Record<string, (q: string) => string> = {
     `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&LH_Sold=1&LH_Complete=1&_sop=13`,
 };
 
-/* How many searches one account gets per hour.
+/* Limits are settable without a deploy.
+
+   Deploying product-search means pasting thirty-four kilobytes into an API
+   call, where one mistyped character in a regex takes search down for every
+   paying customer. Tuning a number should never require running that risk,
+   and these numbers are explicitly meant to be retuned once a real month of
+   usage has been billed.
+
+   A value that will not parse falls back to the constant below it, never to
+   something larger: getting this wrong in the safe direction costs a
+   refused request, getting it wrong the other way costs money quietly. */
+const envWhole = (name: string, fallback: number): number => {
+  const raw = Deno.env.get(name);
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) {
+    console.error(`${name} is "${raw}", which is not a whole number >= 1. Using ${fallback}.`);
+    return fallback;
+  }
+  return Math.min(n, fallback * 10);   // a typo'd extra zero is not a policy change
+};
+
+/* How many searches one account gets per three-hour window.
 
    Each analysis is two calls to this function, and each call fans out to one
    Tavily search per marketplace plus a page extract — so one call is five
    or six Tavily credits and a single analysis is around a dozen.
 
-   Twenty-five an hour is therefore roughly 150 credits an hour for one
-   account, or about twelve analyses. Lowered from thirty-five once that
-   multiplication was done properly: the limit that matters is not how many
+   Forty per three hours is therefore roughly 240 credits per window for one
+   account, or about twenty analyses. The limit that matters is not how many
    times somebody presses a button, it is how many credits that button
    spends, and a plan measured in a thousand credits a month does not
    survive many hours at two hundred.
 
+   Three hours rather than one, and forty rather than twenty-five. That is a
+   larger single sitting and a lower sustained rate: the old limit allowed
+   seventy-five in any three hours, this allows forty. A window exists to
+   bound a burst, and someone researching properly does twenty searches in
+   an evening and then stops — the old hour cut them off mid-session while
+   still permitting far more per day.
+
+   market-research shares this bucket and must declare the same numbers.
+   Both write the same counter row, so a different window in one of them
+   would make the reset time depend on which endpoint was called last.
+
    Counted in Postgres, not in memory: Edge Functions run on many instances
    and an in-process counter is bypassed by landing on a different one. */
-const SEARCH_MAX = 25, SEARCH_WINDOW = 60 * 60;
+const SEARCH_MAX = envWhole("SEARCH_MAX", 40), SEARCH_WINDOW = envWhole("SEARCH_WINDOW_SECONDS", 3 * 60 * 60);
 
 /* And how many in a month.
 
-   The hourly limit stops a burst. It does nothing about sustained use:
-   twenty-five an hour, every hour, is perfectly legal under it and comes
-   to eighteen thousand searches a month from one account paying $25.
+   The window limit stops a burst. It does nothing about sustained use:
+   forty every three hours, around the clock, is perfectly legal under it
+   and comes to nine thousand searches a month from one account paying $25.
 
    So there is a second limit the first cannot substitute for. A hundred
    and fifty a month is five a day — far more than a real subscriber uses,
@@ -114,7 +146,7 @@ const SEARCH_MAX = 25, SEARCH_WINDOW = 60 * 60;
    The window is rolling rather than calendar: it starts on the first
    request and resets thirty days after that, which is what the counter
    already does and is fairer than everyone resetting on the 1st. */
-const SEARCH_MONTH_MAX = 150, SEARCH_MONTH_WINDOW = 30 * 24 * 60 * 60;
+const SEARCH_MONTH_MAX = envWhole("SEARCH_MONTH_MAX", 150), SEARCH_MONTH_WINDOW = 30 * 24 * 60 * 60;
 
 /* What is left, without spending any of it.
 
@@ -159,7 +191,7 @@ async function quotaFor(bucket: string, max: number, windowSeconds: number): Pro
 }
 
 /* Hourly and monthly together, so a caller can see which one is limiting
-   them. Reporting only the hourly balance would read as "25 left" to
+   them. Reporting only the three-hour balance would read as "40 left" to
    somebody the monthly cap is refusing, which is worse than no number. */
 async function bothQuotas(caller: string) {
   const [hour, month] = await Promise.all([
@@ -208,7 +240,7 @@ function callerId(req: Request): string {
 /* Whether this account has paid. Product Search is premium, but until now
    only the interface said so — the server took anyone with a valid token.
    Hiding a button is not enforcing it: a free account could call this
-   endpoint directly and spend search credits fifteen times an hour.
+   endpoint directly and spend search credits at will.
 
    Every failure answers false, exactly as in ai-assistant. The entitlements
    table is read with the service role because the browser cannot read
@@ -354,16 +386,16 @@ Deno.serve(async (req: Request) => {
        would let a request slip between them under load, and the pair is
        what bounds the spend. Refused if either says no. */
     const who = callerId(req);
-    const [hourOk, monthOk] = await Promise.all([
+    const [windowOk, monthOk] = await Promise.all([
       allow(`search:${who}`, SEARCH_MAX, SEARCH_WINDOW),
       allow(`search:month:${who}`, SEARCH_MONTH_MAX, SEARCH_MONTH_WINDOW),
     ]);
-    if (!hourOk || !monthOk) {
-      console.warn(`product-search: rate limited (${!hourOk ? "hour" : "month"}).`);
+    if (!windowOk || !monthOk) {
+      console.warn(`product-search: rate limited (${!windowOk ? "window" : "month"}).`);
       return json({
-        error: hourOk
+        error: windowOk
           ? "You've used all your searches for this month. They refresh at the start of your next cycle."
-          : "You've used all your searches for this hour. They refresh shortly.",
+          : "You've used all your searches for now. They refresh every 3 hours.",
         quota: await bothQuotas(who),
       }, 429);
     }
