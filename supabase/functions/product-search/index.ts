@@ -289,7 +289,15 @@ const stripPrices = (t: string) =>
 /* Marketplaces append their own name to every page title — "… | eBay",
    "… - Poshmark". On a card that already says which marketplace the listing
    is on, that is noise taking up the line. Stripped in a small loop because
-   a few arrive with it twice ("… - Poshmark | Poshmark"). */
+   a few arrive with it twice ("… - Poshmark | Poshmark").
+
+   The separators are written as \u escapes here and read back as literal
+   – — · from the deployed copy, because a deploy round-trips through JSON
+   and JSON decodes them. Same regex either way — .source is identical, since
+   \u2013 in a regex literal IS the en dash. Worth knowing before somebody
+   diffs repo against deployed and thinks the file was corrupted. The escape
+   form stays here because a literal en dash is the kind of character an
+   editor or a bad encoding silently mangles. */
 const MARKET_TAIL =
   /\s*[|\-\u2013\u2014\u00b7]\s*(?:ebay(?:\s+community)?|poshmark|mercari|depop|vinted|offerup|facebook(?:\s+marketplace)?)\s*$/i;
 const cleanTitle = (t: string) => {
