@@ -264,6 +264,27 @@ const STRIPE_CHECKOUT_URL = "https://buy.stripe.com/6oU14p1AkbAgaRkc4I7wA03";
    live links; this one sends everything here and predates the partner. */
 const STRIPE_SOLO_URL = "https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00";
 
+/* Who takes the money: "stripe" or "commas".
+
+   One switch rather than a rewrite, because a payment system is the worst
+   possible thing to swap in a single irreversible step. Both paths stay
+   whole and deployed while the new one is proven, and going back is this
+   line rather than a revert.
+
+   It also has to stay this way for a while after the switch. A customer
+   who subscribed through Stripe is still billed by Stripe — subscriptions
+   do not move between processors — so stripe-webhook must keep running and
+   keep renewing them long after new signups stop going there. Turning it
+   off the day this flips is how existing subscribers quietly lose access
+   they are still paying for.
+
+   Commas differs in one way that matters here: its checkout page is
+   created through its API per person, so the link is minted server-side
+   with the account id fixed to the session, rather than appended to a
+   static URL the customer could edit. */
+const PAYMENT_PROVIDER = "stripe";
+const COMMAS_CHECKOUT_FN = `${SUPABASE_URL}/functions/v1/commas-checkout`;
+
 /* The signed-in account, kept here so openCheckout can read it without a
    round trip.
 
@@ -4103,9 +4124,58 @@ function openCheckout() {
     return;
   }
 
+  if (PAYMENT_PROVIDER === "commas") {
+    /* Commas mints its checkout page through its API, so the link does not
+       exist until the server asks for one with this account's id fixed to
+       the session.
+
+       That means a round trip, and a round trip inside a click handler is
+       exactly what Safari treats as an unsolicited popup. So the tab is
+       opened first, synchronously, while the click is still trusted, and
+       pointed at the link once it arrives. A tab that says "Opening
+       checkout…" for a second is a great deal better than a blocked popup
+       somebody reads as the payment being broken. */
+    const tab = window.open("", "_blank", "noopener,noreferrer");
+    if (tab) {
+      tab.document.write(
+        "<title>Opening checkout…</title>" +
+        "<body style=\"margin:0;min-height:100vh;display:grid;place-items:center;" +
+        "background:#0B0708;color:#F5EFEE;font:14px ui-sans-serif,system-ui,sans-serif\">" +
+        "Opening checkout…</body>",
+      );
+    }
+    startCommasCheckout()
+      .then(({ ok, url, note }) => {
+        if (ok && url) { if (tab) tab.location.href = url; else window.location.href = url; return; }
+        if (tab) tab.close();
+        alert(note);
+      })
+      .catch(() => {
+        if (tab) tab.close();
+        alert("Couldn't reach the payment provider. Check your connection and try again.");
+      });
+    return;
+  }
+
   const url = new URL(STRIPE_CHECKOUT_URL);
   url.searchParams.set("client_reference_id", checkoutUserId);
   window.open(url.toString(), "_blank", "noopener,noreferrer");
+}
+
+/* Asks the server for a Commas checkout page belonging to this account.
+
+   The account id is never sent from here. The function reads it from the
+   token it verifies, so a link cannot be minted for somebody else by
+   editing a request — which is a real improvement on a static URL with the
+   id in the query string. */
+async function startCommasCheckout() {
+  const res = await fetch(COMMAS_CHECKOUT_FN, { method: "POST", headers: await fnHeaders(), body: "{}" });
+  const d = await res.json().catch(() => ({}));
+  if (res.ok && d.url) return { ok: true, url: d.url };
+  if (res.status === 409 && d.error === "already_pro") {
+    return { ok: false, note: "You already have premium on this account, so there's nothing to buy." };
+  }
+  return { ok: false, note: d.error || "Couldn't start checkout just now. Try again in a moment." };
 }
 
 /* The other direction: out of a subscription rather than into one.
