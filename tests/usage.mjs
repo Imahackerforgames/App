@@ -77,9 +77,15 @@ const body = (page) => page.locator("body").innerText();
      an analysis costs two searches — so a number that drops without an
      obvious cause reads as a broken counter, and a counter nobody believes
      is worse than none. */
-  ok("it says an analysis costs two searches", /two searches/i.test(t), t.slice(-500));
+  ok("it says an analysis costs two searches", /analysis uses 2 searches/i.test(t), t.slice(-500));
+  /* AI Discover spends from BOTH allowances — up to three searches and a
+     question or two. The first version of this note listed it only under
+     questions, which is the kind of half-true that sends somebody hunting
+     for a bug in the search counter. */
+  ok("and that AI Discover spends searches too",
+     /AI Discover uses up to 3 searches/i.test(t), t.slice(-500));
   ok("and that other features spend questions",
-     /listing generator/i.test(t) && /AI Discover/i.test(t), t.slice(-500));
+     /listing generator/i.test(t), t.slice(-500));
   ok("each says what was used", (t.match(/You've used \d+ in the last 3 hours/g) || []).length === 2,
      JSON.stringify(t.match(/You've used \d+ this hour/g)));
   ok("and when it resets", (t.match(/Resets at /g) || []).length === 2);

@@ -6075,9 +6075,10 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
      counter is broken, and a counter nobody believes is worse than no
      counter — they stop trusting the limit and start emailing about it. */}
  <Note>
- Analyses use two searches each. Product descriptions, the listing
- generator and AI Discover use questions, so that number moves even when
- you haven't opened the assistant.
+ An analysis uses 2 searches. AI Discover uses up to 3 searches and a
+ question or two. Product descriptions and the listing generator use
+ questions, so that number moves even when you haven't opened the
+ assistant.
  </Note>
  </Group>
  )}
