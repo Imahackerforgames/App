@@ -79,16 +79,30 @@ for (const [name] of FNS) {
 }
 
 /* ── 6. the trap that would undo a revoke ────────────────────────────────
-   Clearing the row does not cancel anything at Stripe. If the subscription
-   is live, the next renewal event writes `pro` straight back — hours later,
-   with nothing in the database to explain it. The function has to say so. */
-console.log("\n6. Revoking warns about a live Stripe subscription");
+   Clearing the row does not cancel anything at the processor. If the
+   subscription is live, the next renewal event writes `pro` straight back —
+   hours later, with nothing in the database to explain it. The function has
+   to say so.
+
+   Both columns have to be read, and that is the assertion that earns its
+   keep. Commas takes the payments now and Stripe's column still holds
+   rows; a check that looked at one of them would go quiet for exactly the
+   people this warning is for, while still passing a test that named the
+   other. */
+console.log("\n6. Revoking warns about a live subscription, whoever bills it");
 {
   const body = (code.split(/create or replace function public\.revoke_premium/i)[1] || "").split("$$;")[0];
-  ok("reads the recorded subscription before overwriting the row",
-     /stripe_subscription_id\s+into/i.test(body));
-  ok("and says so in the returned message", /v_sub\s+is\s+not\s+null/i.test(body) && /Stripe/i.test(body));
-  ok("naming what to do about it", /Cancel/i.test(body));
+  ok("reads the subscription recorded against the live processor",
+     /commas_subscription_id/i.test(body), body.slice(0, 400));
+  ok("and the one recorded against the retired one",
+     /stripe_subscription_id/i.test(body), "old rows are still real subscriptions to look at");
+  ok("read before the row is overwritten",
+     body.indexOf("into v_plan") < body.indexOf("update public.entitlements"),
+     "reading after the update finds the values it just erased");
+  ok("and says so in the returned message",
+     /v_sub\s+is\s+not\s+null/i.test(body) && /still recorded/i.test(body));
+  ok("naming which processor to go to", /v_who/.test(body) && /Commas/i.test(body) && /Stripe/i.test(body));
+  ok("and what to do there", /Cancel/i.test(body));
 }
 
 /* ── 7. a grant must not rewrite when somebody first subscribed ──────────

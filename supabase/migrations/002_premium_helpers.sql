@@ -73,10 +73,12 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_id    uuid;
-  v_email text;
-  v_plan  text;
-  v_sub   text;
+  v_id     uuid;
+  v_email  text;
+  v_plan   text;
+  v_sub    text;
+  v_who    text;
+  v_where  text;
 begin
   select id, email into v_id, v_email
   from auth.users where lower(email) = lower(trim(p_email));
@@ -87,7 +89,14 @@ begin
 
   -- Read the current state before overwriting it, so the message can be
   -- specific about what was actually taken away.
-  select plan, stripe_subscription_id into v_plan, v_sub
+  --
+  -- Both processors are checked. Commas takes the payments now; Stripe did
+  -- before and its column still holds rows. Checking only one of them is
+  -- how the warning below stops firing for the people it is for.
+  select plan,
+         coalesce(commas_subscription_id, stripe_subscription_id),
+         case when commas_subscription_id is not null then 'Commas' else 'Stripe' end
+    into v_plan, v_sub, v_who
   from public.entitlements where user_id = v_id;
 
   if v_plan is null or v_plan <> 'pro' then
@@ -100,16 +109,20 @@ begin
 
   -- The trap this function exists to make visible.
   --
-  -- Clearing the row does not stop Stripe. If the subscription is still
-  -- live, the next customer.subscription.updated event writes `pro` straight
-  -- back and the revoke silently undoes itself — hours later, with nothing
-  -- in the database to explain why. Cancelling in Stripe is the real
+  -- Clearing the row does not stop the processor. If the subscription is
+  -- still live, the next renewal event writes `pro` straight back and the
+  -- revoke silently undoes itself — hours later, with nothing in the
+  -- database to explain why. Cancelling with the processor is the real
   -- revoke; this is only the immediate half of it.
   if v_sub is not null then
+    v_where := case
+      when v_who = 'Commas' then 'Cancel it in the Commas dashboard'
+      else 'Cancel it in Stripe (Customers -> their email -> Cancel subscription)'
+    end;
     return format(
-      'Premium removed from %s — BUT their Stripe subscription %s is still recorded. '
-      'Cancel it in Stripe (Customers -> their email -> Cancel subscription), or the '
-      'next renewal event will give premium straight back.', v_email, v_sub);
+      'Premium removed from %s — BUT their %s subscription %s is still recorded. '
+      '%s, or the next renewal event will give premium straight back.',
+      v_email, v_who, v_sub, v_where);
   end if;
 
   return format('Premium removed from %s.', v_email);
