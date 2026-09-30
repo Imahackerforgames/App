@@ -245,24 +245,27 @@ const envWhole = (name: string, fallback: number): number => {
    One person could run up a serious bill in an afternoon, deliberately or
    by leaving something looping.
 
-   Sixty per three hours is chosen to be invisible. A real conversation is
+   Thirty per three hours is chosen to be invisible. A real conversation is
    five to fifteen messages, so nobody using this normally will ever see it,
    while the worst case per account becomes a number you can budget for.
 
-   Three hours rather than one, and sixty rather than forty. That is a
-   larger single sitting and a LOWER sustained rate: an hourly forty allowed
-   a hundred and twenty in any three hours, this allows sixty. A window is
-   there to bound a burst, and somebody working through a problem asks a
-   dozen questions and stops — an hourly cut-off interrupted that while
-   still permitting twice as much per day. */
-const ASK_MAX = envWhole("ASK_MAX", 60), ASK_WINDOW = envWhole("ASK_WINDOW_SECONDS", 3 * 60 * 60);
+   Not every question here is typed by a person. Product descriptions, the
+   listing generator and AI Discover all spend from this same allowance, so
+   a subscriber can reach the limit without ever opening the chat. That is
+   correct — they all cost the same money — but it means thirty is not
+   thirty conversations.
+
+   A window is there to bound a burst, and somebody working through a problem
+   asks a dozen questions and stops; an hourly cut-off interrupted that while
+   still permitting far more per day. */
+const ASK_MAX = envWhole("ASK_MAX", 30), ASK_WINDOW = envWhole("ASK_WINDOW_SECONDS", 3 * 60 * 60);
 
 /* And how many in a month.
 
    The short window stops a burst. It does nothing about sustained use:
-   sixty every three hours, around the clock, is legal under it and comes to
-   fourteen thousand questions a month from one account paying $25. Even a
-   human asking steadily through a working day costs more than they pay.
+   thirty every three hours, around the clock, is legal under it and comes to
+   seven thousand questions a month from one account paying $25. Even a human
+   asking steadily through a working day costs more than they pay.
 
    Two hundred and fifty a month is about eight a day — well above what a
    real subscriber uses, which is the point. It is not there to shape
@@ -282,7 +285,7 @@ const ASK_MAX = envWhole("ASK_MAX", 60), ASK_WINDOW = envWhole("ASK_WINDOW_SECON
 const ASK_MONTH_MAX = envWhole("ASK_MONTH_MAX", 250), ASK_MONTH_WINDOW = 30 * 24 * 60 * 60;
 
 /* Both windows together. Reporting only the three-hour balance would read
-   as "60 left" to somebody the monthly cap is refusing. */
+   as "30 left" to somebody the monthly cap is refusing. */
 async function bothQuotas(asker: string) {
   const [window, month] = await Promise.all([
     quotaFor(`ask:${asker}`, ASK_MAX, ASK_WINDOW),

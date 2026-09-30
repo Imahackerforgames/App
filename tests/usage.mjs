@@ -72,6 +72,14 @@ const body = (page) => page.locator("body").innerText();
   ok("with the server's numbers", /16 of 25 left/.test(t), t.match(/.{0,30}of 25.{0,10}/)?.[0]);
   ok("the assistant row", /Assistant questions/i.test(t));
   ok("with its own numbers", /28 of 40 left/.test(t), t.match(/.{0,30}of 40.{0,10}/)?.[0]);
+  /* The meter is only trustworthy if it explains why it moves. Four
+     features draw on the assistant allowance and only one is the chat, and
+     an analysis costs two searches — so a number that drops without an
+     obvious cause reads as a broken counter, and a counter nobody believes
+     is worse than none. */
+  ok("it says an analysis costs two searches", /two searches/i.test(t), t.slice(-500));
+  ok("and that other features spend questions",
+     /listing generator/i.test(t) && /AI Discover/i.test(t), t.slice(-500));
   ok("each says what was used", (t.match(/You've used \d+ in the last 3 hours/g) || []).length === 2,
      JSON.stringify(t.match(/You've used \d+ this hour/g)));
   ok("and when it resets", (t.match(/Resets at /g) || []).length === 2);

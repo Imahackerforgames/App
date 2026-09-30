@@ -6065,6 +6065,20 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  </p>
  </div>
  ))}
+ {/* What actually moves these numbers.
+
+     Without this the meter is untrustworthy in the one way that matters:
+     it goes down when you did not press anything you recognise. Four
+     features draw on the assistant allowance and only one of them is the
+     chat, and an analysis spends two searches rather than one. Somebody
+     who reads "19 of 30 left" having asked three questions concludes the
+     counter is broken, and a counter nobody believes is worse than no
+     counter — they stop trusting the limit and start emailing about it. */}
+ <Note>
+ Analyses use two searches each. Product descriptions, the listing
+ generator and AI Discover use questions, so that number moves even when
+ you haven't opened the assistant.
+ </Note>
  </Group>
  )}
 

@@ -128,7 +128,7 @@ const envWhole = (name: string, fallback: number): number => {
    And because it is one counter row, the numbers here must match
    product-search exactly. A different window in one of them would make the
    reset time depend on which endpoint happened to be called last. */
-const SEARCH_MAX = envWhole("SEARCH_MAX", 40), SEARCH_WINDOW = envWhole("SEARCH_WINDOW_SECONDS", 3 * 60 * 60);
+const SEARCH_MAX = envWhole("SEARCH_MAX", 30), SEARCH_WINDOW = envWhole("SEARCH_WINDOW_SECONDS", 3 * 60 * 60);
 const SEARCH_MONTH_MAX = envWhole("SEARCH_MONTH_MAX", 150), SEARCH_MONTH_WINDOW = 30 * 24 * 60 * 60;
 
 Deno.serve(async (req: Request) => {

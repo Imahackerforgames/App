@@ -243,29 +243,51 @@ when the database is unreachable is worse than the spending it prevents.
 |---|---|---|
 | Sign-in attempts | 10/hour | IP address |
 | Sign-in attempts | 6/hour | username |
-| Product searches | 40 per **3 hours** **and 150/month** | account |
+| Product searches | 30 per **3 hours** **and 150/month** | account |
 | Market research | shares the search buckets | account |
-| Assistant questions | 60 per **3 hours** **and 250/month** | account |
+| Assistant questions | 30 per **3 hours** **and 250/month** | account |
 
 The short window is three hours, not one. That is a bigger single sitting
-and a **lower** sustained rate than before: an hourly 25 allowed 75 searches
-in any three hours, where 40 per three hours allows 40. Somebody
+and a **lower** sustained rate than an hourly cap: an hourly 25 allowed 75
+searches in any three hours, where 30 per three hours allows 30. Somebody
 researching properly does twenty searches in an evening and then stops, and
 an hourly cut-off interrupted that while still permitting far more per day.
+
+**One press is not one unit, and this is the thing to say out loud when
+quoting the numbers.** An analysis is two calls to `product-search`, so 30
+searches is fifteen analyses. And four features draw on the assistant
+allowance — the chat, product descriptions, the listing generator and AI
+Discover — so a subscriber can spend questions without ever opening the
+chat. Settings says both of these under the meters, because a counter that
+moves for invisible reasons is a counter nobody believes.
 
 `product-search` and `market-research` share one counter row, so both must
 declare the same `SEARCH_MAX` and `SEARCH_WINDOW`. A mismatch would make
 the reset time depend on which endpoint was called last.
 
 Both search and assistant answer a `{ peek: true }` request with the
-balance without spending any of it. Settings reads them that way.
+balance without spending any of it. Settings → **Usage** reads them that
+way and shows a meter, what has been used in the last 3 hours, the reset
+time, and the monthly balance. It is premium-only, because a free account
+has no allowance to report.
+
+All six numbers are settable from Edge Function secrets without a deploy —
+`SEARCH_MAX`, `SEARCH_WINDOW_SECONDS`, `SEARCH_MONTH_MAX`, `ASK_MAX`,
+`ASK_WINDOW_SECONDS`, `ASK_MONTH_MAX` — each clamped to 10x its default so
+a stray zero in a dashboard is not a policy change nobody reviewed.
 
 Two windows, because one cannot do the other's job. The short limit stops
-a burst; it says nothing about sustained use. Sixty questions every three
-hours, around the clock, is legal under it and comes to 14,000 questions a
+a burst; it says nothing about sustained use. Thirty questions every three
+hours, around the clock, is legal under it and comes to 7,000 questions a
 month from one account paying $25 — and even a human asking steadily
 through a working day costs more than they pay. The monthly cap is what
 makes a single account unable to cost more than it brings in.
+
+At 30 a window the monthly cap becomes the binding limit quickly: 150
+searches against 30 a window is five full sittings, so somebody who uses a
+whole window has spent six days' worth of their month. That shape is
+deliberate — the month is what bounds the bill — but the monthly number is
+the one to raise first if real subscribers start hitting it.
 
 **The monthly assistant cap is the number most likely to lose money.** At
 250 questions on `claude-opus-5` with `max_tokens` 16000, a subscriber who
@@ -284,10 +306,15 @@ once one real month of usage has been billed.
 The search number is low because one call is not one Tavily credit. It
 fans out to a search per marketplace plus a page extract, so a call costs
 five or six credits and an analysis costs around a dozen. Forty per three
-hours is about 240 credits per window for one account, and the monthly cap
+hours is about 180 credits per window for one account, and the monthly cap
 of 150 is roughly 900 credits a month. A hundred subscribers all maxing out
 is 90,000 credits a month — check what the plan actually includes before
 promoting to that many people.
+
+Every limit here is per account. Nothing caps the **total**, so 100
+subscribers is 100 times the worst case. The only hard ceiling on the bill
+is a spend cap set with Anthropic and Tavily themselves, which no bug in
+this code can bypass.
 
 ## A free account spends nothing
 
