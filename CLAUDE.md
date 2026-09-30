@@ -108,34 +108,106 @@ section expecting them to be broken, that information is out of date.
 
 ## Payments
 
-Premium is granted by `supabase/functions/stripe-webhook`, which writes to
-`entitlements` when Stripe reports a payment. `verify_jwt` is off — Stripe
-has no Supabase session to send — so the signature check is the entire
-security boundary, and without it anyone who found the URL could POST
-themselves a pro row.
+Premium is granted by `supabase/functions/commas-webhook`, which writes to
+`entitlements` when Commas reports a payment. `verify_jwt` is off — Commas
+has no Supabase session to send — so the HMAC-SHA256 signature check is the
+entire security boundary, and without it anyone who found the URL could
+POST themselves a pro row. A signature failure answers 401, which is what
+Commas asks for.
 
-The account is matched by `client_reference_id`, appended to the payment
-link by `openCheckout`. Only the first event knows who paid; renewals and
-cancellations carry a Stripe customer and nothing else, which is why
-`entitlements.stripe_customer_id` records the mapping at checkout time.
+Commas is the **merchant of record**: they are the seller on the
+customer's statement and they carry the tax and compliance for the sale.
 
-Secrets, both server-side only: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
+Checkout is minted per person by `supabase/functions/commas-checkout`
+rather than being a link in the bundle. There is nothing to paste and no
+account id in a query string: the function reads the caller from the token
+it verifies and puts it in the session's `metadata`, and Commas returns it
+on the payment webhook. That is the whole mechanism by which money becomes
+premium, and it is now out of the customer's reach.
 
-Only `STRIPE_WEBHOOK_SECRET` is required. Signature verification runs on
-WebCrypto and never touches the API key, so the endpoint works without one.
-`STRIPE_SECRET_KEY` buys one thing: the exact `current_period_end` for a new
-subscription, which the `checkout.session.completed` payload does not carry.
-When that lookup fails the function grants `pro` anyway with a 32-day
-estimate, and the next `customer.subscription.updated` — which *does* carry
-the real date in its payload — corrects it.
+Commas is the rebranded FanBasis and the API still answers on the FanBasis
+host. Two details are worth not re-deriving, because getting either wrong
+produces a 401 that reads exactly like a bad key:
 
-That is not defensive decoration. The secret held an API key's *id* rather
-than the key (`mk_...`, which the dashboard shows next to the key itself),
+- base `https://www.fanbasis.com`, every endpoint under `/public-api/`
+  (sandbox: `https://qa.dev-fan-basis.com`, via `COMMAS_API_BASE`)
+- the key goes in an **`x-api-key`** header, not `Authorization: Bearer`
+
+`POST /public-api/checkout-sessions` requires `product.title`,
+`amount_cents` and `type`, plus `subscription.frequency_days` when `type`
+is `subscription`; `metadata` and `success_url` are accepted; the response
+carries `payment_link`.
+
+Secrets, both server-side only: `COMMAS_API_KEY`, `COMMAS_WEBHOOK_SECRET`.
+
+Field names inside the webhook payload have not yet been seen against a
+real event, so every read tries several spellings and unhandled events are
+logged in full. Collapse those to one path once a real payload has
+arrived — and delete this paragraph when they are no longer guesses.
+
+Nobody can buy it twice. Every upgrade button is hidden from a premium
+account, `openCheckout` refuses outright when `checkoutIsPro`, and
+`commas-checkout` checks the database again before spending anything —
+hiding a control is a drawing decision, and this is the one that spends
+money. Two subscriptions on one account is one person charged twice for
+one thing: a refund, an apology and quite possibly a chargeback.
+
+Subscription events carry only the customer, so the account is found by
+customer — fine with one subscription, wrong with two, because cancelling
+either looks identical and would switch the account off while the other
+kept charging. `commas_subscription_id` records which subscription the
+account is actually on, and an event about any other one is left alone.
+
+## Leaving
+
+Settings → Billing offers a premium member **Cancel subscription**, which
+opens a prefilled email to `SUPPORT_EMAIL`. No form, no reason, no
+retention flow, and the copy promises the time already paid for.
+
+That is a placeholder and should be replaced with a real one-tap cancel as
+soon as the Commas subscriptions endpoint is confirmed — but it is an
+honest one, which the alternative was not. Stripe's own portal used to sit
+here and was the right answer while Stripe took the money. Left in place
+it would have been actively harmful: `billing-portal` answers
+`no_subscription` for every account now, and the app rendered that as
+"nothing is being charged" — a comforting sentence shown to somebody whose
+card is charged monthly. A button that tells a paying customer they are not
+paying is how a cancellation becomes a chargeback. `tests/billing.mjs`
+fails if it comes back.
+
+Removing premium from somebody who pays means cancelling with Commas, not
+clearing the row. A live subscription re-grants `pro` at the next renewal
+event and the revoke silently undoes itself, so `revoke_premium` returns a
+warning naming the subscription when one is recorded.
+
+## Stripe is gone
+
+It was the processor until the switch to Commas. The payment links are
+deactivated, every subscription on that account is cancelled, no Stripe
+function is deployed, and nothing in `src/` calls Stripe.
+`stripe-webhook` and `billing-portal` stay in `supabase/functions` with a
+`RETIRED` header, as the record of how it worked — including the 52.08%
+partner split and why that number was not 50.
+
+Two things from that period are still worth knowing.
+
+**A processor that splits payments automatically is a feature you can
+lose.** Stripe divided every charge at the moment the card was charged, on
+the first payment and each renewal. Whether Commas can pay a second party
+is unconfirmed, so a partner split is currently a manual transfer. Settle
+that before promising anyone a percentage.
+
+**A secret that is the wrong kind of string still looks set.**
+`STRIPE_SECRET_KEY` held an API key's *id* rather than the key (`mk_...`,
+which the dashboard shows right next to the key itself),
 `subscriptions.retrieve` threw, the handler returned 500, and a completed
 checkout granted nothing for a day. The payment was never in doubt — only
-the expiry lookup was — so nothing about that failure should have reached
-the customer. A wrong key now logs its own diagnosis at boot instead of
-surfacing as a generic 500 hours later.
+an expiry lookup was — so nothing about that failure should have reached
+the customer. Hence two habits worth keeping in anything new: check a
+key's shape at boot and log the diagnosis there, and never let an optional
+lookup fail a grant.
+
+## Granting by hand
 
 `docs/granting-premium.md` covers granting and removing by hand, which is
 still how comped accounts and support fixes work. Two helpers installed by
@@ -154,40 +226,6 @@ rights — so without it any signed-in visitor could promote themselves.
 Revoking from `anon` and `authenticated` by name would not help; the grant
 lives on `PUBLIC` and they inherit it. `tests/premiumfns.mjs` fails if
 either line is removed.
-
-Nobody can buy it twice. Every upgrade button is hidden from a premium
-account, and `openCheckout` refuses outright when `checkoutIsPro` — hiding
-a control is a drawing decision, and this is the one that spends money.
-Two subscriptions on one account is one person charged twice for one
-thing: a refund, an apology and quite possibly a chargeback.
-
-Subscription events carry only the customer, so the account is found by
-customer — fine with one subscription, wrong with two, because cancelling
-either looks identical and would switch the account off while the other
-kept charging. `stripe_subscription_id` records which subscription the
-account is actually on, and an event about any other one is left alone.
-
-Leaving is as easy as arriving. Settings -> Billing offers a premium
-member **Manage subscription**, which calls `billing-portal` for a
-short-lived link into Stripe's own portal: cancel, change card, read
-invoices. Stripe's page rather than a cancel button of ours, because a
-homegrown one is a deploy away from disagreeing with Stripe about whether
-somebody still pays us — and because a subscription that feels like a trap
-gets charged back rather than cancelled.
-
-`billing-portal` needs a real `STRIPE_SECRET_KEY`; there is no offline way
-to mint a portal link, so unlike the webhook it cannot degrade. It reads
-the Stripe customer from `entitlements` against the id in a verified token
-and never from the request — a caller-supplied customer id would open
-somebody else's billing. An account with no `stripe_customer_id` (comped,
-or granted by hand) gets a 404 `no_subscription`, which the app renders as
-an explanation rather than an error. Stripe's portal must also be switched
-on once in the dashboard.
-
-Removing premium from somebody who pays means cancelling in Stripe, not
-clearing the row. A live subscription re-grants `pro` at the next renewal
-event and the revoke silently undoes itself, so `revoke_premium` returns a
-warning naming the subscription when one is recorded.
 
 ## Limits
 

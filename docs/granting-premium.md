@@ -24,10 +24,10 @@ nothing, and print success, which is exactly the mistake people make when
 fixing an account in a hurry. These say `No account with the address …`
 instead. The address is matched ignoring case and surrounding spaces.
 
-`revoke_premium` also warns you when the person still has a live Stripe
-subscription recorded, because clearing the row does not stop Stripe. See
-**Removing premium** below — that ordering matters more than anything else
-on this page.
+`revoke_premium` also warns you when the person still has a live
+subscription recorded, because clearing the row does not stop the
+processor from billing them. See **Removing premium** below — that ordering
+matters more than anything else on this page.
 
 Only `service_role` and the SQL Editor may call these. Postgres grants
 `EXECUTE` to `PUBLIC` by default, and `PUBLIC` includes the roles a browser
@@ -74,15 +74,15 @@ date somebody first subscribed.
 
 **Read this before revoking anyone who has actually paid.**
 
-Clearing the row does not stop Stripe. If the subscription is still live, the
-next `customer.subscription.updated` event writes `pro` straight back and your
-revoke silently undoes itself — hours later, with nothing in the database
-explaining why. Cancelling in Stripe is the real revoke.
+Clearing the row does not stop the processor. If the subscription is still
+live, the next renewal event writes `pro` straight back and your revoke
+silently undoes itself — hours later, with nothing in the database
+explaining why. Cancelling with the processor is the real revoke.
 
-**Someone who pays.** Cancel in Stripe and stop: dashboard → **Customers** →
-their email → **Cancel subscription**. The webhook receives
-`customer.subscription.deleted` and sets them to free by itself. No SQL at
-all. If you want it gone immediately rather than on the event, cancel first,
+**Someone who pays.** Cancel in the Commas dashboard and stop: find them by
+email and cancel the subscription there. The webhook receives
+`subscription.canceled` and sets them to free by itself. No SQL at all. If
+you want it gone immediately rather than on the event, cancel first,
 then run `revoke_premium`.
 
 **A comped or test account.** No subscription exists, so the row is the only
@@ -136,10 +136,16 @@ which would otherwise surface as "still free" rather than as a stale session.
 
 ## This is no longer the only route
 
-`supabase/functions/stripe-webhook` now writes these same rows automatically
-on `checkout.session.completed`, and sets `plan = 'free'` when a subscription
-is cancelled. Everything here is still correct and still used — for comped
-accounts, for support fixes, and for the times an event has not landed.
+`supabase/functions/commas-webhook` now writes these same rows
+automatically on `payment.succeeded`, and sets `plan = 'free'` when a
+subscription is cancelled or refunded. Everything here is still correct and
+still used — for comped accounts, for support fixes, and for the times an
+event has not landed.
+
+Stripe was the processor before Commas and is gone: its links are
+deactivated and every subscription on that account is cancelled. A row
+carrying `stripe_subscription_id` is history, not something still being
+billed.
 
 The expiry is the backstop in both cases: it is set from the paid period, so
 premium lapses on its own even if a cancellation event is missed entirely.

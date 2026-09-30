@@ -1,4 +1,20 @@
 // ═══════════════════════════════════════════════════════════════
+// RETIRED — Stripe is no longer this app's payment processor.
+//
+// Not deployed, and nothing in the app calls it. Commas took over: see
+// supabase/functions/commas-checkout and commas-webhook.
+//
+// Kept rather than deleted because it is the only record of how the Stripe
+// integration worked, including the 52.08% partner split and why that
+// number is not 50 — and because "at this moment" was how the switch was
+// described, which is not the same as never.
+//
+// Before redeploying either of these: every Stripe subscription on the
+// account is cancelled, and the payment links are deactivated. Turning the
+// function back on does not turn those back on.
+// ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
 // supabase/functions/stripe-webhook/index.ts
 //
 // The thing that was missing. Somebody pays, Stripe tells this endpoint,

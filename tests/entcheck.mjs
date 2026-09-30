@@ -120,8 +120,9 @@ console.log("\nWhen the session predates refresh tokens");
 }
 
 /* ── who is offered it, and how loudly ─────────────────────────────────
-   Stripe grants premium by itself and the app re-reads the plan on tab
-   focus, so this is a fallback for a webhook that failed — not a step.
+   The payment webhook grants premium by itself and the app re-reads the
+   plan on tab focus, so this is a fallback for a webhook that failed — not
+   a step.
 
    A full-width button reading "I've paid — check again" is the product
    telling a customer it does not trust its own payments, on the screen
@@ -180,7 +181,7 @@ console.log("\nHow prominent it is, and who sees it");
   ok("a premium account is not offered it at all",
      (await page.getByRole("button", { name: /check again|Re-check my plan/i }).count()) === 0);
   ok("premium still gets a way out instead",
-     (await page.getByRole("button", { name: /manage subscription/i }).count()) === 1);
+     (await page.getByRole("button", { name: /cancel subscription/i }).count()) === 1);
   await ctx.close();
 }
 

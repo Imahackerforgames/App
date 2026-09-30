@@ -226,63 +226,30 @@ function genericName(t) {
   return out.length >= 3 ? out : stripPrices(String(t || ""));
 }
 
-/* Where "Upgrade to premium" sends people: a Stripe Payment Link.
+/* Checkout. $25/month, taken by Commas.
 
-   Paste yours from the Stripe dashboard (Product catalogue → your product →
-   Create payment link). Leaving it empty is safe — the button says so and
-   does nothing, rather than opening a broken tab at somebody who is trying
-   to give you money.
+   Commas is the merchant of record, which is the part that matters here:
+   they are the seller on the customer's statement, and they carry the tax
+   and compliance for the sale rather than this app doing it.
 
-   This is a public URL by design. It is not a key and carries no secret;
-   the secret key lives only in the Edge Function's environment. */
-/* Checkout. $25/month, and half of every payment goes to the partner
-   automatically — Stripe splits it at the moment the card is charged, on
-   the first payment and on every renewal, so neither side has to remember
-   to send the other anything.
+   There is no link to paste. A Commas checkout page is created through
+   their API, per person, by the commas-checkout Edge Function — so the
+   account id is fixed to the session when the session is made rather than
+   appended to a static URL the customer could edit. That is the entire
+   mechanism by which a payment is matched to an account, and it is now out
+   of the customer's reach.
 
-   52.08% is kept here rather than a round 50. A clean half of the sticker
-   price is not a clean half of the money: Stripe takes $1.03, and with a
-   destination charge the whole of that lands on this side. 52.08% is what
-   makes both sides bank $11.99. Perfectly even is not possible — $25 less
-   $1.03 is $23.97, an odd number of cents — so one side gets the extra
-   penny, and it goes to the side paying the server bills.
+   Stripe used to be here, with two live payment links and a 52.08% split
+   that paid a partner automatically out of every charge. It is gone: the
+   links are deactivated, every subscription on that account is cancelled,
+   and nothing in the app calls Stripe any more. The functions are kept in
+   supabase/functions for the record, undeployed.
 
-   Verified against real Stripe records, not arithmetic: a $1 test charge
-   showed a fee of exactly 33c, confirming 2.9% + 30c.
-
-   An existing subscription keeps whatever percentage it was created with.
-   Editing this link does NOT change anybody already paying — those have to
-   be updated one at a time. Worth remembering before promising a partner a
-   new split.
-
-   The account id is appended as client_reference_id by openCheckout, and
-   it is the only thing that lets the webhook match a payment to an
-   account. A link opened without it takes money attached to nobody. */
-const STRIPE_CHECKOUT_URL = "https://buy.stripe.com/6oU14p1AkbAgaRkc4I7wA03";
-
-/* Kept so the two are never confused again. Both are $25 and both are
-   live links; this one sends everything here and predates the partner. */
-const STRIPE_SOLO_URL = "https://buy.stripe.com/3cI28t6UE0VCaRkecQ7wA00";
-
-/* Who takes the money: "stripe" or "commas".
-
-   One switch rather than a rewrite, because a payment system is the worst
-   possible thing to swap in a single irreversible step. Both paths stay
-   whole and deployed while the new one is proven, and going back is this
-   line rather than a revert.
-
-   It also has to stay this way for a while after the switch. A customer
-   who subscribed through Stripe is still billed by Stripe — subscriptions
-   do not move between processors — so stripe-webhook must keep running and
-   keep renewing them long after new signups stop going there. Turning it
-   off the day this flips is how existing subscribers quietly lose access
-   they are still paying for.
-
-   Commas differs in one way that matters here: its checkout page is
-   created through its API per person, so the link is minted server-side
-   with the account id fixed to the session, rather than appended to a
-   static URL the customer could edit. */
-const PAYMENT_PROVIDER = "stripe";
+   One thing did not survive the move and is worth writing down rather than
+   rediscovering: Stripe split each payment at the moment the card was
+   charged. Whether Commas can pay a second party automatically is not
+   settled, so a partner split is currently a manual transfer. Settle that
+   before promising anyone a percentage. */
 const COMMAS_CHECKOUT_FN = `${SUPABASE_URL}/functions/v1/commas-checkout`;
 
 /* The signed-in account, kept here so openCheckout can read it without a
@@ -374,7 +341,6 @@ async function fetchQuota(endpoint) {
 }
 
 const AI_FN = `${SUPABASE_URL}/functions/v1/ai-assistant`;
-const PORTAL_FN = `${SUPABASE_URL}/functions/v1/billing-portal`;
 
 /** The signed-in user's access token, for the JWT-gated Edge Functions.
 
@@ -4054,7 +4020,7 @@ function PremiumModal({ feature, onClose }) {
         </button>
 
         <p style={{ fontSize: 11, color: C.dead, margin: "10px 0 0", lineHeight: 1.55 }}>
-          Already paid? Premium appears on its own once Stripe confirms it.
+          Already paid? Premium appears on its own once the payment clears.
         </p>
       </div>
     </div>
@@ -4077,7 +4043,7 @@ function PremiumGate({ title, blurb, onUpgrade }) {
         Upgrade to premium
       </button>
       <p style={{ fontSize: 11, color: C.dead, margin: "14px 0 0", lineHeight: 1.55 }}>
-        Already paid? Premium appears on its own once Stripe confirms it.
+        Already paid? Premium appears on its own once the payment clears.
       </p>
     </div>
   );
@@ -4087,18 +4053,10 @@ function PremiumGate({ title, blurb, onUpgrade }) {
    drift apart, and so an unset link fails visibly here rather than opening a
    blank tab for a customer. */
 function openCheckout() {
-  if (!STRIPE_CHECKOUT_URL) {
-    alert("The checkout link hasn't been set yet. Add your Stripe payment link to STRIPE_CHECKOUT_URL in src/App.jsx.");
-    return;
-  }
-
-  /* The account id rides along as client_reference_id, and Stripe hands it
-     back on the webhook. It is the entire mechanism by which a payment is
-     matched to an account — without it money arrives attached to nobody and
-     somebody has to reconcile it by hand.
-
-     Sending someone to checkout signed out would therefore take their money
-     and be unable to upgrade them, so that does not happen. */
+  /* The account id is what the payment is matched to. The server reads it
+     from the token rather than from anything sent here, but it still has to
+     exist — sending somebody to checkout signed out would take their money
+     and leave nobody to upgrade. */
   if (!checkoutUserId) {
     alert("Sign in first, so your payment can be matched to your account.");
     return;
@@ -4124,42 +4082,35 @@ function openCheckout() {
     return;
   }
 
-  if (PAYMENT_PROVIDER === "commas") {
-    /* Commas mints its checkout page through its API, so the link does not
-       exist until the server asks for one with this account's id fixed to
-       the session.
+  /* Commas mints its checkout page through its API, so the link does not
+     exist until the server asks for one with this account's id fixed to
+     the session.
 
-       That means a round trip, and a round trip inside a click handler is
-       exactly what Safari treats as an unsolicited popup. So the tab is
-       opened first, synchronously, while the click is still trusted, and
-       pointed at the link once it arrives. A tab that says "Opening
-       checkout…" for a second is a great deal better than a blocked popup
-       somebody reads as the payment being broken. */
-    const tab = window.open("", "_blank", "noopener,noreferrer");
-    if (tab) {
-      tab.document.write(
-        "<title>Opening checkout…</title>" +
-        "<body style=\"margin:0;min-height:100vh;display:grid;place-items:center;" +
-        "background:#0B0708;color:#F5EFEE;font:14px ui-sans-serif,system-ui,sans-serif\">" +
-        "Opening checkout…</body>",
-      );
-    }
-    startCommasCheckout()
-      .then(({ ok, url, note }) => {
-        if (ok && url) { if (tab) tab.location.href = url; else window.location.href = url; return; }
-        if (tab) tab.close();
-        alert(note);
-      })
-      .catch(() => {
-        if (tab) tab.close();
-        alert("Couldn't reach the payment provider. Check your connection and try again.");
-      });
-    return;
+     That means a round trip, and a round trip inside a click handler is
+     exactly what Safari treats as an unsolicited popup. So the tab is
+     opened first, synchronously, while the click is still trusted, and
+     pointed at the link once it arrives. A tab that says "Opening
+     checkout…" for a second is a great deal better than a blocked popup
+     somebody reads as the payment being broken. */
+  const tab = window.open("", "_blank", "noopener,noreferrer");
+  if (tab) {
+    tab.document.write(
+      "<title>Opening checkout…</title>" +
+      "<body style=\"margin:0;min-height:100vh;display:grid;place-items:center;" +
+      "background:#0B0708;color:#F5EFEE;font:14px ui-sans-serif,system-ui,sans-serif\">" +
+      "Opening checkout…</body>",
+    );
   }
-
-  const url = new URL(STRIPE_CHECKOUT_URL);
-  url.searchParams.set("client_reference_id", checkoutUserId);
-  window.open(url.toString(), "_blank", "noopener,noreferrer");
+  startCommasCheckout()
+    .then(({ ok, url, note }) => {
+      if (ok && url) { if (tab) tab.location.href = url; else window.location.href = url; return; }
+      if (tab) tab.close();
+      alert(note);
+    })
+    .catch(() => {
+      if (tab) tab.close();
+      alert("Couldn't reach the payment provider. Check your connection and try again.");
+    });
 }
 
 /* Asks the server for a Commas checkout page belonging to this account.
@@ -4180,34 +4131,34 @@ async function startCommasCheckout() {
 
 /* The other direction: out of a subscription rather than into one.
 
-   Stripe's own billing portal, not a cancel button of ours. Cancelling is
-   the moment somebody is most likely to feel tricked, and Stripe's page is
-   built and maintained by the company that actually knows what is being
-   charged — ours would be one deploy away from disagreeing with them.
+   This used to open Stripe's own billing portal, which was the right
+   answer while Stripe took the money: their page was built by the company
+   that actually knew what was being charged, so ours could never disagree
+   with it.
 
-   The link is minted server-side per request and expires, so there is
-   nothing to hardcode and nothing worth stealing out of the bundle. */
-async function openBillingPortal() {
-  const res = await fetch(PORTAL_FN, { method: "POST", headers: await fnHeaders(), body: "{}" });
-  const d = await res.json().catch(() => ({}));
+   Commas is the merchant of record now, and whether they expose a
+   customer-facing portal is not something this codebase knows. So this
+   does the one thing that is certainly true instead of guessing: it sends
+   the request to a person who can act on it.
 
-  if (res.ok && d.url) {
-    /* Same tab. A cancellation is a decision somebody came here to make,
-       and a popup blocker eating it would read as the app refusing to let
-       them leave — which is the exact impression this feature exists to
-       avoid. */
-    window.location.href = d.url;
-    return { ok: true };
-  }
+   Leaving that as a Stripe portal button would have been the worst of the
+   options available. Every account now returns "no subscription" from that
+   endpoint, and the app renders that as "nothing is being charged" — which
+   is a comforting sentence to show somebody whose card is being charged
+   every month. A button that tells a paying customer they are not paying
+   is how a cancellation becomes a chargeback.
 
-  /* Premium granted by hand rather than bought. Not a failure, and worth
-     saying out loud: somebody told there is nothing to cancel will stop
-     looking, where an error would send them to support. */
-  if (res.status === 404 && d.error === "no_subscription") {
-    return { ok: false, note: "This account was given premium directly, so there's no subscription to manage. Nothing is being charged." };
-  }
-
-  return { ok: false, note: d.error || "Couldn't open billing just now. Try again in a moment." };
+   Replace this with a real one-tap cancel the moment the Commas
+   subscriptions endpoint is confirmed. Until then this is honest, and
+   honest beats automatic. */
+function cancellationRequest(email) {
+  const subject = "Cancel my Reamp premium subscription";
+  const body = [
+    "Please cancel my Reamp premium subscription.",
+    "",
+    `Account: ${email || "(the address I'm writing from)"}`,
+  ].join("\n");
+  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 function Discover({ db, put, jump, go, isPro, requirePro }) {
@@ -5909,21 +5860,14 @@ function Essentials() {
 }
 
 function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitlement, entLoading, entNote }) {
- /* Opening the portal is a round trip to Stripe, so the button has to say
-    it is working. Without that, a slow network reads as a dead button and
-    the person taps it repeatedly. */
- const [portalBusy, setPortalBusy] = useState(false);
- const [portalNote, setPortalNote] = useState(null);
- const manageBilling = async () => {
-   setPortalBusy(true); setPortalNote(null);
-   try {
-     const r = await openBillingPortal();
-     /* On success the browser is already navigating to Stripe, so there is
-        nothing to say. Only a refusal needs words. */
-     if (!r.ok) setPortalNote(r.note);
-   } catch {
-     setPortalNote("Couldn't reach the server. Check your connection and try again.");
-   } finally { setPortalBusy(false); }
+ /* Cancelling opens a mail window rather than a page of ours, so there is
+    no round trip to wait on. The note below it is still needed: a mail app
+    that does not open leaves the tap looking ignored, and the address has
+    to be readable so somebody can write to it by hand instead. */
+ const [cancelNote, setCancelNote] = useState(null);
+ const requestCancellation = () => {
+   window.location.href = cancellationRequest(user?.email);
+   setCancelNote(`Opening your email app, addressed to ${SUPPORT_EMAIL}. If nothing opens, write to that address and we'll cancel it.`);
  };
 
  /* null | "terms" | "privacy" */
@@ -6126,16 +6070,17 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
      same screen that shows the plan. */}
  {isPro && (
  <>
- <button onClick={manageBilling} disabled={portalBusy} className="fx fx-chip"
+ <button onClick={requestCancellation} className="fx fx-chip"
  style={{ ...pillBtn(false), width: "100%", padding: "12px", marginTop: 12, fontWeight: 700,
-   cursor: portalBusy ? "wait" : "pointer",
+   cursor: "pointer",
    display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
- <CreditCard size={15} /> {portalBusy ? "Opening…" : "Manage subscription"}
+ <CreditCard size={15} /> Cancel subscription
  </button>
  <p style={{ fontSize: 11.5, color: C.dead, marginTop: 10, lineHeight: 1.6 }}>
- Cancel, change your card or read your invoices. Opens Stripe, who handle
- the payment — this app never sees your card. Cancelling keeps premium
- until the end of the period you've already paid for.
+ Opens an email to us and we'll cancel it — no form, no reason needed, and
+ we'll confirm by reply. You keep premium until the end of the period
+ you've already paid for. Your receipts come from our payment processor,
+ who take the payment; this app never sees your card.
  </p>
  {/* An answer, not more instructions.
 
@@ -6147,10 +6092,10 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
 
      A response to a tap has to be visibly a response. Accent colour and
      some weight, so the eye lands on it. */}
- {portalNote && (
+ {cancelNote && (
  <p role="status" style={{ fontSize: 13, marginTop: 10, lineHeight: 1.6,
    color: C.accent, fontWeight: 600 }}>
- {portalNote}
+ {cancelNote}
  </p>
  )}
  </>
@@ -6166,15 +6111,16 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  </button>
  <p style={{ fontSize: 11.5, color: C.dead, marginTop: 10, lineHeight: 1.6 }}>
  Premium unlocks the AI assistant, AI Discover and Product Search. Payment
- is handled by Stripe — this app never sees your card. Your account is
- upgraded as soon as the payment goes through, with nothing to press.
+ is handled by our payment processor — this app never sees your card. Your
+ account is upgraded as soon as the payment goes through, with nothing to
+ press.
  </p>
  </>
  )}
 
  {/* A fallback, deliberately quiet.
 
-     Stripe's webhook grants premium by itself, and the app re-reads the
+     The payment webhook grants premium by itself, and the app re-reads the
      plan whenever you come back to this tab, so nobody should ever need
      this. It exists because a webhook can fail — ours did, for a day,
      over a mistyped key — and somebody who has paid and sees Free needs
@@ -6220,7 +6166,7 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  onChange={(v) => put("settings", { ...db.settings, startingBalance: +v || 0 })} />
  <p style={{ fontSize: 11.5, color: C.dead, marginTop: 6, lineHeight: 1.6 }}>
  Current Balance on Home = this number + realized profit from every sale you've logged.
- Card details are entered on Stripe, never here.
+ Card details are entered on the payment page, never here.
  </p>
  </Group>
 

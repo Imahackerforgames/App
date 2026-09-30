@@ -1,20 +1,29 @@
-/* "Manage subscription" — leaving has to be as easy as arriving.
+/* "Cancel subscription" — leaving has to be as easy as arriving.
 
    A subscription you cannot see or stop from inside the product feels like
    a trap, and somebody who feels trapped disputes the charge rather than
    cancelling it. That costs more than the subscription was worth and takes
    the goodwill with it.
 
-   Two halves are checked. In the browser: who is offered the button and
-   what they are told. In the endpoint's source: that the Stripe customer
-   is read from our own table rather than from the request, which is the
-   whole of the authorisation on it. */
+   What this checks changed when Stripe went away. There is no billing
+   portal to open any more: Stripe's portal was the right answer while
+   Stripe took the money, and Commas — the merchant of record now — is not
+   known to expose one. So the button sends a cancellation request to a
+   person instead, and the thing worth protecting is that it never claims
+   to have done something it has not.
+
+   The failure this exists to prevent is specific and was one deploy away.
+   billing-portal answers "no_subscription" for every account now, and the
+   app rendered that as "nothing is being charged" — a comforting sentence
+   shown to somebody whose card is charged every month. Assertion 5 is what
+   stops that button coming back. */
 import { chromium } from "playwright";
 import { readFileSync } from "fs";
 
 let pass = 0, fail = 0;
 const ok = (n, c, x = "") => { c ? (pass++, console.log("  PASS  " + n)) : (fail++, console.log("  FAIL  " + n + (x ? "  <- " + x : ""))); };
 
+const SUPPORT = "reamp.store@gmail.com";
 const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 
 async function settingsAs(plan, routes = () => {}) {
@@ -35,9 +44,6 @@ async function settingsAs(plan, routes = () => {}) {
       token: "t", id: uid, refresh: "r", expiresAt: Math.floor(Date.now() / 1000) + 3600 }));
     localStorage.setItem(`ros:u:${uid}:profile`, JSON.stringify({ username: "member", onboarded: true,
       name: "Member", state: "Georgia", zip: "30106", theme: "obsidian" }));
-    window.__nav = [];
-    /* window.location.href cannot be stubbed, so the click is observed by
-       blocking the navigation at the network layer instead. */
   }, "u1");
   await page.goto("http://localhost:4173/", { waitUntil: "networkidle" });
   await page.waitForTimeout(1400);
@@ -50,62 +56,53 @@ async function settingsAs(plan, routes = () => {}) {
 {
   console.log("\n1. A premium member is offered a way out");
   const { ctx, page } = await settingsAs("pro");
-  const btn = page.getByRole("button", { name: /manage subscription/i });
+  const btn = page.getByRole("button", { name: /cancel subscription/i });
   ok("the button is there", (await btn.count()) === 1, String(await btn.count()));
 
   const body = await page.locator("body").innerText();
-  ok("it says cancelling is one of the things it does", /cancel/i.test(body));
   /* People hesitate to cancel because they fear losing time they paid for.
      Saying otherwise up front is the difference between cancelling and
      charging back. */
-  ok("and that paid-for time is not lost", /until the end of the period/i.test(body), body.slice(-400));
+  ok("paid-for time is not lost", /until the end of the period/i.test(body), body.slice(-400));
   ok("card details are still disclaimed", /never sees your card/i.test(body));
+  /* No reason, no retention flow, no "are you sure". A cancellation made
+     awkward is a chargeback with extra steps. */
+  ok("no reason is demanded", /no reason needed/i.test(body));
   await ctx.close();
 }
 {
   console.log("\n2. A free account is offered the upgrade, not the exit");
   const { ctx, page } = await settingsAs("free");
-  ok("no manage button", (await page.getByRole("button", { name: /manage subscription/i }).count()) === 0);
+  ok("no cancel button", (await page.getByRole("button", { name: /cancel subscription/i }).count()) === 0);
   ok("upgrade is offered instead", (await page.getByRole("button", { name: /upgrade to premium/i }).count()) >= 1);
   await ctx.close();
 }
 
-/* ── 3. premium that was granted by hand ────────────────────────────────
-   There is no Stripe customer, so there is nothing to manage. That is the
-   likeliest non-paying case, and it must read as an explanation rather
-   than as a broken button. */
-{
-  console.log("\n3. A comped account is told there is nothing to cancel");
-  const { ctx, page } = await settingsAs("pro", async (p) => {
-    await p.route(/\/functions\/v1\/billing-portal/, (r) => r.fulfill({
-      status: 404, contentType: "application/json", body: JSON.stringify({ error: "no_subscription" }) }));
-  });
-  await page.getByRole("button", { name: /manage subscription/i }).click();
-  await page.waitForTimeout(1000);
-  const body = await page.locator("body").innerText();
-  ok("it explains rather than erroring", /given premium directly/i.test(body), body.slice(-300));
-  ok("and confirms no money is moving", /nothing is being charged/i.test(body));
-  await ctx.close();
-}
+/* ── 3. the tap does something, visibly ─────────────────────────────────
+   A mailto cannot be observed from in here — window.location.href is not
+   stubbable and an external protocol never reaches the network layer. What
+   can be checked is the half that a person actually depends on: that the
+   tap produces an answer naming the address, so somebody whose mail app
+   does not open is not left staring at a button that did nothing.
 
-/* ── 4. the endpoint refusing ───────────────────────────────────────────
-   Whatever goes wrong, a member must get words rather than a dead button. */
+   That exact failure has happened on this screen before, which is why it
+   is asserted rather than assumed. */
 {
-  console.log("\n4. A failure says something");
-  const { ctx, page } = await settingsAs("pro", async (p) => {
-    await p.route(/\/functions\/v1\/billing-portal/, (r) => r.fulfill({
-      status: 503, contentType: "application/json",
-      body: JSON.stringify({ error: "Billing isn't configured yet. Please contact support." }) }));
-  });
-  await page.getByRole("button", { name: /manage subscription/i }).click();
-  await page.waitForTimeout(1000);
-  ok("the reason is shown", /contact support/i.test(await page.locator("body").innerText()));
+  console.log("\n3. Tapping it answers, and names the address");
+  const { ctx, page } = await settingsAs("pro");
+  await page.getByRole("button", { name: /cancel subscription/i }).click({ force: true });
+  await page.waitForTimeout(600);
 
-  /* Reported as "it does not do anything". It did — it showed the reason
-     in C.dim at 12px, directly beneath an 11.5px C.dead paragraph, so the
-     reply was a third block of grey that read like more help text. A
+  const note = page.locator("[role=status]").filter({ hasText: /email/i }).first();
+  ok("an answer appears", (await note.count()) === 1, String(await note.count()));
+  const text = await note.innerText().catch(() => "");
+  ok("it names the address to write to", text.includes(SUPPORT), text);
+  ok("and says what to do if no mail app opens", /if nothing opens/i.test(text), text);
+
+  /* Reported once as "it does not do anything". It did — it showed the
+     reply in C.dim at 12px directly beneath an 11.5px C.dead paragraph, so
+     the answer was a third block of grey that read like more help text. A
      response nobody can pick out is the same as no response. */
-  const note = page.locator("[role=status]").filter({ hasText: /contact support/i }).first();
   const seen = await note.evaluate((el) => {
     const s = getComputedStyle(el);
     const prev = el.previousElementSibling ? getComputedStyle(el.previousElementSibling) : null;
@@ -122,28 +119,54 @@ async function settingsAs(plan, routes = () => {}) {
 
 await b.close();
 
-/* ── 5. the authorisation, read as source ───────────────────────────────
-   This link can cancel a subscription and read somebody's invoices. If the
-   customer id were taken from the request, anyone who guessed one could
-   open another member's billing. The account comes from a verified token;
-   the customer comes from the row that account owns. */
+/* ── 4. what the button actually builds ─────────────────────────────────
+   Read as source, because the browser cannot see a mailto leave. The
+   address has to be the real support inbox and the mail has to arrive
+   already saying what it is for — a blank mail window is a cancellation
+   somebody abandons. */
 {
-  console.log("\n5. The portal can only ever open the caller's own billing");
-  const fn = readFileSync("/home/user/App/supabase/functions/billing-portal/index.ts", "utf8");
-  const code = fn.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  console.log("\n4. The request is addressed and prefilled");
+  const src = readFileSync("/home/user/App/src/App.jsx", "utf8");
+  const fn = (src.split(/function cancellationRequest\s*\(/)[1] || "").split(/\n}/)[0];
 
-  ok("the caller's identity is checked against Supabase, not decoded locally",
-     /auth\/v1\/user/.test(code) && /Authorization: auth/.test(code));
-  ok("the customer is looked up by the verified user id",
-     /user_id=eq\.\$\{encodeURIComponent\(userId\)\}/.test(code), "must not come from the request body");
-  ok("no customer id is ever read off the request",
-     !/req\.json\(\)/.test(code) && !/body\.customer/.test(code),
-     "a caller-supplied customer would open somebody else's billing");
-  ok("an unauthenticated caller gets 401", /401/.test(code));
-  ok("the service role is used only server-side for that lookup",
-     /SERVICE_KEY/.test(code) && !/SERVICE_KEY[^)]*\bjson\(/.test(code));
-  ok("a missing or wrong-shaped Stripe key is named, not swallowed",
-     /\^\(sk\|rk\)_/.test(code) && /503/.test(code));
+  ok("it is a mailto to the support address", /mailto:\$\{SUPPORT_EMAIL\}/.test(fn), fn.slice(0, 200));
+  ok("the support address is the one in the legal pages",
+     new RegExp(`SUPPORT_EMAIL\\s*=\\s*"${SUPPORT}"`)
+       .test(readFileSync("/home/user/App/src/legal.jsx", "utf8")));
+  ok("the subject says what it is", /subject=/.test(fn) && /[Cc]ancel my Reamp premium/.test(fn));
+  ok("the account is named in the body so it can be acted on",
+     /body=/.test(fn) && /Account:/.test(fn));
+  ok("both are encoded rather than pasted raw",
+     (fn.match(/encodeURIComponent/g) || []).length >= 2, fn);
+}
+
+/* ── 5. Stripe's portal cannot come back by accident ────────────────────
+   The endpoint is still deployed and still works; it is the *button* that
+   must not return. Every account now has no Stripe customer, so that
+   button tells a paying member their card is not being charged. */
+{
+  console.log("\n5. The app no longer opens a Stripe billing portal");
+  const src = readFileSync("/home/user/App/src/App.jsx", "utf8");
+  /* Comments stripped, because the question is what reaches a screen. The
+     reasoning for the removal is written above the code that replaced it
+     and quotes the sentence it removed, which is not the same as shipping
+     it. Whole-line // only, so URLs survive. */
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  ok("nothing calls billing-portal", !/billing-portal/.test(code),
+     "that endpoint answers no_subscription for every account now");
+  ok("there is no portal helper left to call", !/openBillingPortal/.test(code));
+  ok("and no 'nothing is being charged' copy survives",
+     !/nothing is being charged/i.test(code),
+     "shown to somebody who is being charged, that is how a cancel becomes a chargeback");
+
+  /* Both Stripe functions stay in the repo as the record of how it worked.
+     A header saying so is what stops the next person deploying one back
+     into a live Commas setup. */
+  for (const f of ["stripe-webhook", "billing-portal"]) {
+    const head = readFileSync(`/home/user/App/supabase/functions/${f}/index.ts`, "utf8").slice(0, 700);
+    ok(`${f} is marked retired at the top of the file`, /RETIRED/.test(head), head.slice(0, 120));
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

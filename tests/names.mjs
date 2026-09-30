@@ -28,7 +28,12 @@ const ok = (n, c, x = "") => { c ? (pass++, console.log("  PASS  " + n)) : (fail
    lucide and the whole app. */
 const src = readFileSync("/home/user/App/src/App.jsx", "utf8");
 const a = src.indexOf("const stripPrices");
-const b = src.indexOf('/* Where "Upgrade to premium"', a);
+/* Anchored on a declaration rather than on a comment. This used to slice
+   up to a comment beginning "Where Upgrade to premium sends people", which
+   was deleted with Stripe — taking all 43 of these assertions down with
+   it, in a change that had nothing to do with product names. A const is a
+   thing the code needs; prose above it is not. */
+const b = src.indexOf("const COMMAS_CHECKOUT_FN", a);
 if (a === -1 || b === -1) throw new Error("could not find genericName in App.jsx");
 const js = transformSync(
   src.slice(a, b) + "\nexport { genericName, stripPrices };",

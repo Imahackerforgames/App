@@ -3,13 +3,16 @@
    Four buttons open checkout and they must not drift apart, which is why
    openCheckout is one function and why this checks all four.
 
-   The test adapts to whether the Stripe link has been pasted in yet. Before
-   it is set, the right behaviour is to say so and open nothing — a button
-   that opens a blank tab at someone trying to give you money is worse than
-   one that explains itself. After it is set, the link must carry the
-   account id, because that is the entire mechanism by which Stripe's
-   webhook matches a payment to an account. Both states are correct at
-   different times, so both are asserted. */
+   There is no link to paste any more. Commas mints a checkout page through
+   its API, so the browser opens a tab immediately — synchronously, while
+   the click is still trusted, because Safari blocks a popup opened after an
+   await — and points it at the link once the server returns one.
+
+   That moves the thing this file used to assert. The account id is no
+   longer in the URL: the Edge Function reads it from the token it verifies.
+   So the assertion flips from "the link carries the id" to "no URL the
+   browser builds carries it", which is the stronger property — an id in a
+   query string is an id the customer can edit. */
 import { chromium } from "playwright";
 let pass = 0, fail = 0;
 const ok = (n, c, x = "") => { c ? (pass++, console.log("  PASS  " + n)) : (fail++, console.log("  FAIL  " + n + (x ? "  <- " + x : ""))); };
@@ -23,16 +26,36 @@ await page.route("**://*.supabase.co/**", (r) => r.abort());
 await page.route(/\/rest\/v1\//, (r) => r.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
 await page.route(/\/rest\/v1\/entitlements/, (r) => r.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
 
+/* The link now comes from the server. Stubbed so the test never touches
+   Commas, and so the returned URL is distinctive enough to recognise. */
+const PAY_LINK = "https://www.fanbasis.com/pay/session-xyz";
+await page.route(/\/functions\/v1\/commas-checkout/, (r) => r.fulfill({
+  status: 200, contentType: "application/json", body: JSON.stringify({ url: PAY_LINK }),
+}));
+
 const UID = "u1";
 await page.addInitScript((uid) => {
   localStorage.setItem("ros:session", JSON.stringify({ email: "t@example.com", provider: "email",
     token: "t", id: uid, refresh: "r", expiresAt: Math.floor(Date.now() / 1000) + 3600 }));
   localStorage.setItem(`ros:u:${uid}:profile`, JSON.stringify({ username: "tester", onboarded: true,
     theme: "heat", state: "CA", zip: "90001", radius: 25 }));
-  /* Capture rather than navigate, so a real checkout is never opened. */
+  /* Capture rather than navigate, so a real checkout is never opened.
+     The stub has to be a usable tab: the Commas path writes a holding page
+     into it and then sets location.href, and a bare object would throw
+     inside the click handler instead of failing the assertion below. */
   window.__opened = [];
   window.__alerts = [];
-  window.open = (u) => { window.__opened.push(String(u)); return { closed: false }; };
+  window.__sent = [];
+  window.open = (u) => {
+    window.__opened.push(String(u));
+    const tab = {
+      closed: false,
+      document: { write: () => {} },
+      close() { this.closed = true; },
+      location: { set href(v) { window.__sent.push(String(v)); }, get href() { return ""; } },
+    };
+    return tab;
+  };
   window.alert = (m) => { window.__alerts.push(String(m)); };
 }, UID);
 
@@ -42,8 +65,11 @@ await page.waitForTimeout(1400);
 const press = async (label, steps) => {
   await steps();
   await page.getByRole("button", { name: /Upgrade to premium/ }).first().click({ force: true });
-  await page.waitForTimeout(300);
-  return page.evaluate(() => ({ opened: window.__opened, alerts: window.__alerts }));
+  /* Longer than the old 300ms on purpose: there is a round trip to the
+     checkout function between the click and the tab being pointed
+     anywhere. */
+  await page.waitForTimeout(700);
+  return page.evaluate(() => ({ opened: window.__opened, alerts: window.__alerts, sent: window.__sent }));
 };
 
 const entries = [
@@ -75,26 +101,35 @@ const entries = [
 
 let fired = 0;
 for (const [label, steps] of entries) {
-  const { opened, alerts } = await press(label, steps).catch(() => ({ opened: [], alerts: [] }));
-  const url = opened.at(-1);
+  const { opened, alerts, sent } = await press(label, steps)
+    .catch(() => ({ opened: [], alerts: [], sent: [] }));
   const note = alerts.at(-1) || "";
 
-  if (url) {
+  if (opened.length) {
     fired++;
-    ok(`${label}: opens a real https link`, /^https:\/\//.test(url), url);
-    /* The whole point. Without this the webhook receives a payment with no
-       account attached and somebody reconciles it by hand. */
-    ok(`${label}: carries the account id`,
-       new URL(url).searchParams.get("client_reference_id") === UID, url);
+    /* Opened blank and immediately, inside the click. A tab opened after
+       the fetch resolves is a tab Safari refuses to open at all, which
+       reads to the customer as the payment being broken. */
+    ok(`${label}: opens the tab straight away, blank`, opened.at(-1) === "", opened.at(-1));
+    ok(`${label}: then points it at the link the server minted`,
+       sent.at(-1) === PAY_LINK, JSON.stringify(sent));
+    ok(`${label}: said nothing went wrong`, note === "", note);
   } else if (note) {
     fired++;
-    ok(`${label}: explains the link isn't set yet`, /checkout link hasn't been set/i.test(note), note);
-    ok(`${label}: and opens nothing`, opened.length === 0, JSON.stringify(opened));
+    ok(`${label}: explained itself instead of opening nothing`, note.length > 0, note);
   } else {
-    ok(`${label}: did something`, false, "neither opened a link nor said why");
+    ok(`${label}: did something`, false, "neither opened a tab nor said why");
   }
 }
 ok("all four entry points respond", fired === 4, String(fired));
+
+/* The id is the server's business now. It used to ride in the query string,
+   where the customer could edit it and pay as somebody else; the function
+   reads it from the token it verifies instead. Nothing the browser builds
+   should mention it. */
+ok("no URL the browser builds carries the account id",
+   await page.evaluate((uid) => ![...window.__opened, ...window.__sent].some((u) => u.includes(uid)), UID),
+   "an id in a query string is an id the customer can change");
 
 /* Signed out, checkout must refuse. Taking money that cannot be matched to
    an account is worse than not taking it. */
@@ -105,7 +140,7 @@ const signedOut = await page.evaluate(() => ({ opened: window.__opened, alerts: 
 ok("signed out, nothing was opened on load", signedOut.opened.length === 0, JSON.stringify(signedOut.opened));
 
 const body = await page.locator("body").innerText();
-ok("no stale payment provider named anywhere", !/commas/i.test(body), body.match(/.{0,40}commas.{0,20}/i)?.[0]);
+ok("no retired payment provider named anywhere", !/stripe/i.test(body), body.match(/.{0,40}stripe.{0,20}/i)?.[0]);
 
 /* ── Somebody who already pays must not be able to buy it twice ─────────
    Two subscriptions on one account is one person charged twice for one
