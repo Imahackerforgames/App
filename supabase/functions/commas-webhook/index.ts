@@ -150,9 +150,14 @@ Deno.serve(async (req: Request) => {
   if (!(await signatureValid(raw, sig))) {
     /* The only thing between this endpoint and anyone on the internet
        granting themselves premium. A failure is a refusal, never a
-       warning. */
+       warning.
+
+       401 rather than the 400 the Stripe path returns, because Commas
+       asks for it: a signature failure is an authentication problem, not
+       a malformed request, and keeping them apart is what makes a log
+       readable when something is actually wrong. */
     console.error("commas-webhook: signature rejected.");
-    return json({ error: "Invalid signature." }, 400);
+    return json({ error: "Invalid signature." }, 401);
   }
 
   let event: any;

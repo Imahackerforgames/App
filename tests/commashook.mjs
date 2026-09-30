@@ -69,15 +69,20 @@ const paid = (over = {}) => ({
 });
 
 /* ── 1. the only thing between this and the internet ────────────────── */
+/* 401 and not 400, which is what Commas asks for: a signature failure is
+   an authentication problem rather than a malformed request, and keeping
+   the two apart is what makes a log readable when something is actually
+   wrong. The Stripe path answers 400 because Stripe does not say
+   otherwise; the difference is deliberate, not drift. */
 console.log("\n1. An unsigned or wrongly signed request grants nothing");
 {
   const { res, writes } = await run(paid(), { signature: "" });
-  ok("no signature is refused", res.status === 400, String(res.status));
+  ok("no signature is refused", res.status === 401, String(res.status));
   ok("and nothing written", writes.length === 0);
 }
 {
   const { res, writes } = await run(paid(), { signature: "deadbeef" });
-  ok("a wrong signature is refused", res.status === 400, String(res.status));
+  ok("a wrong signature is refused", res.status === 401, String(res.status));
   ok("and nothing written", writes.length === 0);
 }
 {
@@ -87,7 +92,7 @@ console.log("\n1. An unsigned or wrongly signed request grants nothing");
   const other = JSON.stringify(paid({ metadata: { user_id: "attacker" } }));
   const sig = createHmac("sha256", SECRET).update(other).digest("hex");
   const { res, writes } = await run(paid(), { signature: sig });
-  ok("a signature over a different body is refused", res.status === 400, String(res.status));
+  ok("a signature over a different body is refused", res.status === 401, String(res.status));
   ok("and nothing written", writes.length === 0);
 }
 {
