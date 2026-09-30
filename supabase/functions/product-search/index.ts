@@ -111,15 +111,15 @@ const envWhole = (name: string, fallback: number): number => {
    Tavily search per marketplace plus a page extract — so one call is five
    or six Tavily credits and a single analysis is around a dozen.
 
-   Thirty per three hours is therefore roughly 180 credits per window for
-   one account, or about fifteen analyses. The limit that matters is not how
+   Forty per three hours is therefore roughly 240 credits per window for
+   one account, or about twenty analyses. The limit that matters is not how
    many times somebody presses a button, it is how many credits that button
    spends, and a plan measured in a thousand credits a month does not
    survive many hours at two hundred.
 
-   Worth knowing what thirty buys, because one press is not one unit: an
-   analysis is two calls to this function, so thirty is fifteen analyses, not
-   thirty. Anyone quoting the number to a customer should quote it that way.
+   Worth knowing what forty buys, because one press is not one unit: an
+   analysis is two calls to this function, so forty is twenty analyses, not
+   forty. Anyone quoting the number to a customer should quote it that way.
 
    Three hours rather than one. A window exists to bound a burst, and someone
    researching properly does twenty searches in an evening and then stops —
@@ -132,19 +132,21 @@ const envWhole = (name: string, fallback: number): number => {
 
    Counted in Postgres, not in memory: Edge Functions run on many instances
    and an in-process counter is bypassed by landing on a different one. */
-const SEARCH_MAX = envWhole("SEARCH_MAX", 30), SEARCH_WINDOW = envWhole("SEARCH_WINDOW_SECONDS", 3 * 60 * 60);
+const SEARCH_MAX = envWhole("SEARCH_MAX", 40), SEARCH_WINDOW = envWhole("SEARCH_WINDOW_SECONDS", 3 * 60 * 60);
 
 /* And how many in a month.
 
    The window limit stops a burst. It does nothing about sustained use:
-   thirty every three hours, around the clock, is perfectly legal under it
-   and comes to seven thousand searches a month from one account paying $25.
+   forty every three hours, around the clock, is perfectly legal under it
+   and comes to nine thousand searches a month from one account paying $25.
 
-   Note how quickly the monthly cap becomes the binding one: 150 a month
-   against 30 a window is five full sittings. Somebody who uses a whole
-   window has spent six days' worth of their month. That is a deliberate
-   shape — the month is what bounds the bill — but it is the number to raise
-   first if real subscribers start hitting it.
+   Note how quickly the monthly cap becomes the binding one, and that
+   raising the window made it worse rather than better: 150 a month against
+   40 a window is under four full sittings. Somebody who uses a whole window
+   has spent eight days' worth of their month in an evening. The window is
+   not really the allowance any more — the month is — so raising one without
+   the other mostly changes WHEN a subscriber hits a wall, not how much they
+   get. This is the number to raise first if real subscribers complain.
 
    So there is a second limit the first cannot substitute for. A hundred
    and fifty a month is five a day — far more than a real subscriber uses,
@@ -199,7 +201,7 @@ async function quotaFor(bucket: string, max: number, windowSeconds: number): Pro
 }
 
 /* Hourly and monthly together, so a caller can see which one is limiting
-   them. Reporting only the three-hour balance would read as "30 left" to
+   them. Reporting only the three-hour balance would read as "40 left" to
    somebody the monthly cap is refusing, which is worse than no number. */
 async function bothQuotas(caller: string) {
   const [hour, month] = await Promise.all([
