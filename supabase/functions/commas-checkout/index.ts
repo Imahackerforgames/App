@@ -23,7 +23,10 @@
 //   COMMAS_API_BASE  optional. Set it to https://qa.dev-fan-basis.com to
 //                    run against Commas' sandbox instead of live.
 //   COMMAS_PRICE_CENTS / COMMAS_FREQUENCY_DAYS  optional overrides, so the
-//                    price can change without a deploy.
+//                    price can change without a deploy. Set
+//                    COMMAS_PRICE_CENTS=0 for a free run-through and delete
+//                    it afterwards; anything unparseable falls back to the
+//                    real price rather than to a cheaper one.
 //
 // ── Where the shape below comes from ──
 //
@@ -45,8 +48,32 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const API_KEY = Deno.env.get("COMMAS_API_KEY") ?? "";
 const API_BASE = (Deno.env.get("COMMAS_API_BASE") ?? "https://www.fanbasis.com").replace(/\/+$/, "");
-const PRICE_CENTS = Number(Deno.env.get("COMMAS_PRICE_CENTS") ?? "2500");
-const FREQUENCY_DAYS = Number(Deno.env.get("COMMAS_FREQUENCY_DAYS") ?? "30");
+/* Read defensively, because these two are the values somebody changes in a
+   hurry from a dashboard to test something — and then changes back.
+   Number("") is 0 and Number("free") is NaN; either one reaches Commas as a
+   nonsense amount_cents and comes back a 400 that reads like an outage.
+
+   A bad value falls back to the real price, never to a cheaper one. Getting
+   this wrong in the safe direction means a refused test; getting it wrong
+   in the other means selling premium for nothing and not noticing. */
+const whole = (name: string, fallback: number, min: number) => {
+  const raw = Deno.env.get(name);
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < min) {
+    console.error(
+      `commas-checkout: ${name} is "${raw}", which is not a whole number >= ${min}. Using ${fallback}.`,
+    );
+    return fallback;
+  }
+  return n;
+};
+
+/* Zero is allowed here on purpose: a free subscription is how this gets
+   tested end to end without moving money. Commas may refuse it, and if it
+   does the refusal is logged with their own message. */
+const PRICE_CENTS = whole("COMMAS_PRICE_CENTS", 2500, 0);
+const FREQUENCY_DAYS = whole("COMMAS_FREQUENCY_DAYS", 30, 1);
 const RETURN_URL = Deno.env.get("APP_URL") ?? "https://www.reamp.store";
 
 const CORS = {
@@ -143,7 +170,7 @@ Deno.serve(async (req: Request) => {
          is almost always a shape mismatch rather than an outage — the
          message names which field Commas did not like. */
       console.error(
-        `commas-checkout: POST ${endpoint} failed ${res.status}:`, body.slice(0, 600),
+        `commas-checkout: POST ${endpoint} failed ${res.status} (amount_cents=${PRICE_CENTS}):`, body.slice(0, 600),
         "\n  401 here means COMMAS_API_KEY is wrong, or was taken from the sandbox and sent at live.",
       );
       return json({ error: "Couldn't start checkout just now. Try again in a moment." }, 502);

@@ -255,17 +255,21 @@ const COMMAS_CHECKOUT_FN = `${SUPABASE_URL}/functions/v1/commas-checkout`;
 /* The signed-in account, kept here so openCheckout can read it without a
    round trip.
 
-   It has to be synchronous: reading storage first would put an await
-   between the click and window.open, and Safari blocks popups that are not
-   opened directly inside the click handler. A module-level value that the
-   app keeps current is the honest way to have it to hand. */
+   Kept here rather than read from storage inside the handler so the
+   sign-in check is synchronous: it has to answer before any request goes
+   out, because a checkout minted for nobody is money that arrives attached
+   to nobody. */
 let checkoutUserId = null;
 
-/* Whether that account already has premium, mirrored here for the same
-   reason as the id above: openCheckout runs inside a click handler and
-   cannot await a lookup without Safari treating the popup as unsolicited
-   and blocking it. */
+/* Whether that account already has premium, mirrored here rather than
+   looked up, so the guard in openCheckout costs nothing and cannot be
+   skipped by a slow request. */
 let checkoutIsPro = false;
+
+/* A checkout already on its way. Module-level because the four upgrade
+   buttons are four separate components with no shared state, and the thing
+   being protected is shared: one account's subscription. */
+let checkoutBusy = false;
 
 /* Whether this account has paid, read from the entitlements table.
 
@@ -4082,33 +4086,42 @@ function openCheckout() {
     return;
   }
 
+  /* One tap, one session. The button is disabled nowhere — it is four
+     different buttons in four places — so the guard lives here. Two taps
+     would mint two checkout sessions, and somebody who pays on both is
+     charged twice for one thing.
+
+     Never cleared on the success path, deliberately: the browser is
+     leaving, and a flag cleared just before navigation is a flag that
+     lets an impatient second tap through. */
+  if (checkoutBusy) return;
+  checkoutBusy = true;
+
   /* Commas mints its checkout page through its API, so the link does not
      exist until the server asks for one with this account's id fixed to
-     the session.
+     the session. That means a round trip before there is anywhere to go.
 
-     That means a round trip, and a round trip inside a click handler is
-     exactly what Safari treats as an unsolicited popup. So the tab is
-     opened first, synchronously, while the click is still trusted, and
-     pointed at the link once it arrives. A tab that says "Opening
-     checkout…" for a second is a great deal better than a blocked popup
-     somebody reads as the payment being broken. */
-  const tab = window.open("", "_blank", "noopener,noreferrer");
-  if (tab) {
-    tab.document.write(
-      "<title>Opening checkout…</title>" +
-      "<body style=\"margin:0;min-height:100vh;display:grid;place-items:center;" +
-      "background:#0B0708;color:#F5EFEE;font:14px ui-sans-serif,system-ui,sans-serif\">" +
-      "Opening checkout…</body>",
-    );
-  }
+     This used to open a tab first and point it at the link once it
+     arrived, to dodge Safari's popup blocking. It opened
+     `window.open("", "_blank", "noopener,noreferrer")` — and `noopener`
+     makes window.open return **null**, by specification. So the tab
+     opened, nothing here held a handle to it, the holding page was never
+     written into it, and the code fell through to redirecting this tab
+     instead. The customer got a blank about:blank stealing focus while
+     the real checkout loaded in the tab behind it.
+
+     Redirecting this tab is the fix and the better design regardless:
+     there is no popup, so there is nothing for a blocker to eat, and
+     leaving the site is what going to a payment page means. Commas sends
+     them back to success_url when it is done. */
   startCommasCheckout()
     .then(({ ok, url, note }) => {
-      if (ok && url) { if (tab) tab.location.href = url; else window.location.href = url; return; }
-      if (tab) tab.close();
+      if (ok && url) { window.location.href = url; return; }
+      checkoutBusy = false;
       alert(note);
     })
     .catch(() => {
-      if (tab) tab.close();
+      checkoutBusy = false;
       alert("Couldn't reach the payment provider. Check your connection and try again.");
     });
 }

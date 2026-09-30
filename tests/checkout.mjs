@@ -4,15 +4,26 @@
    openCheckout is one function and why this checks all four.
 
    There is no link to paste any more. Commas mints a checkout page through
-   its API, so the browser opens a tab immediately — synchronously, while
-   the click is still trusted, because Safari blocks a popup opened after an
-   await — and points it at the link once the server returns one.
+   its API, so there is a round trip before there is anywhere to go, and
+   then this tab is redirected to it.
 
-   That moves the thing this file used to assert. The account id is no
-   longer in the URL: the Edge Function reads it from the token it verifies.
-   So the assertion flips from "the link carries the id" to "no URL the
-   browser builds carries it", which is the stronger property — an id in a
-   query string is an id the customer can edit. */
+   It used to open a tab up front and point it at the link on arrival, to
+   dodge Safari's popup blocking. That shipped and was reported as landing
+   on a blank screen, because `window.open(..., "noopener")` returns
+   **null** by specification: the tab opened, nothing held a handle to it,
+   and the code fell through to redirecting this tab — leaving an
+   about:blank in front of a checkout page loading behind it.
+
+   So the popup assertion inverted. It is no longer "a tab is opened
+   synchronously" but "no tab is opened at all", checked through
+   Playwright's own popup event rather than a stub, because a stubbed
+   window.open is exactly what hid the bug: the stub returned a usable
+   object where the real browser returns null.
+
+   The account id is not in the URL either. The Edge Function reads it from
+   the token it verifies, so the assertion is that no URL the browser builds
+   carries it — stronger than the old "the link carries the id", because an
+   id in a query string is an id the customer can edit. */
 import { chromium } from "playwright";
 let pass = 0, fail = 0;
 const ok = (n, c, x = "") => { c ? (pass++, console.log("  PASS  " + n)) : (fail++, console.log("  FAIL  " + n + (x ? "  <- " + x : ""))); };
@@ -39,37 +50,46 @@ await page.addInitScript((uid) => {
     token: "t", id: uid, refresh: "r", expiresAt: Math.floor(Date.now() / 1000) + 3600 }));
   localStorage.setItem(`ros:u:${uid}:profile`, JSON.stringify({ username: "tester", onboarded: true,
     theme: "heat", state: "CA", zip: "90001", radius: 25 }));
-  /* Capture rather than navigate, so a real checkout is never opened.
-     The stub has to be a usable tab: the Commas path writes a holding page
-     into it and then sets location.href, and a bare object would throw
-     inside the click handler instead of failing the assertion below. */
-  window.__opened = [];
+  /* window.open is deliberately NOT stubbed. A stub that returns a usable
+     tab object is what let the about:blank bug through — the real browser
+     returns null for a noopener open, and the stub did not. Popups are
+     observed through Playwright instead, which sees what actually happens.
+
+     alert still is, because a real one blocks the run. */
   window.__alerts = [];
-  window.__sent = [];
-  window.open = (u) => {
-    window.__opened.push(String(u));
-    const tab = {
-      closed: false,
-      document: { write: () => {} },
-      close() { this.closed = true; },
-      location: { set href(v) { window.__sent.push(String(v)); }, get href() { return ""; } },
-    };
-    return tab;
-  };
   window.alert = (m) => { window.__alerts.push(String(m)); };
 }, UID);
 
-await page.goto("http://localhost:4173/", { waitUntil: "networkidle" });
+/* Any tab the app opens, as the browser reports it. Zero is the assertion.  */
+const popups = [];
+ctx.on("page", (p) => popups.push(p.url()));
+
+/* Every request the browser makes for the payment page, fulfilled with a
+   stub so nothing leaves for Commas and the redirect completes observably. */
+const navs = [];
+page.on("request", (r) => { if (r.url().startsWith(PAY_LINK)) navs.push(r.url()); });
+await page.route(PAY_LINK, (r) => r.fulfill({
+  status: 200, contentType: "text/html", body: "<title>Commas</title>checkout stub",
+}));
+
+const APP = "http://localhost:4173/";
+await page.goto(APP, { waitUntil: "networkidle" });
 await page.waitForTimeout(1400);
 
-const press = async (label, steps) => {
+/* Each entry point starts from a fresh load. It has to: a successful
+   checkout navigates away and leaves checkoutBusy set, deliberately, so
+   without a reload the second button in this list would correctly refuse to
+   do anything and the test would read that as a regression. */
+const press = async (steps) => {
+  const before = navs.length;
+  await page.goto(APP, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1300);
   await steps();
   await page.getByRole("button", { name: /Upgrade to premium/ }).first().click({ force: true });
-  /* Longer than the old 300ms on purpose: there is a round trip to the
-     checkout function between the click and the tab being pointed
-     anywhere. */
-  await page.waitForTimeout(700);
-  return page.evaluate(() => ({ opened: window.__opened, alerts: window.__alerts, sent: window.__sent }));
+  /* A round trip to the checkout function sits between the click and the
+     redirect, so this waits longer than a plain click would need. */
+  await page.waitForTimeout(1000);
+  return { went: navs.slice(before), url: page.url() };
 };
 
 const entries = [
@@ -101,43 +121,67 @@ const entries = [
 
 let fired = 0;
 for (const [label, steps] of entries) {
-  const { opened, alerts, sent } = await press(label, steps)
-    .catch(() => ({ opened: [], alerts: [], sent: [] }));
-  const note = alerts.at(-1) || "";
+  const { went, url } = await press(steps).catch(() => ({ went: [], url: "" }));
 
-  if (opened.length) {
+  if (went.length) {
     fired++;
-    /* Opened blank and immediately, inside the click. A tab opened after
-       the fetch resolves is a tab Safari refuses to open at all, which
-       reads to the customer as the payment being broken. */
-    ok(`${label}: opens the tab straight away, blank`, opened.at(-1) === "", opened.at(-1));
-    ok(`${label}: then points it at the link the server minted`,
-       sent.at(-1) === PAY_LINK, JSON.stringify(sent));
-    ok(`${label}: said nothing went wrong`, note === "", note);
-  } else if (note) {
-    fired++;
-    ok(`${label}: explained itself instead of opening nothing`, note.length > 0, note);
+    ok(`${label}: redirects to the link the server minted`, went.at(-1) === PAY_LINK, JSON.stringify(went));
+    /* This tab, not a new one. The whole reported bug was a second tab. */
+    ok(`${label}: lands on it in this tab`, url === PAY_LINK, url);
+    ok(`${label}: asked for it exactly once`, went.length === 1, JSON.stringify(went));
   } else {
-    ok(`${label}: did something`, false, "neither opened a tab nor said why");
+    ok(`${label}: went to checkout`, false, `stayed on ${url}`);
   }
 }
 ok("all four entry points respond", fired === 4, String(fired));
+
+/* The reported bug, as an assertion. Nothing may open a tab — not a
+   holding page, not a popup, nothing. A stray about:blank stealing focus
+   reads to a customer as the payment being broken, and it is worse than
+   that: they cannot see the page that did load behind it. */
+ok("no tab was opened at any point", popups.length === 0, JSON.stringify(popups));
 
 /* The id is the server's business now. It used to ride in the query string,
    where the customer could edit it and pay as somebody else; the function
    reads it from the token it verifies instead. Nothing the browser builds
    should mention it. */
 ok("no URL the browser builds carries the account id",
-   await page.evaluate((uid) => ![...window.__opened, ...window.__sent].some((u) => u.includes(uid)), UID),
-   "an id in a query string is an id the customer can change");
+   !navs.some((u) => u.includes(UID)), JSON.stringify(navs));
+
+/* ── one tap, one session ───────────────────────────────────────────────
+   Four buttons, no shared React state between them, and a round trip
+   between the click and leaving the page. Without a guard an impatient
+   double tap mints two checkout sessions, and somebody who completes both
+   is charged twice for one subscription. */
+{
+  console.log("\n-- tapped twice in a hurry --");
+  const fnCalls = [];
+  page.on("request", (r) => { if (/commas-checkout/.test(r.url())) fnCalls.push(r.url()); });
+
+  await page.goto(APP, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1300);
+  await page.getByRole("button", { name: /^Settings$/ }).click({ force: true });
+  await page.waitForTimeout(500);
+  const before = fnCalls.length;
+  const btn = page.getByRole("button", { name: /Upgrade to premium/ }).first();
+  await btn.click({ force: true });
+  await btn.click({ force: true }).catch(() => {});
+  await page.waitForTimeout(1200);
+  ok("two taps mint one checkout session, not two",
+     fnCalls.length - before === 1, `${fnCalls.length - before} calls`);
+}
 
 /* Signed out, checkout must refuse. Taking money that cannot be matched to
-   an account is worse than not taking it. */
+   an account is worse than not taking it. Back to the app's own origin
+   first — after a redirect this page is on the payment host, where the
+   app's localStorage does not exist. */
+await page.goto(APP, { waitUntil: "networkidle" });
 await page.evaluate(() => { localStorage.removeItem("ros:session"); });
+const navsBefore = navs.length;
 await page.reload({ waitUntil: "networkidle" });
 await page.waitForTimeout(1200);
-const signedOut = await page.evaluate(() => ({ opened: window.__opened, alerts: window.__alerts }));
-ok("signed out, nothing was opened on load", signedOut.opened.length === 0, JSON.stringify(signedOut.opened));
+ok("signed out, no checkout was started on load", navs.length === navsBefore, JSON.stringify(navs.slice(navsBefore)));
+ok("and still no tab was ever opened", popups.length === 0, JSON.stringify(popups));
 
 const body = await page.locator("body").innerText();
 ok("no retired payment provider named anywhere", !/stripe/i.test(body), body.match(/.{0,40}stripe.{0,20}/i)?.[0]);
@@ -203,9 +247,16 @@ ok("no retired payment provider named anywhere", !/stripe/i.test(body), body.mat
   ok("openCheckout refuses when the account is already premium",
      /if\s*\(\s*checkoutIsPro\s*\)/.test(fn), fn.slice(0, 200));
   ok("it says so rather than failing silently", /alert\(/.test(fn));
-  ok("the refusal comes before the tab is opened",
-     fn.indexOf("checkoutIsPro") < fn.indexOf("window.open"),
-     "a check after window.open is not a check");
+  ok("the refusal comes before anything is spent",
+     fn.indexOf("checkoutIsPro") < fn.indexOf("startCommasCheckout"),
+     "a check after the session is minted is not a check");
+  /* The other half of not charging twice: not two sessions from one
+     screen. Read as source because the race is hard to hit on demand. */
+  ok("a checkout already under way blocks a second one",
+     /if\s*\(\s*checkoutBusy\s*\)\s*return/.test(fn), fn.slice(0, 400));
+  ok("and the flag is not cleared on the way out",
+     fn.indexOf("window.location.href = url") < fn.indexOf("checkoutBusy = false"),
+     "clearing it before navigating lets an impatient second tap through");
   ok("checkoutIsPro tracks the plan the server reported",
      /useEffect\(\(\)\s*=>\s*\{\s*checkoutIsPro\s*=\s*isPro;?\s*\}/.test(src));
   ok("and is cleared on sign-out", /if\s*\(!user\)\s*checkoutIsPro\s*=\s*false/.test(src));
