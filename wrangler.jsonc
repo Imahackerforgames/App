@@ -1,0 +1,31 @@
+{
+  // Cloudflare Workers, serving this app as static assets.
+  //
+  // Why this file exists: Cloudflare's dashboard now creates Workers projects
+  // rather than Pages projects, and a Workers deploy with no config tries to
+  // auto-configure the Cloudflare Vite plugin. That plugin does not support
+  // Vite 5, so the deploy fails after a successful build with:
+  //
+  //   [ERROR] The version of Vite used in the project ("5.4.21") cannot be
+  //   automatically configured.
+  //
+  // Declaring the assets directory here makes it an assets-only deploy. No
+  // Vite plugin, no Worker script, no Vite upgrade — wrangler just uploads
+  // what `npm run build` produced.
+  "name": "app",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    // This app keeps its screen in React state rather than in the URL, so a
+    // request for any path has to come back as index.html. Pages used to
+    // infer this from the absence of a 404.html; Workers makes it explicit,
+    // which is better — the behaviour is written down rather than guessed.
+    //
+    // public/_redirects says the same thing and is still honoured, but this
+    // is the setting that actually governs it.
+    "not_found_handling": "single-page-application"
+  }
+  // Deliberately no "main" and no "binding": there is no Worker script. The
+  // backend is Supabase Edge Functions, which this does not touch. A binding
+  // is only valid alongside a "main", and adding one here would be rejected.
+}
