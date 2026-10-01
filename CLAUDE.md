@@ -146,10 +146,26 @@ commas.com is a plausible-looking guess that will not work.
 
 Secrets, both server-side only: `COMMAS_API_KEY`, `COMMAS_WEBHOOK_SECRET`.
 
-Field names inside the webhook payload have not yet been seen against a
-real event, so every read tries several spellings and unhandled events are
-logged in full. Collapse those to one path once a real payload has
-arrived — and delete this paragraph when they are no longer guesses.
+A real payment has now been seen, so the paid path reads one confirmed
+spelling each: `type` and `data` at the top level, `data.api_metadata.data.user_id`
+for the account, `data.subscription.id` for the subscription. Two findings
+from that payload are worth not re-deriving — **`buyer.id` came back null**,
+so `commas_customer_id` is usually empty and the subscription id is the only
+reliable key, and **`data` has no `id` of its own**, only `payment_id`, with
+the envelope carrying its own id.
+
+That second one is why nothing here may fall back to a bare `id` for the
+subscription. Such a fallback can only ever store a payment-shaped
+identifier, and the guard that asks whether a cancellation concerns the
+subscription an account is actually on would then compare a real
+subscription id against a payment id, decide the event belongs elsewhere,
+and leave a cancelled account on `pro` while the card stopped being charged.
+`tests/commashook.mjs` fails if the fallback returns.
+
+Cancellation and renewal events have still never been seen, so those reads
+deliberately still try several spellings. That is not leftover guesswork
+left lying around; it is the only honest thing to do about an event nobody
+has observed. Collapse them when one arrives.
 
 Nobody can buy it twice. Every upgrade button is hidden from a premium
 account, `openCheckout` refuses outright when `checkoutIsPro`, and

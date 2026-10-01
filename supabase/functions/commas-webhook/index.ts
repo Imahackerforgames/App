@@ -34,10 +34,22 @@
 // version of this file read `data.metadata.user_id`, found nothing, and
 // left a customer who had genuinely paid on the free plan.
 //
+// Two details from the real payload worth not re-deriving:
+//
+//   buyer.id was NULL. The payer is identified by buyer.email, not by an id,
+//   so commas_customer_id is usually empty and the subscription id is the
+//   only reliable key for matching an account to a later event.
+//
+//   data has no `id` of its own — there is payment_id, and the envelope has
+//   its own id. Nothing in this file may fall back to a bare `id` for the
+//   subscription, because both of those are payment-shaped identifiers.
+//
 // Still not observed, and still guessed: the renewal event's name, the
-// cancellation event's name, and the billing period's field. The period
-// falls back to 30 days, which is right because that is what this app asks
-// for when it creates the session.
+// cancellation event's name, and the billing period's field. The reads for
+// those deliberately still try several spellings — that is not leftover
+// guesswork, it is the only honest thing to do about an event nobody has
+// seen. The period falls back to 30 days, which is right because that is
+// what this app asks for when it creates the session.
 //
 // Signature: HMAC-SHA256 over the raw body in x-webhook-signature,
 // confirmed working — real events pass the check.
@@ -131,9 +143,14 @@ const GRACE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_PERIOD_DAYS = 30;
 
 /* Read a field that might be spelled several ways, at the top level or
-   nested. The first path in each call below is the observed one; the rest
-   are kept because they cost nothing and a shape that changed once can
-   change again. */
+   nested.
+
+   The number of paths a call passes is now meaningful rather than
+   incidental. One path means the spelling is confirmed against a real
+   event. Several means the event carrying it has never been seen, so the
+   alternatives are an honest admission rather than leftover guesswork.
+   Anyone adding a path should be able to say which of those two they are
+   doing. */
 const pick = (obj: any, ...paths: string[]): any => {
   for (const p of paths) {
     const v = p.split(".").reduce((o, k) => (o == null ? o : o[k]), obj);
@@ -174,8 +191,14 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Bad payload." }, 400);
   }
 
-  const type = String(pick(event, "type", "event", "event_type") ?? "");
-  const data = pick(event, "data", "payload", "object") ?? event;
+  /* Both confirmed against real events: the kind is top-level `type` and the
+     body is top-level `data`. The alternative spellings that used to be tried
+     here were guesses from before any payload had been seen, and a guess left
+     in place reads like knowledge. An unrecognised type falls through to the
+     default branch, which logs the whole event and does nothing — so being
+     wrong here is loud and harmless rather than quiet and costly. */
+  const type = String(pick(event, "type") ?? "");
+  const data = pick(event, "data") ?? event;
 
   try {
     switch (true) {
@@ -209,9 +232,7 @@ Deno.serve(async (req: Request) => {
              object under a further `data` key.
 
              This cost a customer their premium on a completed payment. */
-          pick(data, "api_metadata.data.user_id", "api_metadata.user_id",
-               "metadata.user_id", "metadata.userId", "metadata.reference",
-               "checkout_session.metadata.user_id", "session.metadata.user_id") ?? "",
+          pick(data, "api_metadata.data.user_id", "metadata.user_id") ?? "",
         );
         if (!userId) {
           /* Worth shouting about and worth a 200: retrying will not add an
@@ -232,8 +253,25 @@ Deno.serve(async (req: Request) => {
         const days = Number(pick(data, "subscription.frequency_days", "subscription.interval_days",
                                  "subscription.frequency", "frequency_days", "interval_days"))
           || DEFAULT_PERIOD_DAYS;
-        const subId = pick(data, "subscription.id", "subscription_id", "id");
-        const customerId = pick(data, "buyer.id", "customer_id", "customer.id", "customer");
+        /* data.subscription.id, confirmed on a real payment.
+
+           The bare "id" that used to sit at the end of this list is gone, and
+           its removal is the point of this clean-up rather than tidying. The
+           payload has no data.id, but it has payment_id and the envelope has
+           its own id — so the day one of those turns up as data.id, that
+           payment id would be written into commas_subscription_id. The guard
+           further down then compares a cancellation's real subscription id
+           against a payment id, decides the event is about some other
+           subscription, and leaves a cancelled account on pro while the card
+           stops being charged. A fallback that can only ever store the wrong
+           kind of identifier is worse than no fallback. */
+        const subId = pick(data, "subscription.id", "subscription_id");
+        /* buyer.id came back null on the real payment, so this is usually
+           null and commas_customer_id is usually empty. Left in because a
+           future event may carry it, but do not build anything on it: the
+           subscription id is the key that actually identifies the account,
+           and buyer.email is the only other thing observed to be populated. */
+        const customerId = pick(data, "buyer.id", "customer_id", "customer.id");
 
         await upsertEntitlement({
           user_id: userId,
@@ -254,8 +292,13 @@ Deno.serve(async (req: Request) => {
          than a literal. */
       case /^subscription\.(cancell?ed|ended|expired|deleted)$/i.test(type):
       case /^(payment|charge)\.(refunded|disputed|chargeback)$/i.test(type): {
-        const subId = pick(data, "subscription.id", "subscription_id", "id");
-        const customerId = pick(data, "buyer.id", "customer_id", "customer.id", "customer");
+        /* No cancellation event has ever been seen, so unlike the paid branch
+           above these stay multi-spelling on purpose — there is nothing to
+           collapse them to. The bare "id" is still dropped, because storing
+           or matching a payment id as a subscription id is wrong whether or
+           not the event has been observed. */
+        const subId = pick(data, "subscription.id", "subscription_id");
+        const customerId = pick(data, "buyer.id", "customer_id", "customer.id");
         const direct = String(
           pick(data, "api_metadata.data.user_id", "api_metadata.user_id",
                "metadata.user_id", "metadata.userId") ?? "",

@@ -160,6 +160,27 @@ console.log("\n2. A paid event upgrades the right account");
   const days = (new Date(w.expires_at).getTime() - Date.now()) / 86400e3;
   ok("expires about 31 days out", days > 30.5 && days < 31.5, `${days.toFixed(2)} days`);
 }
+
+/* A payment-shaped id must never become the subscription id.
+
+   The handler used to end its search with a bare "id", which looked like
+   harmless defensiveness and was not. data carries payment_id and the
+   envelope carries its own id, so the first event to put either at data.id
+   would have written a payment id into commas_subscription_id. The guard
+   that asks "is this cancellation about the subscription this account is
+   on?" would then compare a real subscription id against a payment id,
+   conclude the event belongs to some other subscription, and leave a
+   cancelled account on pro while their card stopped being charged.
+
+   This fails if the fallback is ever put back. */
+{
+  const { writes } = await run(paid({ id: "ORD-7KSX-D14D-N7H2", subscription: undefined }));
+  const w = writes[0] || {};
+  ok("a data.id is not mistaken for the subscription",
+     w.commas_subscription_id === null, JSON.stringify(w.commas_subscription_id));
+  ok("and the grant still happens on the metadata alone",
+     w.user_id === "user-abc" && w.plan === "pro", JSON.stringify([w.user_id, w.plan]));
+}
 {
   const { writes } = await run(paid({ subscription: { id: "loD97", frequency_days: 365 } }));
   const days = (new Date(writes[0].expires_at).getTime() - Date.now()) / 86400e3;
