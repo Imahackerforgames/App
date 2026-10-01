@@ -132,16 +132,35 @@ const settings = async (page) => {
      match that word to something they bought reports the charge as fraud. */
   ok("the price is stated", /\$25 a month/i.test(t), t.match(/.{0,40}a month.{0,20}/)?.[0]);
   ok("and that it renews on its own",
-     /renews automatically/i.test(t), t.match(/.{0,40}renews.{0,40}/)?.[0]);
+     /renews on its own/i.test(t), t.match(/.{0,40}renews.{0,40}/)?.[0]);
   ok("how to cancel", /Settings\s*→\s*Billing/i.test(t), t.match(/.{0,30}Billing.{0,30}/)?.[0]);
-  ok("that cancelling keeps the time already paid for",
-     /until the end of the period you've already paid for/i.test(t));
-  ok("the refund position, stated rather than left to be discovered",
-     /aren't refunded/i.test(t), t.match(/.{0,50}refund.{0,50}/)?.[0]);
+  /* The three halves of what cancelling means, because a customer who is
+     sure of only one of them will ask their bank about the other two: no
+     money back, no further charge, and the month already paid for is still
+     theirs to use. */
+  ok("no money back for the month you are in",
+     /don't get money back for the month you're in/i.test(t), t.match(/.{0,50}money back.{0,50}/)?.[0]);
+  ok("and no charge for the next one",
+     /don't pay for the next one/i.test(t));
+  ok("and premium keeps working until that month runs out",
+     /keep every premium feature until the month you've already paid for runs out/i.test(t));
   ok("and who the charge will come from",
      /statement says Commas/i.test(t), t.match(/.{0,40}statement.{0,40}/)?.[0]);
   ok("a free account is told it is never charged",
      /free account is never charged/i.test(t));
+  /* What is being bought, and that it is metered. A paid product that does
+     not say an allowance exists until the customer hits it is a complaint
+     waiting to happen — and the meter that answers it is named here. */
+  ok("the allowance is disclosed rather than discovered",
+     /fair-use allowance/i.test(t), t.match(/.{0,40}allowance.{0,40}/)?.[0]);
+  ok("and the screen that shows it is named",
+     /Settings\s*→\s*Usage/i.test(t), t.match(/.{0,30}Usage.{0,30}/)?.[0]);
+  ok("and that checking it is free",
+     /without it costing you anything/i.test(t));
+  /* The counter-intuitive part, said in the terms and not only in Settings:
+     the meters move for reasons the customer did not obviously cause. */
+  ok("that one press is not one unit",
+     /One press is not always one unit/i.test(t), t.match(/.{0,40}one unit.{0,60}/)?.[0]);
   await ctx.close();
 }
 

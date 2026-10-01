@@ -92,12 +92,20 @@ export const TERMS = [
   ["Your account",
     `One person, one account. Use a password you haven't used elsewhere and keep it to yourself — what happens under your account is your responsibility.`],
 
-  ["Premium, billing and cancelling",
-    `Premium is $25 a month. It renews automatically every 30 days until you cancel, and we'll tell you in the app before any price change affects you.`,
-    `Commas is the seller — the charge on your statement says Commas, not Reamp. They handle the payment and the tax on it.`,
-    `Cancel any time from Settings → Billing. Premium stays on until the end of the period you've already paid for, and nothing is charged after that.`,
-    `Charges already taken aren't refunded. Cancelling stops the next one — it doesn't reverse the last one.`,
+  ["What premium gets you",
+    `Product search and analysis across the marketplaces above, the AI assistant, AI Discover, product descriptions and the listing generator.`,
+    `All of it has a fair-use allowance — a limit per three hours and a limit per month — because each search and each answer costs us money to run. Settings → Usage shows exactly what you have left and when it refreshes, and you can look as often as you like without it costing you anything.`,
+    `One press is not always one unit: an analysis is two searches, AI Discover uses several, and product descriptions and the listing generator spend from the assistant's allowance. So those numbers move even when you haven't opened the chat, which is why the meters are there to look at.`],
+
+  ["Paying",
+    `Premium is $25 a month, charged every 30 days, and it renews on its own until you cancel. If the price ever changes we'll tell you in the app before it affects you.`,
+    `Commas is the seller — the charge on your statement says Commas, not Reamp. They take the payment and handle the tax on it.`,
     `A free account is never charged anything. The premium features are simply off.`],
+
+  ["Cancelling",
+    `Cancel any time from Settings → Billing.`,
+    `You don't get money back for the month you're in, and you don't pay for the next one. You keep every premium feature until the month you've already paid for runs out — you've paid for it, so it's yours.`,
+    `Nothing is charged after that, and your account stays open as a free one. Your inventory and sales stay where they are.`],
 
   ["Fair use",
     `Don't break the law with it, scrape our results, dodge the rate limits, get into other people's accounts, or resell access to Reamp.`],
