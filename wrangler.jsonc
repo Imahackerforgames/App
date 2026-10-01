@@ -21,8 +21,12 @@
     // infer this from the absence of a 404.html; Workers makes it explicit,
     // which is better — the behaviour is written down rather than guessed.
     //
-    // public/_redirects says the same thing and is still honoured, but this
-    // is the setting that actually governs it.
+    // This is the ONLY place that should express it. A public/_redirects
+    // file saying `/*  /index.html  200` — the idiom Pages and Netlify both
+    // accept — is rejected outright by Workers, which fails the deploy with
+    // "Infinite loop detected in this rule": a request for /index.html
+    // matches /* and is sent to /index.html, which matches again. That file
+    // existed here and cost a deploy; do not reintroduce it.
     "not_found_handling": "single-page-application"
   }
   // Deliberately no "main" and no "binding": there is no Worker script. The
