@@ -25,9 +25,15 @@ const monthly = (limit, used, days = 12) => ({
   resetsAt: new Date(Date.now() + days * 86400_000).toISOString(),
 });
 
+/* The defaults mirror the real limits — 40 a window for both, 75 and 50 a
+   month — so the fixture reads like a working account rather than drifting
+   a generation behind the functions. These are display tests: the panel has
+   to render whatever the server sends, so the numbers only need to be
+   self-consistent. Keeping them current is so a reader can tell at a glance
+   whether what they see here is what a subscriber sees. */
 async function app({ pro = true,
-                     search = quota(25, 9, 41, monthly(150, 40)),
-                     ask = quota(40, 12, 41, monthly(250, 60)),
+                     search = quota(40, 9, 41, monthly(75, 40)),
+                     ask = quota(40, 12, 41, monthly(50, 24)),
                      peeks = null } = {}) {
   const c = await b.newContext({ viewport: { width: 400, height: 1100 } });
   const page = await c.newPage();
@@ -69,7 +75,7 @@ const body = (page) => page.locator("body").innerText();
   const { c, page } = await app({ peeks });
   const t = await body(page);
   ok("the searches row", /Product searches/i.test(t));
-  ok("with the server's numbers", /16 of 25 left/.test(t), t.match(/.{0,30}of 25.{0,10}/)?.[0]);
+  ok("with the server's numbers", /31 of 40 left/.test(t), t.match(/.{0,30}of 40.{0,10}/)?.[0]);
   ok("the assistant row", /Assistant questions/i.test(t));
   ok("with its own numbers", /28 of 40 left/.test(t), t.match(/.{0,30}of 40.{0,10}/)?.[0]);
   /* The meter is only trustworthy if it explains why it moves. Four
@@ -121,9 +127,9 @@ const body = (page) => page.locator("body").innerText();
 // ── 4. an exhausted allowance says so ──────────────────────────────────
 {
   console.log("\n4. Running out is stated plainly");
-  const { c, page } = await app({ search: quota(25, 25), ask: quota(40, 3) });
+  const { c, page } = await app({ search: quota(40, 40), ask: quota(40, 3) });
   const t = await body(page);
-  ok("zero left is shown", /0 of 25 left/.test(t), t.match(/.{0,20}of 25.{0,10}/)?.[0]);
+  ok("zero left is shown", /0 of 40 left/.test(t), t.match(/.{0,20}of 40.{0,10}/)?.[0]);
   /* The window is three hours, so the copy must not say "hour". A screen
      that names the wrong reset is a screen lying to somebody who is paying,
      and they will believe it over the server. */
@@ -144,15 +150,15 @@ const body = (page) => page.locator("body").innerText();
 }
 
 /* ── 6. the monthly line ─────────────────────────────────────────
-   A person the monthly cap is refusing would otherwise read "16 of 25
-   left this hour" and conclude the app was broken. The hourly number is
+   A person the monthly cap is refusing would otherwise read "31 of 40
+   left this window" and conclude the app was broken. The window number is
    true and useless on its own. */
 {
   console.log("\n6. The monthly allowance is shown too");
   const { c, page } = await app();
   const t = await body(page);
-  ok("searches show the month", /110 of 150 left this month/.test(t), t.match(/.{0,40}this month.{0,10}/)?.[0]);
-  ok("questions show the month", /190 of 250 left this month/.test(t), t.match(/.{0,40}250.{0,20}/)?.[0]);
+  ok("searches show the month", /35 of 75 left this month/.test(t), t.match(/.{0,40}this month.{0,10}/)?.[0]);
+  ok("questions show the month", /26 of 50 left this month/.test(t), t.match(/.{0,40}of 50.{0,20}/)?.[0]);
   ok("with a reset date", /Resets [A-Z][a-z]{2} \d+/.test(t), t.match(/Resets [A-Za-z]{3} \d+/)?.[0]);
   await c.close();
 }

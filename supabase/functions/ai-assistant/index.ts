@@ -260,29 +260,32 @@ const envWhole = (name: string, fallback: number): number => {
    still permitting far more per day. */
 const ASK_MAX = envWhole("ASK_MAX", 40), ASK_WINDOW = envWhole("ASK_WINDOW_SECONDS", 3 * 60 * 60);
 
-/* And how many in a month.
+/* And how many in a month. This one is now sized from measured cost.
 
    The short window stops a burst. It does nothing about sustained use:
    forty every three hours, around the clock, is legal under it and comes to
    nine thousand questions a month from one account paying $25. Even a human
    asking steadily through a working day costs more than they pay.
 
-   Two hundred and fifty a month is about eight a day — well above what a
-   real subscriber uses, which is the point. It is not there to shape
-   normal behaviour, it is there so one account cannot cost more than it
-   pays.
+   Fifty, because the arithmetic was finally done. One question on
+   claude-opus-5 is roughly 2–4k input tokens at $5/MTok plus whatever of
+   the 16k max_tokens the answer and its thinking use at $25/MTok — about
+   three to ten cents typically, and forty-two at the cap. Fifty questions
+   is therefore $1.50–5 normally and $21 in the pathological case, against
+   $25 of revenue. That satisfies the rule this number exists for: a
+   subscriber who maxes out still costs less than they pay. Two hundred and
+   fifty did not — it was $12–25 typically and over $100 at the cap.
 
-   This is the number most likely to be wrong, and wrong in the expensive
-   direction. Two hundred and fifty answers on the largest model at 16k
-   tokens each plausibly costs more than the $25 the account pays. It has
-   not been lowered on a guess, because a guess is how it got here — but it
-   is the first thing to check against a real bill, and the rule it has to
-   satisfy is that a subscriber who maxes out still costs less than they
-   pay.
+   What it costs in generosity is real and should not be hidden: fifty is
+   about one and a half window-fulls, and four features draw on this
+   allowance, not just the chat. Twenty product descriptions and a few
+   listings is most of somebody's month. If subscribers complain, this is
+   the number to move — and move it with a measured cost per question in
+   hand, which is now possible where it was not before.
 
    Rolling rather than calendar: the window starts on the first question
    and resets thirty days later, which is what the counter already does. */
-const ASK_MONTH_MAX = envWhole("ASK_MONTH_MAX", 250), ASK_MONTH_WINDOW = 30 * 24 * 60 * 60;
+const ASK_MONTH_MAX = envWhole("ASK_MONTH_MAX", 50), ASK_MONTH_WINDOW = 30 * 24 * 60 * 60;
 
 /* Both windows together. Reporting only the three-hour balance would read
    as "40 left" to somebody the monthly cap is refusing. */

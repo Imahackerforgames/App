@@ -131,7 +131,7 @@ const envWhole = (name: string, fallback: number): number => {
    monthly number is sized against a real budget — see the long note in
    product-search before changing either of them. */
 const SEARCH_MAX = envWhole("SEARCH_MAX", 40), SEARCH_WINDOW = envWhole("SEARCH_WINDOW_SECONDS", 3 * 60 * 60);
-const SEARCH_MONTH_MAX = envWhole("SEARCH_MONTH_MAX", 40), SEARCH_MONTH_WINDOW = 30 * 24 * 60 * 60;
+const SEARCH_MONTH_MAX = envWhole("SEARCH_MONTH_MAX", 75), SEARCH_MONTH_WINDOW = 30 * 24 * 60 * 60;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });

@@ -4,8 +4,8 @@
    built so the panel can be looked at rather than described. tests/usage.mjs
    is the one that asserts.
 
-   The numbers below are the real limits — 40 per 3 hours for each, 40 and
-   250 a month — with a plausible amount spent, so the screenshot shows what
+   The numbers below are the real limits — 40 per 3 hours for each, 75 and
+   50 a month — with a plausible amount spent, so the screenshot shows what
    a working account actually sees rather than a full or empty meter. */
 import { chromium } from "playwright";
 
@@ -31,11 +31,11 @@ await page.route(/\/rest\/v1\/entitlements/, (r) => r.fulfill({
 }));
 await page.route(/\/functions\/v1\/product-search/, (r) => r.fulfill({
   status: 200, contentType: "application/json",
-  body: JSON.stringify({ quota: quota(40, 11, 96, monthly(40, 12, 21)) }),
+  body: JSON.stringify({ quota: quota(40, 11, 96, monthly(75, 31, 21)) }),
 }));
 await page.route(/\/functions\/v1\/ai-assistant/, (r) => r.fulfill({
   status: 200, contentType: "application/json",
-  body: JSON.stringify({ quota: quota(40, 7, 96, monthly(250, 64, 21)) }),
+  body: JSON.stringify({ quota: quota(40, 7, 96, monthly(50, 19, 21)) }),
 }));
 
 const UID = "u1";

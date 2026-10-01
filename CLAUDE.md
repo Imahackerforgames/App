@@ -243,9 +243,9 @@ when the database is unreachable is worse than the spending it prevents.
 |---|---|---|
 | Sign-in attempts | 10/hour | IP address |
 | Sign-in attempts | 6/hour | username |
-| Product searches | 40 per **3 hours** **and 40/month** | account |
+| Product searches | 40 per **3 hours** **and 75/month** | account |
 | Market research | shares the search buckets | account |
-| Assistant questions | 40 per **3 hours** **and 250/month** | account |
+| Assistant questions | 40 per **3 hours** **and 50/month** | account |
 
 The short window is three hours, not one. That is a bigger single sitting
 and a **lower** sustained rate than an hourly cap: an hourly 25 allowed 75
@@ -276,6 +276,26 @@ All six numbers are settable from Edge Function secrets without a deploy —
 `ASK_WINDOW_SECONDS`, `ASK_MONTH_MAX` — each clamped to 10x its default so
 a stray zero in a dashboard is not a policy change nobody reviewed.
 
+**One of those overrides is currently load-bearing, and must not be removed
+casually.** `SEARCH_MONTH_MAX=75` has to be set as an Edge Function secret,
+because the deployed `product-search` still carries the old default of 40
+while this repo and the deployed `market-research` say 75. They share one
+counter row, so without the secret the two endpoints disagree about the same
+allowance and a subscriber refused by `product-search` at 40 could keep
+spending through `market-research` up to 75.
+
+It is a secret rather than a redeploy on purpose. `product-search` is 38KB
+with 29 regex literals and no local toolchain here could deploy it from
+disk — only by pasting the source into an API call, which is exactly the
+risk the file's own header tells you not to take to change a number. The
+override is the mechanism that exists so you don't have to.
+
+Remove the secret the next time `product-search` is deployed properly
+(`supabase functions deploy product-search` from a machine with the CLI and
+an access token). At that point the code default of 75 takes over and the
+secret becomes a trap: a value in a dashboard silently overriding the number
+a future reader sees in the source.
+
 Two windows, because one cannot do the other's job. The short limit stops
 a burst; it says nothing about sustained use. Forty questions every three
 hours, around the clock, is legal under it and comes to 9,000 questions a
@@ -283,50 +303,58 @@ month from one account paying $25 — and even a human asking steadily
 through a working day costs more than they pay. The monthly cap is what
 makes a single account unable to cost more than it brings in.
 
-**The window is no longer really the allowance — the month is.** Search is
-40 a window against 40 a month, so one full sitting spends the entire month.
-Questions are 40 against 250, about six sittings. That shape is what a fixed
-credit budget forces on the search side; it is the first thing to revisit
-when the budget grows. Raising a window without raising its month only
-changes *when* a subscriber hits the wall, not how much they get.
+**The month is the real allowance, and both are now close to the window.**
+Search is 40 a window against 75 a month — just under two full sittings.
+Questions are 40 against 50, barely more than one. Raising a window without
+raising its month only changes *when* a subscriber hits the wall, not how
+much they get, so the monthly pair is what to move if subscribers complain.
 
-**The monthly assistant cap is the number most likely to lose money.** At
-250 questions on `claude-opus-5` with `max_tokens` 16000, a subscriber who
-maxes it out plausibly costs more in tokens than the $25 they pay. Nobody
-has measured it, so it has not been changed on a guess — but it is the
-first thing to check against a real bill, and the rule it has to satisfy is
-simple: a subscriber who maxes out must still cost less than they pay.
+**The assistant cap is now sized from measured cost.** One question on
+`claude-opus-5` is roughly 2–4k input tokens at $5/MTok plus whatever of the
+16000 `max_tokens` the answer and its thinking consume at $25/MTok — about
+three to ten cents typically, forty-two at the cap. Fifty questions is
+therefore $1.50–5 normally and $21 worst case, against $25 of revenue, which
+satisfies the rule the number exists for: **a subscriber who maxes out must
+still cost less than they pay.** 250 did not satisfy it — $12–25 typically
+and over $100 at the cap.
 
-Both are deliberately far above normal use. They are not there to shape
-behaviour, only to bound the worst case.
+What 50 costs in generosity is real. It is about one and a half
+window-fulls, and four features draw on the allowance rather than just the
+chat, so twenty product descriptions and a few listings is most of a
+subscriber's month. Move this number if subscribers complain — but move it
+with a measured cost per question in hand.
 
-Set them from measured cost per question, not from intuition. The numbers
-here were chosen before that measurement existed and should be revisited
-once one real month of usage has been billed.
+Token cost is not the whole bill: web search is enabled (`max_uses` 5) and
+Anthropic charges per search on top of tokens, so a question that searches
+costs more than the arithmetic above. Confirm that rate before treating the
+$21 worst case as the ceiling.
 
 The search number is low because one call is not one Tavily credit. It
 fans out to a search per marketplace plus a page extract, so a call costs
 five or six credits and an analysis costs around a dozen. Forty per three
 hours is about 240 credits per window for one account.
 
-**The monthly search cap is sized against a real budget, not a feeling.**
-Tavily's $100 plan is 15,000 credits, a call costs five or six of them, and
-the launch is planned for up to 50 subscribers: 50 × 40 × 6 = 12,000, with
-3,000 held back for the per-call estimate being optimistic. Fifty a month
-would land exactly on 15,000 with no margin, which is why it is 40.
+**At 75 the monthly search cap no longer fits the budget for 50
+subscribers, and that is a deliberate trade.** Tavily's $100 plan is 15,000
+credits and a call costs five or six, so the plan covers
+`15,000 / (75 × 6) = 33` subscribers at this cap. Forty was the number that
+fit fifty (50 × 40 × 6 = 12,000, with 3,000 in reserve), but 40 a month
+against a 40 window meant one sitting spent the whole month — a worse thing
+to ship than a budget that needs watching.
+
+So the cap is **no longer self-enforcing against the bill**, and two things
+have to be true in its place: a spend cap set at Tavily itself, which no bug
+in this code can bypass, and somebody watching the credit balance through
+the first month. Past roughly 33 paying subscribers the plan runs dry and
+search stops for everyone — including subscribers nowhere near their own cap.
 
 Recompute it when any input moves. The formula is `subscribers × cap ×
 credits-per-call ≤ plan credits`, and the input most likely to be wrong is
 credits-per-call — check it against a real Tavily bill after month one.
-
-Realistically it is never reached: 50 subscribers averaging fifteen calls a
-month spend about 4,500 credits, under a third of the plan. The cap exists
-so the worst case fits, not to shape normal use.
-
-**Past 50 subscribers this cap stops protecting the budget.** Nothing here
-caps the total — fifty accounts is fifty times the per-account number, so
-the arithmetic only holds while the subscriber count does. Beyond that,
-either lower the cap again or add a counter shared across all accounts.
+Realistically the worst case does not happen: 50 subscribers averaging
+fifteen calls a month spend about 4,500 credits, under a third of the plan.
+But "realistically" is load-bearing in that sentence now, where at 40 it was
+not.
 
 The only hard ceiling on the bill is a spend cap set with Anthropic and
 Tavily themselves, which no bug in this code can bypass.

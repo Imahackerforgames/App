@@ -134,42 +134,50 @@ const envWhole = (name: string, fallback: number): number => {
    and an in-process counter is bypassed by landing on a different one. */
 const SEARCH_MAX = envWhole("SEARCH_MAX", 40), SEARCH_WINDOW = envWhole("SEARCH_WINDOW_SECONDS", 3 * 60 * 60);
 
-/* And how many in a month. This is the number that has to fit a budget.
+/* And how many in a month. This is the number that has to fit a budget,
+   and at 75 it no longer fits one for 50 subscribers.
 
-   Sized against a real ceiling rather than a feeling: Tavily's $100 plan is
-   15,000 credits, one product-search call costs five or six of them, and the
-   launch is planned for up to 50 subscribers. 50 x 40 x 6 = 12,000, leaving
-   3,000 in reserve for the per-call estimate being optimistic. Fifty a month
-   would land exactly on 15,000 with no margin at all, which is why it is 40.
+   The arithmetic, stated plainly because it is the thing a future reader
+   will want and the thing most easily forgotten: Tavily's $100 plan is
+   15,000 credits and one product-search call costs five or six of them, so
+   the plan covers 15,000 / (75 x 6) = 33 subscribers at this cap, not 50.
+   Forty was the number that fit fifty (50 x 40 x 6 = 12,000, with 3,000 in
+   reserve); 75 was chosen deliberately in exchange for that headroom,
+   because 40 a month against a 40 window meant one sitting spent the whole
+   month and that is a worse thing to ship than a budget that needs watching.
 
-   Realistically this is never reached — 50 subscribers averaging fifteen
-   calls a month spend about 4,500 credits, under a third of the plan. The
-   cap is not there to shape that; it is there so the worst case still fits.
+   So this cap is no longer self-enforcing against the bill. Two things
+   have to be true instead: a spend cap set at Tavily itself, which no bug
+   here can bypass, and somebody actually watching the credit balance over
+   the first month. If the launch passes ~33 paying subscribers before more
+   credits are bought, the plan runs dry and search stops for everyone,
+   including the subscribers who were nowhere near their own cap.
 
-   Recompute it if any of the three inputs move. The formula is
+   Recompute it when any input moves. The formula is
    subscribers x cap x credits-per-call <= plan credits, and the input most
    likely to be wrong is credits-per-call — check a real Tavily bill against
-   it after the first month.
+   it after the first month. Realistically the worst case does not happen —
+   50 subscribers averaging fifteen calls a month spend about 4,500 credits,
+   under a third of the plan — but "realistically" is doing load-bearing
+   work in that sentence now, where at 40 it was not.
 
    The window limit stops a burst. It does nothing about sustained use:
    forty every three hours, around the clock, is perfectly legal under it
    and comes to nine thousand searches a month from one account paying $25.
 
-   The window is not really the allowance — the month is. Forty a month
-   against forty a window means one full sitting spends the whole month, so
-   somebody who uses the window limit once is done until it rolls. That is
-   the shape a fixed credit budget forces, and it is the first thing to
-   revisit when the budget grows.
+   Seventy-five against a forty window is just under two full sittings,
+   which is the point of the change: a subscriber who has a long evening
+   with the app is not locked out for the rest of the month.
 
-   Nothing here caps the TOTAL. Fifty accounts is fifty times this number,
-   and the arithmetic above only holds while subscriber count does. Past 50
-   subscribers this cap no longer protects the budget — either lower it
-   again, or add a shared counter across all accounts.
+   Nothing here caps the TOTAL. Each account is another 75, and the
+   arithmetic above only holds while subscriber count does — which at this
+   cap means 33, not 50. Beyond that, either raise the Tavily plan, lower
+   this number again, or add a counter shared across all accounts.
 
    The window is rolling rather than calendar: it starts on the first
    request and resets thirty days after that, which is what the counter
    already does and is fairer than everyone resetting on the 1st. */
-const SEARCH_MONTH_MAX = envWhole("SEARCH_MONTH_MAX", 40), SEARCH_MONTH_WINDOW = 30 * 24 * 60 * 60;
+const SEARCH_MONTH_MAX = envWhole("SEARCH_MONTH_MAX", 75), SEARCH_MONTH_WINDOW = 30 * 24 * 60 * 60;
 
 /* What is left, without spending any of it.
 

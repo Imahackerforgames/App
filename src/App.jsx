@@ -6078,7 +6078,8 @@ function SettingsPage({ db, put, reset, user, signOut, isPro, ent, refreshEntitl
  An analysis uses 2 searches, so 40 is about 20 analyses. AI Discover uses
  up to 3 searches and a question or two. Product descriptions and the
  listing generator use questions, so that number moves even when you
- haven't opened the assistant.
+ haven't opened the assistant — which is why the monthly line is usually
+ the one that runs out first.
  </Note>
  </Group>
  )}
