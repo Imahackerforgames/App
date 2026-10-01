@@ -120,6 +120,28 @@ const settings = async (page) => {
      been quietly deleted along with its flag. */
   ok("a real contact address is given",
      /reamp\.store@gmail\.com/i.test(t), t.match(/.{0,40}@.{0,30}/)?.[0]);
+
+  /* The billing disclosure. A subscription product that does not say in
+     writing that it renews by itself, what it costs, and how to stop it is
+     how a cancellation becomes a chargeback — the customer's only remaining
+     move is their bank. Each of these is also the specific sentence that
+     answers a dispute, so none of them may quietly go missing.
+
+     The seller's name is here on purpose and is not a stack leak: it is the
+     word that appears on the customer's statement, and somebody who cannot
+     match that word to something they bought reports the charge as fraud. */
+  ok("the price is stated", /\$25 a month/i.test(t), t.match(/.{0,40}a month.{0,20}/)?.[0]);
+  ok("and that it renews on its own",
+     /renews automatically/i.test(t), t.match(/.{0,40}renews.{0,40}/)?.[0]);
+  ok("how to cancel", /Settings\s*→\s*Billing/i.test(t), t.match(/.{0,30}Billing.{0,30}/)?.[0]);
+  ok("that cancelling keeps the time already paid for",
+     /until the end of the period you've already paid for/i.test(t));
+  ok("the refund position, stated rather than left to be discovered",
+     /aren't refunded/i.test(t), t.match(/.{0,50}refund.{0,50}/)?.[0]);
+  ok("and who the charge will come from",
+     /statement says Commas/i.test(t), t.match(/.{0,40}statement.{0,40}/)?.[0]);
+  ok("a free account is told it is never charged",
+     /free account is never charged/i.test(t));
   await ctx.close();
 }
 

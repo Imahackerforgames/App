@@ -22,6 +22,13 @@
    Nothing in here is waiting on a decision any more. The support address
    is a real inbox and governing law is settled — the United States.
 
+   The billing section states a price, which means the price now lives in
+   three places: the upgrade screen in App.jsx, this file, and
+   REAL_PRICE_CENTS in commas-checkout. The one that takes the money is the
+   last one. If they ever disagree, the Terms are a promise and the checkout
+   is the act — so fix the checkout, and never let it charge more than this
+   page says.
+
    A caveat worth leaving written down: US contract law is state law, not
    federal. Naming the country is enough to be going on with, but a lawyer
    would name a state. Changing it later is one line.
@@ -32,7 +39,7 @@
    costs nothing to avoid.
    ────────────────────────────────────────────────────────────── */
 
-export const LEGAL_UPDATED = "25 September 2026";
+export const LEGAL_UPDATED = "1 October 2026";
 export const SUPPORT_EMAIL = "reamp.store@gmail.com";
 
 /* Each document is a list of [heading, ...paragraphs]. Kept as data rather
@@ -84,6 +91,13 @@ export const TERMS = [
 
   ["Your account",
     `One person, one account. Use a password you haven't used elsewhere and keep it to yourself — what happens under your account is your responsibility.`],
+
+  ["Premium, billing and cancelling",
+    `Premium is $25 a month. It renews automatically every 30 days until you cancel, and we'll tell you in the app before any price change affects you.`,
+    `Commas is the seller — the charge on your statement says Commas, not Reamp. They handle the payment and the tax on it.`,
+    `Cancel any time from Settings → Billing. Premium stays on until the end of the period you've already paid for, and nothing is charged after that.`,
+    `Charges already taken aren't refunded. Cancelling stops the next one — it doesn't reverse the last one.`,
+    `A free account is never charged anything. The premium features are simply off.`],
 
   ["Fair use",
     `Don't break the law with it, scrape our results, dodge the rate limits, get into other people's accounts, or resell access to Reamp.`],
