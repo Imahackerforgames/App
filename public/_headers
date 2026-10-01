@@ -1,0 +1,26 @@
+# Caching rules for Cloudflare Pages and Netlify.
+#
+# These mirror the "headers" block in vercel.json, which only Vercel reads.
+# The pairing is what makes a deploy take effect immediately without making
+# every visit slow:
+#
+#   index.html must NEVER be cached. It is the file that names which hashed
+#   asset bundle to load, so a stale copy points at a filename that no longer
+#   exists after a deploy — which the visitor sees as a blank screen, and
+#   which a hard refresh fixes, so they will not report it, they will leave.
+#
+#   /assets/* can be cached forever. Vite puts a content hash in each
+#   filename, so a changed file is a different URL and there is nothing to
+#   invalidate.
+#
+# Get these the wrong way round and the site is either permanently stale or
+# needlessly slow.
+
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
