@@ -226,6 +226,77 @@ function genericName(t) {
   return out.length >= 3 ? out : stripPrices(String(t || ""));
 }
 
+/* The term a marketplace link actually searches for.
+
+   genericName makes a title readable. That is not the same job as making it
+   findable, and the difference is what made the Mercari link look broken:
+   it opened a sold-filtered search for the whole listing title, matched
+   nothing, and showed an empty page. Which reads as "this product has never
+   sold" rather than "that query was too narrow" — the worst possible
+   failure, because it is indistinguishable from an answer.
+
+   eBay's completed-listings index is deep enough to forgive a long query.
+   Mercari's and Poshmark's are not, and every extra word is another chance
+   to miss, so the link opens with the product rather than the listing.
+
+   Three passes, narrowest first:
+
+     "Mens Medium"      a gender word welded to a size is a size, wherever
+                        it sits in the title, so it goes before anything
+                        depends on word positions.
+     a trailing size    "US 9", "Hoodie L", "Womens 6", "NWT". Only at the
+                        end, and a bare number only behind a word that says
+                        it is a size — "Air Max 90" and "Chanel No 5" end in
+                        a number that is the product's name.
+     six words, 48ch    enough to name a thing ("Jean Paul Gaultier Le Male
+                        125ml" survives whole), short enough to match.
+
+   Model codes are already gone by genericName's hand and deliberately stay
+   gone. "CT8527-016" is precise on eBay and returns nothing on Mercari,
+   which is the bug this function exists to fix. The cost is real and worth
+   naming: "Casio G-Shock GA-2100" searches as "Casio G-Shock", a family
+   spanning $50 to $500. A broad page the person can narrow beats an empty
+   one they cannot read at all. */
+const SIZED_GENDER =
+  /\b(?:men'?s|mens|women'?s|womens|youth|kids?|unisex)\s+(?:x{0,3}[sml]|small|medium|large|x-?large|\d{1,2}(?:\.\d)?)\b/gi;
+const SIZE_TAIL =
+  /\s+(?:(?:us|uk|eu|men'?s?|mens|women'?s?|womens|youth|kids?|unisex|sz|size)\s*)?(?:x{0,3}[sml]|small|medium|large|x-?large|o\/?s|one\s+size|\d{1,2}(?:\.\d)?)\s*$/i;
+const BARE_TAIL =
+  /\s+(?:us|uk|eu|men'?s?|mens|women'?s?|womens|youth|kids?|unisex|sz|size|nwt|nib|bnwt)\s*$/i;
+const QUERY_WORDS = 6, QUERY_CHARS = 48;
+
+/* A trailing number is only a size when something in front of it says so,
+   and a trailing letter size always is. Checked separately so the first
+   rule cannot reach a bare number it was never meant to touch. */
+const NUMBER_IS_A_SIZE = /\s(?:us|uk|eu|sz|size|men'?s?|mens|women'?s?|womens|youth|kids?)\s*\d{1,2}(?:\.\d)?\s*$/i;
+const LETTER_IS_A_SIZE = /\s(?:x{0,3}[sml]|small|medium|large|x-?large|o\/?s)\s*$/i;
+
+function shedSizes(s) {
+  for (let i = 0; i < 4; i++) {
+    const before = s;
+    s = s.replace(BARE_TAIL, "");
+    if (NUMBER_IS_A_SIZE.test(before) || LETTER_IS_A_SIZE.test(s)) s = s.replace(SIZE_TAIL, "");
+    if (s === before) break;
+  }
+  return s.trim();
+}
+
+function marketQuery(title) {
+  const full = genericName(title).replace(SIZED_GENDER, " ").replace(/\s{2,}/g, " ").trim();
+  const trimmed = shedSizes(full);
+
+  let words = trimmed.split(/\s+/).filter(Boolean).slice(0, QUERY_WORDS);
+  while (words.join(" ").length > QUERY_CHARS && words.length > 2) words.pop();
+
+  /* Cutting at a word boundary can leave the size word whose size just got
+     cut off with it. */
+  const basic = shedSizes(words.join(" "));
+
+  /* Never search for nothing. A title that is all size and advertising
+     still has to open a page with something in the box. */
+  return basic.length >= 3 ? basic : (trimmed || String(title || "").trim());
+}
+
 /* Checkout. $25/month, taken by Commas.
 
    Commas is the merchant of record, which is the part that matters here:
@@ -573,7 +644,7 @@ function catalogMatches(query, reason = "") {
     cond: "reference data",
     // A real sold-listings search on that marketplace. Honest about what it
     // is: a search page for the product, not one specific listing.
-    url: MARKETS[c.source]?.url?.(c.title) || "",
+    url: MARKETS[c.source]?.url?.(marketQuery(c.title)) || "",
     source: "catalog",
     matched: hit,
     /* Why the live path didn't happen, in the function's own words. Without
@@ -4810,7 +4881,7 @@ function SoldElsewhere({ title, counts }) {
       </p>
       <div style={{ display: "grid", gap: 8 }}>
         {rows.map(([label, n]) => (
-          <a key={label} href={MARKETS[MARKET_KEY_BY_LABEL[label]].url(title)}
+          <a key={label} href={MARKETS[MARKET_KEY_BY_LABEL[label]].url(marketQuery(title))}
             target="_blank" rel="noopener noreferrer" className="fx fx-chip"
             style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
               gap: 10, padding: "11px 14px", borderRadius: 14, textDecoration: "none",
@@ -5134,7 +5205,7 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
  {datedByMarket.map(([label, n]) => (
  <MiniCount key={label} l={label} v={n}
- to={MARKETS[MARKET_KEY_BY_LABEL[label]]?.url?.(item.title)} />
+ to={MARKETS[MARKET_KEY_BY_LABEL[label]]?.url?.(marketQuery(item.title))} />
  ))}
  <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 8, paddingTop: 8 }}>
  <MiniCount l={`Sold ${windowPhrase(window_)}`} v={datedChart.inWindow} bold />
@@ -5214,7 +5285,7 @@ function ProductDetailSheet({ item, db, put, onClose }) {
  {["ebay", "mercari", "poshmark", "offerup", "facebook"].map((k) => {
  const m = MARKETS[k];
  return (
- <a key={k} href={m.url(item.title, db.profile)} target="_blank" rel="noopener noreferrer" className="lnk"
+ <a key={k} href={m.url(marketQuery(item.title), db.profile)} target="_blank" rel="noopener noreferrer" className="lnk"
  style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 600, padding: "7px 12px", borderRadius: 999, color: m.sold ? C.bone : C.dim, border: `1px solid ${m.sold ? C.accentDim : C.line}`, textDecoration: "none" }}>
  {m.label}{m.sold && <span style={{ fontFamily: MONO, fontSize: 9, color: C.accentText }}>SOLD</span>}
  <ExternalLink size={10} />
