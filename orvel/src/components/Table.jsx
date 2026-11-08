@@ -215,7 +215,8 @@ export default function Table({ initial, onClose, onRematch }) {
         <div className="dock-mid mono">
           <div>TURN {b.you.turns}/{TURN_LIMIT}</div>
           <div className="dock-pot">{b.wager.type === 'coins' && b.wager.amount > 0 ? `POT ${fmt(b.wager.amount * 2)}` : b.wager.type === 'card' ? 'CARD BET' : 'FRIENDLY'}</div>
-            </div>
+          <button className="duel-quit" onClick={forfeit} disabled={b.status !== 'active' || busy}>FORFEIT</button>
+        </div>
         <button className="end-turn" onClick={endTurn} disabled={!myTurn}>END TURN ▶</button>
       </div>
 
