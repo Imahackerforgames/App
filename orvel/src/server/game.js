@@ -14,7 +14,7 @@
 
 import {
   DEFAULT_RARITIES, DEFAULT_COLLECTIONS, DEFAULT_PACKS, DEFAULT_RANKS,
-  DEFAULT_XP_RULES, DEFAULT_SETTINGS, EFFECTS,
+  DEFAULT_XP_RULES, DEFAULT_SETTINGS, EFFECTS, V1_RARITY_DEFAULTS, V1_PACK_PRICES,
 } from './defaults.js'
 import { randomInt, weightedPick, uid } from './rng.js'
 
@@ -43,7 +43,7 @@ function freshPlayer(settings, now) {
 export function freshState(now = Date.now()) {
   const settings = clone(DEFAULT_SETTINGS)
   return {
-    version: 1,
+    version: 2,
     settings,
     rarities: clone(DEFAULT_RARITIES),
     collections: clone(DEFAULT_COLLECTIONS),
@@ -61,6 +61,68 @@ export function freshState(now = Date.now()) {
 }
 
 // ───────────────────────── pure helpers (also used by the UI) ─────────────
+
+// A deterministic value inside a rarity's range, weighted toward the low end
+// so high values stay special. Used for sample cards and the editor's dice.
+const STEPS = [[100000, 2500], [10000, 250], [1000, 25], [200, 10], [60, 5], [0, 1]]
+export function valueInRange(min, max, u) {
+  if (!(max > min)) return min
+  const raw = min + (max - min) * u * u
+  const step = STEPS.find(([lim]) => max >= lim)[1]
+  return Math.min(max, Math.max(min, Math.round(raw / step) * step))
+}
+export function seededUnit(text) {
+  let h = 2166136261
+  for (const ch of String(text)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619)
+  return ((h >>> 0) % 10007) / 10006
+}
+
+// Average sell-back value of one opened pack, using the same pool and odds as
+// the draw. If this is above the pack's price, players can buy packs, sell
+// the cards and come out ahead — a currency printer.
+export function packExpectedValue(state, pack) {
+  const pool = packPool(state, pack)
+  if (!pool.length) return 0
+  const avg = {}
+  for (const r of state.rarities) {
+    const cs = pool.filter((c) => c.rarityId === r.id)
+    if (cs.length) avg[r.id] = cs.reduce((t, c) => t + cardValue(state, c), 0) / cs.length
+  }
+  const slot = (minIdx) => {
+    const w = packWeights(state, pack).filter((x) => avg[x.rarity.id] != null && rarityIndex(state, x.rarity.id) >= minIdx && x.weight > 0)
+    const tot = w.reduce((t, x) => t + x.weight, 0)
+    return tot ? w.reduce((t, x) => t + (x.weight / tot) * avg[x.rarity.id], 0) : 0
+  }
+  const g = pack.guarantee?.minRarityId ? rarityIndex(state, pack.guarantee.minRarityId) : null
+  const n = Number(pack.cardCount) || 0
+  return g != null && n > 0 ? slot(0) * (n - 1) + slot(g) : slot(0) * n
+}
+
+// Brings older saves up to the current economy without touching anything the
+// creator has customised.
+export function migrate(s) {
+  if ((s.version || 1) < 2) {
+    for (const r of s.rarities) {
+      const d = DEFAULT_RARITIES.find((x) => x.id === r.id)
+      const v1 = V1_RARITY_DEFAULTS[r.id]
+      if (d && v1 && r.weight === v1[0] && r.sellValue === v1[1]) Object.assign(r, { weight: d.weight, sellValue: d.sellValue, minValue: d.minValue, maxValue: d.maxValue })
+      if (r.minValue == null) { r.minValue = r.sellValue; r.maxValue = r.sellValue }
+    }
+    for (const c of s.cards) {
+      if (c.sample && c.sellValue == null) {
+        const r = s.rarities.find((x) => x.id === c.rarityId)
+        if (r) c.sellValue = valueInRange(r.minValue, r.maxValue, seededUnit(c.name))
+      }
+    }
+    for (const p of s.packs) {
+      const d = DEFAULT_PACKS.find((x) => x.id === p.id)
+      if (d && p.priceCash === V1_PACK_PRICES[p.id]) { p.priceCash = d.priceCash; p.rarityWeights = clone(d.rarityWeights) }
+    }
+    if (s.settings.dailyReward === 75) s.settings.dailyReward = DEFAULT_SETTINGS.dailyReward
+    s.version = 2
+  }
+  return s
+}
 
 export function rarityIndex(state, rarityId) {
   return state.rarities.findIndex((r) => r.id === rarityId)
@@ -161,7 +223,7 @@ export function createGameServer(storage, { now = () => Date.now() } = {}) {
   // same balance.
   function serial(fn) {
     const run = queue.then(async () => {
-      if (!state) state = (await storage.get(STATE_KEY)) || freshState(now())
+      if (!state) state = migrate((await storage.get(STATE_KEY)) || freshState(now()))
       const draft = clone(state)
       const result = await fn(draft)
       await storage.set(STATE_KEY, draft) // commit only after success
@@ -479,7 +541,7 @@ export function createGameServer(storage, { now = () => Date.now() } = {}) {
       requireAdmin(token)
       return {
         settings: s.settings, rarities: s.rarities, collections: s.collections,
-        packs: s.packs.map((pk) => ({ ...pk, status: packStatus(s, pk, now()), odds: packOdds(s, pk) })),
+        packs: s.packs.map((pk) => ({ ...pk, status: packStatus(s, pk, now()), odds: packOdds(s, pk), ev: packExpectedValue(s, pk) })),
         ranks: s.ranks, xpRules: s.xpRules, effects: EFFECTS, cards: s.cards,
         nextCode: s.nextCode,
         nextCollectionNumber: s.cards.reduce((m, c) => Math.max(m, c.collectionNumber), 0) + 1,
@@ -535,11 +597,14 @@ export function createGameServer(storage, { now = () => Date.now() } = {}) {
         if (names.has(name.toLowerCase())) fail('invalid', `Two rarities are named "${name}"`)
         names.add(name.toLowerCase())
         const weight = Number(r.weight), sellValue = Number(r.sellValue), xp = Number(r.xp)
+        const minValue = Number(r.minValue ?? sellValue), maxValue = Number(r.maxValue ?? sellValue)
         if (!(weight >= 0)) fail('invalid', `${name}: drop weight must be 0 or more`)
         if (!isInt(sellValue) || sellValue < 0) fail('invalid', `${name}: selling value must be a whole number`)
+        if (!isInt(minValue) || !isInt(maxValue) || minValue < 0 || maxValue < minValue) fail('invalid', `${name}: the value range must be whole numbers, lowest first`)
+        if (sellValue < minValue || sellValue > maxValue) fail('invalid', `${name}: the default value must sit inside its range (${minValue}–${maxValue})`)
         if (!isInt(xp) || xp < 0) fail('invalid', `${name}: XP must be a whole number`)
         if (!EFFECTS.some((e) => e.id === r.effect)) fail('invalid', `${name}: unknown effect`)
-        return { id: r.id || uid('r_'), name, weight, sellValue, xp, color: r.color, color2: r.color2, effect: r.effect }
+        return { id: r.id || uid('r_'), name, weight, sellValue, minValue, maxValue, xp, color: r.color, color2: r.color2, effect: r.effect }
       })
       if (!out.some((r) => r.weight > 0)) fail('invalid', 'At least one rarity needs a drop weight above 0')
       const removed = s.rarities.filter((r) => !out.some((o) => o.id === r.id))

@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createGameServer, packOdds, freshState } from '../src/server/game.js'
+import { createGameServer, packOdds, freshState, packExpectedValue, migrate } from '../src/server/game.js'
+import { seedCards } from '../src/lib/seedArt.js'
 
 function memStorage() {
   const m = new Map()
@@ -27,7 +28,7 @@ test('buying a pack charges exactly once and awards exactly cardCount cards', as
   const before = await g.snapshot()
   const { opening, cash } = await g.buyPackWithCash('pk-drift')
   assert.equal(opening.cards.length, 3)
-  assert.equal(cash, before.player.cash - 100)
+  assert.equal(cash, before.player.cash - 250)
   const after = await g.snapshot()
   const total = Object.values(after.player.inventory).reduce((t, i) => t + i.count, 0)
   assert.equal(total, 3)
@@ -37,7 +38,7 @@ test('cannot buy with insufficient cash, and a failed buy changes nothing', asyn
   const { g } = await setup()
   await assert.rejects(g.buyPackWithCash('pk-void'), /Not enough/)
   const s = await g.snapshot()
-  assert.equal(s.player.cash, 500)
+  assert.equal(s.player.cash, 1000)
   assert.equal(Object.keys(s.player.inventory).length, 0)
 })
 
@@ -45,7 +46,7 @@ test('concurrent purchases cannot overspend', async () => {
   const { g } = await setup()
   const results = await Promise.allSettled(Array.from({ length: 10 }, () => g.buyPackWithCash('pk-drift')))
   const ok = results.filter((r) => r.status === 'fulfilled').length
-  assert.equal(ok, 5) // 500 / 100
+  assert.equal(ok, 4) // 1000 / 250
   assert.equal((await g.snapshot()).player.cash, 0)
 })
 
@@ -89,7 +90,7 @@ test('sale is refused when price changed since quote', async () => {
 
 test('sell duplicates keeps one of each', async () => {
   const { g, token } = await setup()
-  await g.adminGrantCash(token, 5000)
+  await g.adminGrantCash(token, 10000)
   for (let i = 0; i < 20; i++) await g.buyPackWithCash('pk-drift')
   const q = await g.quoteDuplicates()
   if (!q.count) return
@@ -101,7 +102,7 @@ test('sell duplicates keeps one of each', async () => {
 
 test('guaranteed slot respects the minimum rarity', async () => {
   const { g, token } = await setup()
-  await g.adminGrantCash(token, 100000)
+  await g.adminGrantCash(token, 200000)
   for (let i = 0; i < 40; i++) {
     const { opening } = await g.buyPackWithCash('pk-void')
     const last = opening.cards[opening.cards.length - 1]
@@ -158,7 +159,7 @@ test('payment webhook verifies signature and fulfils exactly once', async () => 
   const s = await g.snapshot()
   const total = Object.values(s.player.inventory).reduce((t, i) => t + i.count, 0)
   assert.equal(total, 5)
-  assert.equal(s.player.cash, 500) // real-money pack spent no cash
+  assert.equal(s.player.cash, 1000) // real-money pack spent no cash
 })
 
 test('admin actions require a session', async () => {
@@ -185,4 +186,50 @@ test('odds disclosure ignores rarities with no cards', () => {
   const sum = o.standard.reduce((t, x) => t + x.pct, 0)
   assert.ok(Math.abs(sum - 100) < 1e-9)
   assert.equal(o.standard.find((x) => x.rarityId === 'r6').pct, 0)
+})
+
+test('no default pack pays back more than it costs (no currency printer)', () => {
+  const s = freshState()
+  s.cards = seedCards().map((c, i) => ({ ...c, id: 'c' + i, published: true, limited: { enabled: false } }))
+  for (const p of s.packs) {
+    const ev = packExpectedValue(s, p)
+    assert.ok(ev < p.priceCash * 0.8, `${p.name}: expected sell-back ${ev.toFixed(0)} vs price ${p.priceCash}`)
+  }
+})
+
+test('sample card values sit inside their rarity ranges', () => {
+  const s = freshState()
+  for (const c of seedCards()) {
+    const r = s.rarities.find((x) => x.id === c.rarityId)
+    assert.ok(c.sellValue >= r.minValue && c.sellValue <= r.maxValue, `${c.name}: ${c.sellValue}`)
+  }
+  const top = seedCards().filter((c) => c.rarityId === 'r6')
+  assert.ok(top.every((c) => c.sellValue >= 50000 && c.sellValue <= 100000))
+})
+
+test('a v1 save is moved to the new economy, but customised values are kept', () => {
+  const s = freshState()
+  s.version = 1
+  Object.assign(s.rarities[0], { weight: 6200, sellValue: 5 }); delete s.rarities[0].minValue; delete s.rarities[0].maxValue
+  Object.assign(s.rarities[1], { weight: 1234, sellValue: 99 }); delete s.rarities[1].minValue; delete s.rarities[1].maxValue
+  s.packs[0].priceCash = 100
+  s.packs[1].priceCash = 333
+  s.cards = [{ id: 'x', name: 'Origin', rarityId: 'r6', sample: true, sellValue: null }]
+  migrate(s)
+  assert.equal(s.rarities[0].weight, 6800)
+  assert.equal(s.rarities[1].sellValue, 99)
+  assert.deepEqual([s.rarities[1].minValue, s.rarities[1].maxValue], [99, 99])
+  assert.equal(s.packs[0].priceCash, 250)
+  assert.equal(s.packs[1].priceCash, 333)
+  assert.ok(s.cards[0].sellValue >= 50000)
+  assert.equal(s.version, 2)
+})
+
+test('rarity value ranges are validated', async () => {
+  const { g, token } = await setup()
+  const a = await g.adminSnapshot(token)
+  const bad = a.rarities.map((r, i) => (i === 3 ? { ...r, minValue: 750, maxValue: 250 } : r))
+  await assert.rejects(g.saveRarities(token, bad), /range/)
+  const outside = a.rarities.map((r, i) => (i === 3 ? { ...r, sellValue: 9000 } : r))
+  await assert.rejects(g.saveRarities(token, outside), /inside its range/)
 })

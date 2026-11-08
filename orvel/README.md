@@ -38,15 +38,16 @@ npm run build      # static bundle in dist/
 | Area | Notes |
 |---|---|
 | Artwork | Stored as the original file. Never resized, recompressed or pixelated. Shown whole (`contain`) over a blurred copy of itself, or `cover` if you choose. Full-screen viewer zooms to 800% with pan and pinch. |
-| Rarities | Six tiers by default (Drift → Origin Zero). Name, order, drop weight, colours, effect, default sell value and XP are all editable. Each effect has its own frame, animation and pack reveal. |
+| Rarities | Six tiers by default (Drift → Origin Zero). Name, order, drop weight, colours, effect, sell-value range and XP are all editable. Default ranges: Drift 5–15, Hollowglass 20–50, Riftmarked 60–180, Starwrought 250–750, Voidcrowned 1,000–10,000, Origin Zero 50,000–100,000. Each card has its own value inside its range. Each effect has its own frame, animation and pack reveal. |
 | Collection | Whole catalog including uncollected cards (dimmed, marked UNCOLLECTED). Completion overall and per rarity. Arrow keys move between cards in the viewer. |
 | Search | Instant, case-insensitive, partial names, multi-word. `ORV-0012` finds by card ID; `#12` or `12` by collection number. Rarity, owned/missing/duplicates and theme filters; six sorts. Index is precomputed and the grid renders progressively, so thousands of cards stay fast. Press `/` to focus. |
 | Selling | Single, quantity, "sell duplicates" per card, and bulk "sell all duplicates". Every sale has a confirmation screen; the server re-checks ownership and price at the moment of sale. |
 | Shop | Featured section, premium and limited packs, stock counters, end dates, guaranteed-slot packs, exclusive card pools, published drop rates. In-game purchases are real; real-money purchases go through a clearly labelled **simulated** checkout. |
-| Pack opening | Tap to tear, reveal one card at a time (rarest last), longer build-up and bigger effects per tier, skip button, summary grid. Cards are awarded *before* the animation starts, so skipping or closing never loses a pull. |
+| Pack opening | Swipe to tear and to flip each card; hold for 0.7 s (or tap AUTO) to auto-open. The rarest card in every pack gets a finale: build-up, spin-in, shockwave and a count-up of its value. Skip button; results screen leads with the best pull. Cards are awarded *before* the animation starts, so skipping or closing never loses a pull. |
 | Ranks | Ten placeholder ranks (`Rank 1`…`Rank 10`), separate from rarity. XP comes from packs opened, new cards discovered, rarity of pulls and sales. Labels and thresholds are editable. |
 | Settings | Three colour themes — Phosphor (green, default), Deep Sea (blue), Ember (orange) — plus sound and CRT effect toggles. Saved per device. Themes change the interface only, never card rarity colours or artwork. |
-| Sound | Synthesised menu sounds (no files), mute toggle that persists. |
+| Sound | Calm synthesised sounds (soft sine bells, no hover blips), mute toggle that persists. |
+| Economy | The pack editor shows each pack's average sell-back value as a % of its price, and warns above 100%, where players could buy and sell packs for unlimited coins. Default packs sit at 61–67%. |
 
 ## How the rules are protected
 

@@ -4,6 +4,7 @@ import { ArtZoom } from '../../components/CardViewer.jsx'
 import { Btn, Modal, RarityTag, WindowTitle, ask } from '../../components/ui.jsx'
 import { images } from '../../lib/storage.js'
 import { fmt } from '../../store.jsx'
+import { valueInRange } from '../../server/game.js'
 
 const MAX_MB = 40
 
@@ -228,10 +229,15 @@ function CardEditor({ draft: initial, data, run, toast, onClose }) {
             <label className="field"><span>Collection no. *</span>
               <input type="number" min="1" step="1" value={d.collectionNumber} onChange={(e) => set('collectionNumber', e.target.value === '' ? '' : Number(e.target.value))} />
             </label>
-            <label className="field"><span>Sell value</span>
-              <input type="number" min="0" step="1" value={d.sellValue ?? ''} placeholder={`${rarity?.sellValue ?? 0} (rarity default)`} onChange={(e) => set('sellValue', e.target.value === '' ? '' : Number(e.target.value))} />
-            </label>
+            <div className="field"><span>Sell value</span>
+              <div className="value-row">
+                <input type="number" min="0" step="1" value={d.sellValue ?? ''} placeholder={`${rarity?.sellValue ?? 0} (default)`} onChange={(e) => set('sellValue', e.target.value === '' ? '' : Number(e.target.value))} aria-label="Sell value" />
+                <button type="button" className="icon-btn" title="Roll a value inside the rarity's range" aria-label="Roll a value in range"
+                  onClick={() => rarity && set('sellValue', valueInRange(rarity.minValue ?? rarity.sellValue, rarity.maxValue ?? rarity.sellValue, Math.random()))}>🎲</button>
+              </div>
+            </div>
           </div>
+          {rarity?.minValue != null && <RangeNote rarity={rarity} value={d.sellValue} />}
           <div className="field"><span>Artwork fit</span>
             <div className="seg">
               <button className={d.fit !== 'cover' ? 'on' : ''} onClick={() => set('fit', 'contain')} type="button">Whole image (no crop)</button>
@@ -287,5 +293,16 @@ function CardEditor({ draft: initial, data, run, toast, onClose }) {
       )}
       {zoom && <ArtZoom card={previewCard} onClose={() => setZoom(false)} />}
     </Modal>
+  )
+}
+
+function RangeNote({ rarity, value }) {
+  const set = value !== '' && value != null
+  const out = set && (value < rarity.minValue || value > rarity.maxValue)
+  return (
+    <p className={`fine ${out ? 'warn' : ''}`}>
+      {rarity.name} cards sell for {fmt(rarity.minValue)}–{fmt(rarity.maxValue)}.
+      {out ? ' This value is outside that range.' : ' The dice picks a value in range, usually toward the low end.'}
+    </p>
   )
 }

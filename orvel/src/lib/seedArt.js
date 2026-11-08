@@ -1,3 +1,6 @@
+import { DEFAULT_RARITIES } from '../server/defaults.js'
+import { valueInRange, seededUnit } from '../server/game.js'
+
 // Generated placeholder artwork so a fresh install is playable before any real
 // art is uploaded. Vector, so it is sharp at every zoom level. Every card made
 // from this is flagged `sample` and can be removed in one click from Admin.
@@ -134,6 +137,7 @@ export function seedCards() {
   return SEED.map(([name, rarityId, theme, kind, col, description], i) => ({
     name, rarityId, description,
     collectionNumber: i + 1,
+    sellValue: (({ minValue, maxValue }) => valueInRange(minValue, maxValue, seededUnit(name)))(DEFAULT_RARITIES.find((r) => r.id === rarityId)),
     imageUrl: makeArt(name, theme, kind),
     imageW: W, imageH: H,
     collectionIds: col ? [col] : [],

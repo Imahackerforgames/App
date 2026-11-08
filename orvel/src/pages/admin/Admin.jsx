@@ -4,7 +4,7 @@ import CardFrame from '../../components/Card.jsx'
 import PackArt, { EMBLEM_IDS } from '../../components/PackArt.jsx'
 import { Btn, Modal, RarityTag, WindowTitle, ask } from '../../components/ui.jsx'
 import { useGame, server, fmt } from '../../store.jsx'
-import { packOdds } from '../../server/game.js'
+import { packOdds, packExpectedValue } from '../../server/game.js'
 import { images, wipeEverything } from '../../lib/storage.js'
 
 const TABS = [
@@ -114,7 +114,9 @@ function RaritiesAdmin({ data, run, toast }) {
               <div className="field-row">
                 <label className="field"><span>Drop weight</span><input type="number" min="0" step="any" value={r.weight} onChange={(e) => set(i, 'weight', e.target.value)} /></label>
                 <div className="field"><span>Base odds</span><div className="mono pct">{total ? ((Number(r.weight) || 0) / total * 100).toFixed(2) : 0}%</div></div>
-                <label className="field"><span>Default sell value</span><input type="number" min="0" step="1" value={r.sellValue} onChange={(e) => set(i, 'sellValue', e.target.value)} /></label>
+                <label className="field"><span>Lowest value</span><input type="number" min="0" step="1" value={r.minValue ?? r.sellValue} onChange={(e) => set(i, 'minValue', e.target.value)} /></label>
+                <label className="field"><span>Highest value</span><input type="number" min="0" step="1" value={r.maxValue ?? r.sellValue} onChange={(e) => set(i, 'maxValue', e.target.value)} /></label>
+                <label className="field"><span>Default value</span><input type="number" min="0" step="1" value={r.sellValue} onChange={(e) => set(i, 'sellValue', e.target.value)} /></label>
                 <label className="field"><span>XP per pull</span><input type="number" min="0" step="1" value={r.xp} onChange={(e) => set(i, 'xp', e.target.value)} /></label>
               </div>
             </div>
@@ -127,10 +129,10 @@ function RaritiesAdmin({ data, run, toast }) {
         ))}
       </div>
       <div className="adm-bar">
-        <Btn variant="ghost" onClick={() => setRows([...rows, { id: 'r_' + Date.now().toString(36), name: `Tier ${rows.length + 1}`, weight: 1, sellValue: 10, xp: 5, color: '#cccccc', color2: '#333333', effect: 'matte' }])}>+ Add rarity</Btn>
+        <Btn variant="ghost" onClick={() => setRows([...rows, { id: 'r_' + Date.now().toString(36), name: `Tier ${rows.length + 1}`, weight: 1, sellValue: 10, minValue: 10, maxValue: 10, xp: 5, color: '#cccccc', color2: '#333333', effect: 'matte' }])}>+ Add rarity</Btn>
         <span className="spacer" />
         {dirty && <Btn variant="ghost" onClick={() => setRows(data.rarities.map((r) => ({ ...r })))}>Revert</Btn>}
-        <Btn disabled={!dirty} onClick={() => run((s, tk) => s.saveRarities(tk, rows.map((r) => ({ ...r, weight: Number(r.weight), sellValue: Number(r.sellValue), xp: Number(r.xp) })))).then(() => toast('Rarities saved')).catch(() => {})}>Save rarities</Btn>
+        <Btn disabled={!dirty} onClick={() => run((s, tk) => s.saveRarities(tk, rows.map((r) => ({ ...r, weight: Number(r.weight), sellValue: Number(r.sellValue), minValue: Number(r.minValue ?? r.sellValue), maxValue: Number(r.maxValue ?? r.sellValue), xp: Number(r.xp) })))).then(() => toast('Rarities saved')).catch(() => {})}>Save rarities</Btn>
       </div>
     </div>
   )
@@ -149,6 +151,7 @@ function PacksAdmin({ data, run, toast }) {
             <div>
               <h3>{p.name}</h3>
               <div className="mono muted">{p.priceCash != null ? `${fmt(p.priceCash)} cash` : '—'} · {p.priceUsd != null ? `$${p.priceUsd}` : 'no $'} · {p.cardCount} cards</div>
+              {p.priceCash != null && <EvLine ev={p.ev} price={p.priceCash} />}
               <div className="tags">
                 {!p.active && <span className="pill">HIDDEN</span>}
                 {p.featured && <span className="pill on">FEATURED</span>}
@@ -176,6 +179,7 @@ function PackEditor({ pack, data, run, toast, onClose }) {
   const setD = (k, v) => setP((x) => ({ ...x, design: { ...x.design, [k]: v } }))
   const setL = (k, v) => setP((x) => ({ ...x, limited: { ...x.limited, [k]: v } }))
   const odds = useMemo(() => packOdds({ rarities: data.rarities, cards: data.cards }, { ...p, cardCount: Number(p.cardCount) || 1 }), [p, data])
+  const ev = useMemo(() => packExpectedValue({ rarities: data.rarities, cards: data.cards }, { ...p, cardCount: Number(p.cardCount) || 1 }), [p, data])
   const tagged = data.cards.filter((c) => (c.packIds || []).includes(p.id)).length
 
   async function save() {
@@ -205,6 +209,7 @@ function PackEditor({ pack, data, run, toast, onClose }) {
             <tbody>{odds.standard.map((o, i) => <tr key={o.rarityId}><td>{o.name}</td><td className="mono">{o.pct.toFixed(2)}%</td>{odds.guaranteed && <td className="mono">{odds.guaranteed.odds[i].pct.toFixed(2)}%</td>}</tr>)}</tbody>
           </table>
           <p className="fine">Effective odds from {odds.poolSize} eligible published cards — exactly what players will see.</p>
+          {p.priceCash != null && <EvLine ev={ev} price={Number(p.priceCash)} long />}
         </div>
         <div className="editor-form">
           <label className="field"><span>Name *</span><input value={p.name} onChange={(e) => set('name', e.target.value)} /></label>
@@ -428,6 +433,21 @@ function OrdersAdmin({ data }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// Average sell-back value of one pack against its price. Above 100% means
+// buying and selling packs creates coins out of nothing.
+function EvLine({ ev, price, long }) {
+  const pct = price > 0 ? (ev / price) * 100 : Infinity
+  const level = pct >= 100 ? 'bad' : pct >= 85 ? 'warn' : 'ok'
+  return (
+    <div className={`ev ev-${level}`}>
+      <span className="mono">Avg. sell-back {fmt(Math.round(ev))} · {Number.isFinite(pct) ? Math.round(pct) : '∞'}% of price</span>
+      {long && level === 'bad' && <span>Players earn more selling these cards than the pack costs, so they can farm unlimited coins. Raise the price or lower the top rarities' odds.</span>}
+      {long && level === 'warn' && <span>Close to break-even. Most games keep this around 50–70%.</span>}
+      {long && level === 'ok' && <span>Players get back less than they spend on average; big pulls still pay off.</span>}
     </div>
   )
 }
