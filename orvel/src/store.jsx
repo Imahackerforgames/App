@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createGameServer, rankFor } from './server/game.js'
 import { kvStorage, images } from './lib/storage.js'
-import { seedCards } from './lib/seedArt.js'
+import { seedCards, artFromRef } from './lib/seedArt.js'
 import { play } from './lib/sound.js'
 
 // One server per page load. In production this object is replaced by an
@@ -70,11 +70,11 @@ export function owned(snap, cardId) { return snap.player.inventory[cardId]?.coun
 // Resolves a card's artwork to a URL: either a static URL or an uploaded
 // original from IndexedDB.
 export function useArtUrl(card) {
-  const [url, setUrl] = useState(card?.imageUrl || null)
+  const [url, setUrl] = useState(() => artFromRef(card?.imageUrl) || null)
   const key = card?.imageKey
   useEffect(() => {
     let live = true
-    if (card?.imageUrl) setUrl(card.imageUrl)
+    if (card?.imageUrl) setUrl(artFromRef(card.imageUrl))
     else if (key) images.url(key).then((u) => live && setUrl(u))
     else setUrl(null)
     return () => { live = false }

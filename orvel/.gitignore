@@ -1,3 +1,5 @@
 node_modules
 dist
 dist-single
+supabase/functions/orvel/server/
+supabase/functions/orvel/lib/

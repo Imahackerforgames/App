@@ -255,7 +255,9 @@ export function packStatus(state, pack, now = Date.now()) {
 /**
  * storage: { get(key) -> Promise<any>, set(key, value) -> Promise<void> }
  */
-export function createGameServer(storage, { now = () => Date.now() } = {}) {
+// adminCheck: when given (server/accounts mode), creator access comes from the
+// signed-in account instead of the PIN sessions below.
+export function createGameServer(storage, { now = () => Date.now(), adminCheck = null } = {}) {
   let state = null
   let queue = Promise.resolve()
   const adminSessions = new Set()
@@ -278,7 +280,10 @@ export function createGameServer(storage, { now = () => Date.now() } = {}) {
   const read = (fn) => serial((s) => fn(s))
 
   const player = (s) => s.players[PLAYER]
-  const requireAdmin = (token) => { if (!token || !adminSessions.has(token)) fail('forbidden', 'Admin sign-in required') }
+  const requireAdmin = (token) => {
+    if (adminCheck) { if (!adminCheck()) fail('forbidden', 'Only the creator account can do that'); return }
+    if (!token || !adminSessions.has(token)) fail('forbidden', 'Admin sign-in required')
+  }
 
   function log(s, entry) {
     s.transactions.push({ id: uid('tx_'), at: now(), player: PLAYER, ...entry })

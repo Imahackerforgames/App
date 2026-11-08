@@ -138,9 +138,18 @@ export function seedCards() {
     name, rarityId, description,
     collectionNumber: i + 1,
     sellValue: (({ minValue, maxValue }) => valueInRange(minValue, maxValue, seededUnit(name)))(DEFAULT_RARITIES.find((r) => r.id === rarityId)),
-    imageUrl: makeArt(name, theme, kind),
+    imageUrl: `gen:${theme}|${kind}|${name}`, // drawn on the device by artFromRef()
     imageW: W, imageH: H,
     collectionIds: col ? [col] : [],
     packIds: col === 'col-nocturne' ? ['pk-firstlight'] : [],
   }))
+}
+
+// Sample art is stored as a short recipe ("gen:theme|kind|seed") and drawn on
+// the device, so the shared catalog stays small.
+const genCache = new Map()
+export function artFromRef(url) {
+  if (!url || !url.startsWith('gen:')) return url
+  if (!genCache.has(url)) { const [theme, kind, ...seed] = url.slice(4).split('|'); genCache.set(url, makeArt(seed.join('|'), theme, kind)) }
+  return genCache.get(url)
 }
