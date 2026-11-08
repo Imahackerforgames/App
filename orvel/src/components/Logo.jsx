@@ -21,31 +21,31 @@ export default function Logo({ size = 220, animated = true, tagline = false }) {
         <defs>
           <linearGradient id="chrome" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="70">
             <stop offset="0" stopColor="#ffffff" />
-            <stop offset="0.45" stopColor="#bfe9ff" />
-            <stop offset="0.5" stopColor="#4a3aa8" />
-            <stop offset="0.75" stopColor="#ff7be9" />
-            <stop offset="1" stopColor="#ffe3a3" />
+            <stop offset="0.45" style={{ stopColor: 'var(--title-a)' }} />
+            <stop offset="0.5" style={{ stopColor: 'var(--accent-deep)' }} />
+            <stop offset="0.75" style={{ stopColor: 'var(--title-b)' }} />
+            <stop offset="1" style={{ stopColor: 'var(--title-c)' }} />
           </linearGradient>
           <radialGradient id="world" cx="0.38" cy="0.35" r="0.7">
             <stop offset="0" stopColor="#ffffff" />
-            <stop offset="0.35" stopColor="#7fe7ff" />
-            <stop offset="1" stopColor="#3b1a86" />
+            <stop offset="0.35" style={{ stopColor: 'var(--accent-2)' }} />
+            <stop offset="1" style={{ stopColor: 'var(--accent-deep)' }} />
           </radialGradient>
           <clipPath id="letters">{letters.map((l, i) => <Letter key={l} g={l} x={80 + i * 58} />)}</clipPath>
         </defs>
         {/* drop shadow layer */}
-        <g fill="#ff2fd6" transform="translate(4 4)" opacity="0.9" shapeRendering="crispEdges">
+        <g style={{ fill: 'var(--accent)' }} transform="translate(4 4)" opacity="0.9" shapeRendering="crispEdges">
           <circle cx="35" cy="35" r="30" />
           {letters.map((l, i) => <Letter key={l} g={l} x={80 + i * 58} />)}
         </g>
-        <g fill="#14062e" transform="translate(2 2)" shapeRendering="crispEdges">
+        <g style={{ fill: 'var(--bg-deep)' }} transform="translate(2 2)" shapeRendering="crispEdges">
           <circle cx="35" cy="35" r="30" />
           {letters.map((l, i) => <Letter key={l} g={l} x={80 + i * 58} />)}
         </g>
         {/* O as a ringed world */}
         <ellipse cx="35" cy="35" rx="46" ry="11" fill="none" stroke="#ffd166" strokeWidth="4" transform="rotate(-20 35 35)" opacity="0.55" />
         <circle cx="35" cy="35" r="30" fill="url(#world)" />
-        <circle cx="35" cy="35" r="14" fill="#14062e" />
+        <circle cx="35" cy="35" r="14" style={{ fill: 'var(--bg-deep)' }} />
         <path d="M-8.2 50.7 A46 11 -20 0 0 78.2 19.3" fill="none" stroke="#ffd166" strokeWidth="4" className="logo-ring" />
         <g fill="url(#chrome)" shapeRendering="crispEdges">
           {letters.map((l, i) => <Letter key={l} g={l} x={80 + i * 58} />)}

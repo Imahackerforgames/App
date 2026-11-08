@@ -25,7 +25,7 @@ export default function Profile() {
               {name !== p.name && <Btn size="sm" type="submit">Save</Btn>}
             </form>
             <div className="rank-name big">{rank.rank.label}</div>
-            <Meter value={rank.progress} label="Progress to next rank" color="#7fe7ff" />
+            <Meter value={rank.progress} label="Progress to next rank" color="var(--accent-2)" />
             <div className="mono muted">{rank.next ? `${fmt(p.xp)} XP · ${fmt(rank.next.xp - p.xp)} to ${rank.next.label}` : `${fmt(p.xp)} XP · highest rank reached`}</div>
           </div>
         </div>

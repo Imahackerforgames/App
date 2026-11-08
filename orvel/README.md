@@ -45,7 +45,8 @@ npm run build      # static bundle in dist/
 | Shop | Featured section, premium and limited packs, stock counters, end dates, guaranteed-slot packs, exclusive card pools, published drop rates. In-game purchases are real; real-money purchases go through a clearly labelled **simulated** checkout. |
 | Pack opening | Tap to tear, reveal one card at a time (rarest last), longer build-up and bigger effects per tier, skip button, summary grid. Cards are awarded *before* the animation starts, so skipping or closing never loses a pull. |
 | Ranks | Ten placeholder ranks (`Rank 1`…`Rank 10`), separate from rarity. XP comes from packs opened, new cards discovered, rarity of pulls and sales. Labels and thresholds are editable. |
-| Sound | Synthesised menu sounds (no files), mute toggle that persists. CRT effect toggle too. |
+| Settings | Three colour themes — Phosphor (green, default), Deep Sea (blue), Ember (orange) — plus sound and CRT effect toggles. Saved per device. Themes change the interface only, never card rarity colours or artwork. |
+| Sound | Synthesised menu sounds (no files), mute toggle that persists. |
 
 ## How the rules are protected
 
@@ -91,6 +92,7 @@ src/store.jsx            React state; calls the server and renders snapshots
 src/lib/storage.js       IndexedDB (state + original image blobs)
 src/lib/seedArt.js       sample vector artwork for a fresh install
 src/lib/sound.js         Web Audio sound effects
+src/lib/prefs.js         theme + CRT preferences
 src/components/          Card frame, pack art, viewer, pack opening, logo, UI kit
 src/pages/               Home, Collection, Shop, Profile, admin/
 tests/game.test.mjs      rules-engine tests

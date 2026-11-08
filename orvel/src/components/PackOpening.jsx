@@ -63,7 +63,7 @@ export default function PackOpening({ opening, pack, onClose, onAgain }) {
 
   const fxClass = stage === 'reveal' && phase !== 'back' ? `tier-${tier} ${phase}` : ''
   return (
-    <div className={`opening ${fxClass} stage-${stage}`} style={{ '--tc': cur?.rarity?.color || '#7fe7ff', '--tc2': cur?.rarity?.color2 || '#2a1060' }} role="dialog" aria-modal="true" aria-label={`Opening ${pack.name}`}>
+    <div className={`opening ${fxClass} stage-${stage}`} style={{ '--tc': cur?.rarity?.color || 'var(--accent-2)', '--tc2': cur?.rarity?.color2 || 'var(--bg-hi)' }} role="dialog" aria-modal="true" aria-label={`Opening ${pack.name}`}>
       <div className="op-rays" />
       <div className="op-flash" />
       {stage !== 'summary' && <button className="op-skip" onClick={skip}>SKIP ▶▶</button>}

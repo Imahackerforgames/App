@@ -59,7 +59,7 @@ export default function Home() {
             <div className="rank-badge" data-tier={rank.index}><span>{rank.index + 1}</span></div>
             <div className="rank-mini-info">
               <div className="rank-name">{rank.rank.label}</div>
-              <Meter value={rank.progress} label="Rank progress" color="#7fe7ff" />
+              <Meter value={rank.progress} label="Rank progress" color="var(--accent-2)" />
               <div className="mono muted">{rank.next ? `${fmt(snap.player.xp)} / ${fmt(rank.next.xp)} XP` : `${fmt(snap.player.xp)} XP · MAX RANK`}</div>
             </div>
           </div>
