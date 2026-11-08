@@ -8,14 +8,17 @@ import Shop from './pages/Shop.jsx'
 import Profile from './pages/Profile.jsx'
 import Admin from './pages/admin/Admin.jsx'
 import Settings from './pages/Settings.jsx'
+import Arena from './pages/Arena.jsx'
+import Forge from './pages/Forge.jsx'
 import { play, isMuted, setMuted, onMuteChange } from './lib/sound.js'
 import { usePref } from './lib/prefs.js'
 
 const NAV = [
   ['home', 'HOME', '⌂'],
-  ['collection', 'COLLECTION', '▣'],
+  ['collection', 'CARDS', '▣'],
   ['shop', 'SHOP', '◈'],
-  ['profile', 'PLAYER', '☺'],
+  ['arena', 'ARENA', '⚔'],
+  ['forge', 'FORGE', '⚒'],
 ]
 
 export default function App() {
@@ -33,7 +36,7 @@ function Shell() {
   if (bootError) return <div className="boot"><Logo size={240} animated={false} /><p className="warn">ORVEL couldn't start: {bootError.message}</p><p className="muted">This browser may be blocking storage (private mode). Try a normal window.</p></div>
   if (!snap) return <div className="boot"><Logo size={260} /><p className="mono blink">LOADING…</p></div>
 
-  const Page = { home: Home, collection: Collection, shop: Shop, profile: Profile, options: Settings, admin: Admin }[route] || Home
+  const Page = { home: Home, collection: Collection, shop: Shop, profile: Profile, arena: Arena, forge: Forge, options: Settings, admin: Admin }[route] || Home
   return (
     <div className="app">
       <div className="bg" aria-hidden="true"><div className="bg-grid" /><div className="bg-sun" /><div className="bg-scan" /></div>

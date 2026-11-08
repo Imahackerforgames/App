@@ -80,6 +80,7 @@ export default function CardViewer({ cardId, list, onClose, onNavigate }) {
               <div><dt>CARD ID</dt><dd className="mono">{card.code}</dd></div>
               <div><dt>COLLECTION NO.</dt><dd className="mono">{String(card.collectionNumber).padStart(3, '0')}</dd></div>
               <div><dt>SELL VALUE</dt><dd><Cash amount={value} /></dd></div>
+              {snap.cardStats?.[card.id] && <div><dt>BATTLE</dt><dd className="mono">ATK {snap.cardStats[card.id].atk} · DEF {snap.cardStats[card.id].def} · {snap.cardStats[card.id].element}{snap.cardStats[card.id].abilities.length ? ' · ' + snap.cardStats[card.id].abilities.join(', ') : ''}</dd></div>}
               <div><dt>OWNED</dt><dd className={count ? 'vi-owned' : 'vi-unowned'}>{count ? `${count} ${count === 1 ? 'copy' : 'copies'}` : 'Not collected'}</dd></div>
               {card.limited?.enabled && <div><dt>EDITION</dt><dd className="mono">{fmt(card.limited.minted)} / {fmt(card.limited.editionSize)} minted</dd></div>}
               {inv?.serials?.length > 0 && <div><dt>YOUR SERIALS</dt><dd className="mono">{inv.serials.map((n) => '#' + n).join(', ')}</dd></div>}

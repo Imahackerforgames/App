@@ -5,7 +5,7 @@ import { useArtUrl } from '../store.jsx'
 // it sits `contain`-fitted over a soft blurred copy of itself, so any aspect
 // ratio fills the window without distortion. Admins can opt a card into
 // `cover` when they prefer edge-to-edge.
-function CardFrame({ card, rarity, owned = null, count = 0, size = 'md', tilt = true, onClick, showCount = true, revealing = false, serial = null }) {
+function CardFrame({ card, rarity, owned = null, count = 0, size = 'md', tilt = true, onClick, showCount = true, revealing = false, serial = null, frame = null, footRight = null, stats = null }) {
   const url = useArtUrl(card)
   const ref = useRef(null)
   const effect = rarity?.effect || 'matte'
@@ -27,7 +27,7 @@ function CardFrame({ card, rarity, owned = null, count = 0, size = 'md', tilt = 
   return (
     <div
       ref={ref}
-      className={`card card-${size} fx-${effect} ${locked ? 'card-locked' : ''} ${onClick ? 'card-click' : ''} ${revealing ? 'card-revealing' : ''}`}
+      className={`card card-${size} fx-${effect} ${frame ? 'frame-' + frame : ''} ${locked ? 'card-locked' : ''} ${onClick ? 'card-click' : ''} ${revealing ? 'card-revealing' : ''}`}
       style={{ '--c1': rarity?.color || '#999', '--c2': rarity?.color2 || '#333' }}
       onPointerMove={move} onPointerLeave={leave}
       onClick={onClick} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
@@ -50,17 +50,33 @@ function CardFrame({ card, rarity, owned = null, count = 0, size = 'md', tilt = 
           <div className="card-foot">
             <span className="card-gem" />
             <span className="card-rarity">{rarity?.name}</span>
-            <span className="card-num">No.{String(card.collectionNumber).padStart(3, '0')}</span>
+            <span className="card-num">{footRight || `No.${String(card.collectionNumber).padStart(3, '0')}`}</span>
           </div>
         </div>
       </div>
       <div className="card-glare" />
+      {stats && <StatBar stats={stats} />}
       {locked && <div className="card-lock"><span>UNCOLLECTED</span></div>}
       {showCount && count > 0 && <div className="card-count">×{count}</div>}
     </div>
   )
 }
 export default memo(CardFrame)
+
+const EL = { ember: ['▲', '#ff7a45'], gale: ['❖', '#b6ff6a'], tide: ['≈', '#4fc3ff'] }
+const AB = { pierce: 'PRC', shield: 'SHD', drain: 'DRN', rally: 'RLY', burn: 'BRN', surge: 'SRG' }
+// Battle stats strip shown on cards in the Arena and Forge.
+export function StatBar({ stats }) {
+  const [g, c] = EL[stats.element] || ['?', '#fff']
+  return (
+    <div className="statbar">
+      <span className="sb-el" style={{ color: c }} title={stats.element}>{g}</span>
+      <span className="sb-atk" title="Attack">{stats.atk}</span>
+      <span className="sb-def" title="Defense">{stats.def}</span>
+      {stats.abilities?.map((a) => <span key={a} className="sb-ab" title={a}>{AB[a] || a}</span>)}
+    </div>
+  )
+}
 
 export function CardBack({ size = 'md' }) {
   return (

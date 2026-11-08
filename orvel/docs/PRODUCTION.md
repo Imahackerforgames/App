@@ -103,6 +103,7 @@ This is a checklist to work through with a lawyer, not legal advice:
       history visible to the player.
 - [ ] **Platform rules** — App Store Review Guideline 3.1.1 and Google Play's
       payments and loot-box policies.
+- [ ] **Arena wagers** — betting cards or coins on a duel, where cards and coins can be obtained with real money, is closer to gambling than packs are. Check this specifically, keep it in-game-only, and keep rivals clearly labelled as computer-controlled.
 - [ ] **Records** — keep transaction and order history (the schema above is
       append-only for this reason).
 

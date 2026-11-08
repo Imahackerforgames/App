@@ -14,8 +14,12 @@
 
 import {
   DEFAULT_RARITIES, DEFAULT_COLLECTIONS, DEFAULT_PACKS, DEFAULT_RANKS,
-  DEFAULT_XP_RULES, DEFAULT_SETTINGS, EFFECTS, V1_RARITY_DEFAULTS, V1_PACK_PRICES,
+  DEFAULT_XP_RULES, DEFAULT_SETTINGS, EFFECTS, V1_RARITY_DEFAULTS, V1_PACK_PRICES, XP_BATTLE,
 } from './defaults.js'
+import {
+  cardStats, validateCustom, resolveRound, npcChoose, RIVALS, rivalSkill, rivalBetCap, rivalCardCap,
+  rivalBaseRecord, rivalCollection, FORGE, FRAMES, CARD_EFFECTS, MAX_HP, DECK_SIZE,
+} from './battle.js'
 import { randomInt, weightedPick, uid } from './rng.js'
 
 const STATE_KEY = 'orvel:state:v1'
@@ -37,13 +41,15 @@ function freshPlayer(settings, now) {
     inventory: {}, // cardId -> { count, serials: [] }
     stats: { packsOpened: 0, cardsPulled: 0, cardsSold: 0, cashEarned: 0, cashSpent: 0 },
     lastDaily: null, createdAt: now,
+    customs: [], cosmetics: { frames: ['basic'], effects: ['matte'] },
+    battle: { wins: 0, losses: 0, draws: 0, streak: 0, best: 0 },
   }
 }
 
 export function freshState(now = Date.now()) {
   const settings = clone(DEFAULT_SETTINGS)
   return {
-    version: 2,
+    version: 3,
     settings,
     rarities: clone(DEFAULT_RARITIES),
     collections: clone(DEFAULT_COLLECTIONS),
@@ -57,6 +63,8 @@ export function freshState(now = Date.now()) {
     orders: [],
     admin: { pinHash: null, salt: null },
     paymentSecret: uid('whsec_'),
+    rivals: {},
+    battles: [],
   }
 }
 
@@ -120,6 +128,22 @@ export function migrate(s) {
     }
     if (s.settings.dailyReward === 75) s.settings.dailyReward = DEFAULT_SETTINGS.dailyReward
     s.version = 2
+  }
+  if (s.version < 3) {
+    // v3: the top two rarities became rarer, and the Arena and Forge arrived
+    const r5 = s.rarities.find((r) => r.id === 'r5'), r6 = s.rarities.find((r) => r.id === 'r6')
+    if (r5 && r5.weight === 18) r5.weight = 12
+    if (r6 && r6.weight === 2) r6.weight = 1
+    const vault = s.packs.find((p) => p.id === 'pk-void')
+    if (vault?.rarityWeights?.r5 === 90 && vault.rarityWeights.r6 === 10) { vault.rarityWeights.r5 = 60; vault.rarityWeights.r6 = 5 }
+    s.rivals ||= {}
+    s.battles ||= []
+    for (const p of Object.values(s.players)) {
+      p.customs ||= []
+      p.cosmetics ||= { frames: ['basic'], effects: ['matte'] }
+      p.battle ||= { wins: 0, losses: 0, draws: 0, streak: 0, best: 0 }
+    }
+    s.version = 3
   }
   return s
 }
@@ -349,6 +373,144 @@ export function createGameServer(storage, { now = () => Date.now() } = {}) {
     return Object.values(s.players).some((p) => (p.inventory[cardId]?.count || 0) > 0)
   }
 
+  // ── arena helpers ──
+  function valueUnit(s, card) {
+    const r = s.rarities.find((x) => x.id === card.rarityId)
+    if (!r || !(r.maxValue > r.minValue)) return 0.5
+    return Math.max(0, Math.min(1, (cardValue(s, card) - r.minValue) / (r.maxValue - r.minValue)))
+  }
+  function statsOfCard(s, card) { return cardStats(card, Math.max(0, rarityIndex(s, card.rarityId)), valueUnit(s, card)) }
+  const powerOf = (st) => st.atk + st.def + st.abilities.length * 3
+
+  function rivalRecord(s, r) {
+    return (s.rivals[r.id] ||= { ...rivalBaseRecord(r), taken: [] })
+  }
+  function rivalCards(s, r) {
+    const rec = s.rivals[r.id]
+    const base = rivalCollection(r, s.cards, s.rarities)
+    for (const id of rec?.taken || []) {
+      const e = base.find((x) => x.cardId === id)
+      if (e) e.count += 1; else base.push({ cardId: id, count: 1 })
+    }
+    return base.map((e) => {
+      const card = s.cards.find((c) => c.id === e.cardId)
+      if (!card) return null
+      const stats = statsOfCard(s, card)
+      return { ...e, value: cardValue(s, card), rarityId: card.rarityId, stats, power: powerOf(stats) }
+    }).filter(Boolean)
+  }
+  function rivalSummary(s, r) {
+    const rec = s.rivals[r.id] || { ...rivalBaseRecord(r), taken: [] }
+    const cards = rivalCards(s, r)
+    const fav = cards.slice().sort((a, b) => b.value - a.value)[0] || null
+    const top = cards.slice().sort((a, b) => b.power - a.power).slice(0, DECK_SIZE)
+    return {
+      id: r.id, name: r.name, level: r.level, bio: r.bio, line: r.line, style: r.style,
+      wins: rec.wins, losses: rec.losses, streak: rec.streak,
+      betCap: rivalBetCap(r.level), cardCap: rivalCardCap(r.level),
+      deckPower: top.reduce((t, c) => t + c.power, 0),
+      favoriteCardId: fav?.cardId || null, uniqueCards: cards.length, totalCards: cards.reduce((t, c) => t + c.count, 0),
+    }
+  }
+  function checkWager(s, r, wager, deck) {
+    const p = player(s)
+    const w = wager || { type: 'coins', amount: 0 }
+    if (w.type === 'coins') {
+      const amount = Number(w.amount) || 0
+      if (!isInt(amount) || amount < 0) fail('invalid', 'Bets are whole numbers')
+      if (amount > rivalBetCap(r.level)) fail('cap', `${r.name} plays for at most ${rivalBetCap(r.level).toLocaleString()} coins`)
+      if (amount > p.cash) fail('funds', `Not enough ${s.settings.currencyName}`)
+      return { type: 'coins', amount }
+    }
+    if (w.type === 'card') {
+      const card = s.cards.find((c) => c.id === w.cardId)
+      const inv = p.inventory[w.cardId]
+      if (!card || !inv || inv.count < 1) fail('not_owned', "You can only bet a card you own")
+      const inDeck = (deck || []).some((d) => d.kind === 'card' && d.id === w.cardId)
+      if (inDeck && inv.count < 2) fail('invalid', 'That card is in your deck — bet a different card or a spare copy')
+      const value = cardValue(s, card)
+      if (value > rivalCardCap(r.level)) fail('cap', `${r.name} only accepts cards worth up to ${rivalCardCap(r.level).toLocaleString()}`)
+      return { type: 'card', cardId: card.id, cardName: card.name, value }
+    }
+    fail('invalid', 'Unknown bet')
+  }
+  function rivalStake(s, r, w) {
+    if (w.type === 'coins') return { type: 'coins', amount: w.amount }
+    // a card from the rival's collection close in value; otherwise the closest in the catalog
+    const near = (list) => list.slice().sort((a, b) => Math.abs(a.value - w.value) - Math.abs(b.value - w.value) || b.value - a.value)[0]
+    const theirs = rivalCards(s, r).filter((c) => c.value >= w.value * 0.75 && c.value <= w.value * 1.35)
+    let pick = near(theirs)
+    if (!pick) pick = near(s.cards.filter((c) => c.published && !c.limited?.enabled).map((c) => ({ cardId: c.id, value: cardValue(s, c) })))
+    const card = s.cards.find((c) => c.id === pick.cardId)
+    return { type: 'card', cardId: card.id, cardName: card.name, value: cardValue(s, card), rarityId: card.rarityId }
+  }
+  function checkDeck(s, p, deck, w) {
+    if (!Array.isArray(deck) || deck.length !== DECK_SIZE) fail('invalid', `Pick exactly ${DECK_SIZE} cards`)
+    const seen = new Set()
+    return deck.map((ref) => {
+      const key = `${ref?.kind}:${ref?.id}`
+      if (seen.has(key)) fail('invalid', 'Each card can be in your deck once')
+      seen.add(key)
+      if (ref.kind === 'card') {
+        const card = s.cards.find((c) => c.id === ref.id)
+        const have = p.inventory[ref.id]?.count || 0
+        const need = 1 + (w.type === 'card' && w.cardId === ref.id ? 1 : 0)
+        if (!card || have < need) fail('not_owned', 'Your deck can only use cards you own')
+        return { ref: { kind: 'card', id: card.id }, stats: statsOfCard(s, card) }
+      }
+      if (ref.kind === 'custom') {
+        const c = p.customs.find((x) => x.id === ref.id)
+        if (!c) fail('not_owned', 'That custom card no longer exists')
+        return { ref: { kind: 'custom', id: c.id }, stats: { atk: c.atk, def: c.def, element: c.element, abilities: c.abilities } }
+      }
+      fail('invalid', 'Unknown card in deck')
+    })
+  }
+  const sideOf = (x) => ({ hp: x.hp, rally: x.rally, burn: x.burn })
+  function battleView(s, m) {
+    const r = RIVALS.find((x) => x.id === m.rivalId)
+    return { ...clone(m), rival: rivalSummary(s, r) }
+  }
+  function grantCard(s, p, cardId, serialNo) {
+    const inv = p.inventory[cardId] || (p.inventory[cardId] = { count: 0, serials: [] })
+    const isNew = !inv.everOwned
+    inv.count += 1
+    inv.everOwned = true
+    if (serialNo != null) inv.serials.push(serialNo)
+    if (isNew) addXp(s, s.xpRules.perNewCard)
+    return isNew
+  }
+  function settle(s, m, r, forfeited = false) {
+    const p = player(s)
+    const rec = rivalRecord(s, r)
+    const result = m.you.hp > m.them.hp && !forfeited ? 'won' : m.you.hp < m.them.hp || forfeited ? 'lost' : 'draw'
+    m.status = result
+    m.endedAt = now()
+    const w = m.wager
+    const payout = { coins: 0, cards: [] }
+    if (result === 'won') {
+      if (w.type === 'coins' && w.amount > 0) { payout.coins = w.amount * 2; p.cash += payout.coins; p.stats.cashEarned += w.amount }
+      if (w.type === 'card') {
+        grantCard(s, p, w.cardId, w.serial)
+        const isNew = grantCard(s, p, m.stake.cardId, null)
+        payout.cards = [{ cardId: w.cardId, returned: true }, { cardId: m.stake.cardId, isNew }]
+      }
+      addXp(s, w.type === 'card' || w.amount > 0 ? XP_BATTLE.win : XP_BATTLE.friendlyWin)
+      p.battle.wins += 1; p.battle.streak += 1; p.battle.best = Math.max(p.battle.best, p.battle.streak)
+      rec.losses += 1; rec.streak = 0
+    } else if (result === 'draw') {
+      if (w.type === 'coins') { p.cash += w.amount; payout.coins = w.amount }
+      if (w.type === 'card') { grantCard(s, p, w.cardId, w.serial); payout.cards = [{ cardId: w.cardId, returned: true }] }
+      p.battle.draws += 1
+    } else {
+      if (w.type === 'card') rec.taken.push(w.cardId)
+      p.battle.losses += 1; p.battle.streak = 0
+      rec.wins += 1; rec.streak += 1
+    }
+    m.payout = payout
+    log(s, { type: 'battle', rivalId: r.id, rivalName: r.name, result, wager: w, payout, amount: result === 'won' ? payout.coins - (w.amount || 0) : result === 'lost' ? -(w.amount || 0) : 0 })
+  }
+
   return {
     // ── reads ──
     snapshot: () => read((s) => {
@@ -360,6 +522,8 @@ export function createGameServer(storage, { now = () => Date.now() } = {}) {
         ranks: s.ranks, xpRules: s.xpRules, effects: EFFECTS,
         cards: visible, player: p,
         transactions: s.transactions.filter((t) => t.player === PLAYER).slice(-200).reverse(),
+        activeBattleId: s.battles.find((b) => b.status === 'active' && b.player === PLAYER)?.id || null,
+        cardStats: Object.fromEntries(visible.map((c) => [c.id, statsOfCard(s, c)])),
         adminConfigured: !!s.admin.pinHash,
       }
     }),
@@ -518,6 +682,139 @@ export function createGameServer(storage, { now = () => Date.now() } = {}) {
       const order = s.orders.find((o) => o.id === orderId)
       if (order && order.status === 'pending') order.status = 'cancelled'
       return { ok: true }
+    }),
+
+    // ── arena ──
+    rivals: () => read((s) => RIVALS.map((r) => rivalSummary(s, r))),
+
+    rivalProfile: (rivalId) => read((s) => {
+      const r = RIVALS.find((x) => x.id === rivalId)
+      if (!r) fail('not_found', 'Unknown rival')
+      return { ...rivalSummary(s, r), collection: rivalCards(s, r).sort((a, b) => b.value - a.value) }
+    }),
+
+    // What the rival puts up against a given wager, shown before you commit.
+    battleQuote: (rivalId, wager) => read((s) => {
+      const r = RIVALS.find((x) => x.id === rivalId)
+      if (!r) fail('not_found', 'Unknown rival')
+      return { stake: rivalStake(s, r, checkWager(s, r, wager, null)) }
+    }),
+
+    startBattle: ({ rivalId, deck, wager }) => serial((s) => {
+      const p = player(s)
+      if (s.battles.some((b) => b.status === 'active')) fail('busy', 'Finish or forfeit your current battle first')
+      const r = RIVALS.find((x) => x.id === rivalId)
+      if (!r) fail('not_found', 'Unknown rival')
+      const w = checkWager(s, r, wager, deck)
+      const hand = checkDeck(s, p, deck, w)
+      const stake = rivalStake(s, r, w)
+      // escrow: the stake leaves your balance or inventory now
+      if (w.type === 'coins' && w.amount > 0) p.cash -= w.amount
+      let escrowSerial = null
+      if (w.type === 'card') {
+        const inv = p.inventory[w.cardId]
+        inv.count -= 1
+        escrowSerial = inv.serials.length ? inv.serials.pop() : null
+      }
+      const pool = rivalCards(s, r).sort((a, b) => b.power - a.power).slice(0, DECK_SIZE + 2)
+      const picks = []
+      const want = Math.min(DECK_SIZE, pool.length)
+      while (picks.length < want) picks.push(pool.splice(randomInt(pool.length), 1)[0])
+      if (picks.length < DECK_SIZE) fail('unavailable', 'This rival has no deck yet — publish more cards')
+      const m = {
+        id: uid('bt_'), rivalId, status: 'active', at: now(), player: PLAYER,
+        wager: { ...w, serial: escrowSerial }, stake,
+        you: { hp: MAX_HP, rally: 0, burn: 0, hand: hand.map((h) => ({ ...h, used: false })) },
+        them: { hp: MAX_HP, rally: 0, burn: 0, hand: picks.map((c) => ({ ref: { kind: 'card', id: c.cardId }, stats: c.stats, used: false })) },
+        log: [],
+      }
+      s.battles.push(m)
+      if (s.battles.length > 60) s.battles.splice(0, s.battles.length - 60)
+      log(s, { type: 'battle_start', rivalId, rivalName: r.name, wager: w })
+      return battleView(s, m)
+    }),
+
+    activeBattle: () => read((s) => {
+      const m = s.battles.find((b) => b.status === 'active' && b.player === PLAYER)
+      return m ? battleView(s, m) : null
+    }),
+
+    playRound: (battleId, handIndex) => serial((s) => {
+      const m = s.battles.find((b) => b.id === battleId)
+      if (!m || m.status !== 'active') fail('not_active', 'That battle is over')
+      const mine = m.you.hand[handIndex]
+      if (!Number.isInteger(handIndex) || !mine || mine.used) fail('invalid', 'Pick a card you have not played yet')
+      const r = RIVALS.find((x) => x.id === m.rivalId)
+      // the rival commits without seeing which card you just chose
+      const ni = npcChoose(m.them.hand, m.you.hand, sideOf(m.you), sideOf(m.them), rivalSkill(r.level))
+      const theirs = m.them.hand[ni]
+      const res = resolveRound(mine.stats, theirs.stats, sideOf(m.you), sideOf(m.them))
+      Object.assign(m.you, res.P); Object.assign(m.them, res.N)
+      mine.used = true; theirs.used = true
+      m.log.push({ p: handIndex, n: ni, ...res.entry, hpP: m.you.hp, hpN: m.them.hp })
+      const done = m.you.hp <= 0 || m.them.hp <= 0 || m.you.hand.every((c) => c.used)
+      if (done) settle(s, m, r)
+      return battleView(s, m)
+    }),
+
+    forfeit: (battleId) => serial((s) => {
+      const m = s.battles.find((b) => b.id === battleId)
+      if (!m || m.status !== 'active') fail('not_active', 'That battle is over')
+      m.you.hp = 0
+      settle(s, m, RIVALS.find((x) => x.id === m.rivalId), true)
+      return battleView(s, m)
+    }),
+
+    // ── forge & cosmetics ──
+    buyCosmetic: (kind, id) => serial((s) => {
+      const list = kind === 'frame' ? FRAMES : kind === 'effect' ? CARD_EFFECTS : null
+      const item = list?.find((x) => x.id === id)
+      if (!item) fail('not_found', 'Unknown item')
+      const p = player(s)
+      const owned = kind === 'frame' ? p.cosmetics.frames : p.cosmetics.effects
+      if (owned.includes(id)) fail('owned', 'You already own this')
+      if (p.cash < item.price) fail('funds', `Not enough ${s.settings.currencyName}`)
+      p.cash -= item.price
+      p.stats.cashSpent += item.price
+      owned.push(id)
+      log(s, { type: 'cosmetic', kind, itemId: id, itemName: item.name, amount: -item.price })
+      return { cash: p.cash }
+    }),
+
+    saveCustom: (input) => serial((s) => {
+      const p = player(s)
+      const existing = input.id ? p.customs.find((c) => c.id === input.id) : null
+      if (input.id && !existing) fail('not_found', 'That card no longer exists')
+      if (!existing && p.customs.length >= FORGE.maxCards) fail('limit', `You can keep up to ${FORGE.maxCards} custom cards`)
+      let fields
+      try { fields = validateCustom(input, { owned: p.cosmetics, level: existing?.level || 1 }) } catch (e) { fail(e.code || 'invalid', e.message) }
+      if (existing) { Object.assign(existing, fields, { updatedAt: now() }); return existing }
+      const card = { id: uid('custom_'), level: 1, createdAt: now(), ...fields }
+      p.customs.push(card)
+      log(s, { type: 'forge', cardName: card.name })
+      return card
+    }),
+
+    upgradeCustom: (id) => serial((s) => {
+      const p = player(s)
+      const c = p.customs.find((x) => x.id === id)
+      if (!c) fail('not_found', 'That card no longer exists')
+      if (c.level >= FORGE.maxLevel) fail('max', 'This card is already at max level')
+      const cost = FORGE.upgradeCost(c.level)
+      if (p.cash < cost) fail('funds', `Upgrading costs ${cost.toLocaleString()} ${s.settings.currencyName}`)
+      p.cash -= cost
+      p.stats.cashSpent += cost
+      c.level += 1
+      log(s, { type: 'upgrade', cardName: c.name, level: c.level, amount: -cost })
+      return { level: c.level, budget: FORGE.budget(c.level), cash: p.cash }
+    }),
+
+    deleteCustom: (id) => serial((s) => {
+      const p = player(s)
+      if (s.battles.some((b) => b.status === 'active' && b.you.hand.some((h) => h.ref.kind === 'custom' && h.ref.id === id))) fail('busy', 'That card is in a battle right now')
+      const c = p.customs.find((x) => x.id === id)
+      p.customs = p.customs.filter((x) => x.id !== id)
+      return { imageKey: c?.art?.kind === 'upload' ? c.art.imageKey : null }
     }),
 
     // ── admin ──

@@ -4,6 +4,8 @@ import PackOpening from '../components/PackOpening.jsx'
 import { Btn, Cash, Meter, Modal, RarityTag, WindowTitle } from '../components/ui.jsx'
 import { useGame, fmt } from '../store.jsx'
 import { play } from '../lib/sound.js'
+import { Cosmetic } from './Forge.jsx'
+import { FRAMES, CARD_EFFECTS } from '../server/battle.js'
 
 export const usd = (n) => `$${Number(n).toFixed(2)}`
 
@@ -70,6 +72,17 @@ export default function Shop() {
             </div>
           ))}
           {!packs.length && <div className="empty window"><h3>SHOP CLOSED</h3><p>No packs are on sale right now.</p></div>}
+        </div>
+      </section>
+
+      <section>
+        <div className="section-label">FORGE ITEMS</div>
+        <p className="muted">Frames and effects for the cards you design in the Forge.</p>
+        <div className="window">
+          <div className="panel-title">FRAMES</div>
+          <div className="shop-items">{FRAMES.map((f) => <Cosmetic key={f.id} kind="frame" item={f} owned={snap.player.cosmetics.frames.includes(f.id)} />)}</div>
+          <div className="panel-title" style={{ marginTop: 16 }}>EFFECTS</div>
+          <div className="shop-items">{CARD_EFFECTS.map((f) => <Cosmetic key={f.id} kind="effect" item={f} owned={snap.player.cosmetics.effects.includes(f.id)} />)}</div>
         </div>
       </section>
 

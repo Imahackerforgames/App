@@ -6,6 +6,7 @@ import { usd } from './Shop.jsx'
 const TX_LABEL = {
   pack_purchase: 'Pack purchase', pack_open: 'Pack opened', sale: 'Card sold',
   daily: 'Daily bonus', grant: 'Adjustment',
+  battle: 'Duel', battle_start: 'Duel started', cosmetic: 'Forge item', forge: 'Card forged', upgrade: 'Card upgraded',
 }
 
 export default function Profile() {
@@ -62,7 +63,7 @@ export default function Profile() {
               <div key={t.id} className={`tx tx-${t.type}`}>
                 <span className="tx-time mono">{new Date(t.at).toLocaleString()}</span>
                 <span className="tx-what">{TX_LABEL[t.type] || t.type}{' '}
-                  <span className="muted">{t.type === 'sale' ? `${t.qty}× ${t.cardName}${t.bulk ? ' (bulk)' : ''}` : t.packName || ''}{t.method === 'real_money_simulated' ? ' · simulated payment' : ''}</span>
+                  <span className="muted">{t.type === 'sale' ? `${t.qty}× ${t.cardName}${t.bulk ? ' (bulk)' : ''}` : t.type === 'battle' ? `${t.result} vs ${t.rivalName}` : t.type === 'battle_start' ? `vs ${t.rivalName}` : t.itemName || t.cardName || t.packName || ''}{t.method === 'real_money_simulated' ? ' · simulated payment' : ''}</span>
                 </span>
                 <span className="tx-amt mono">
                   {t.amountUsd != null ? usd(t.amountUsd) : t.amount != null ? (t.amount > 0 ? '+' : '') + fmt(t.amount) : t.cards ? `${t.cards.length} cards` : ''}

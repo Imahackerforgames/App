@@ -10,8 +10,8 @@ export const DEFAULT_RARITIES = [
   { id: 'r2', name: 'Hollowglass', weight: 2400, minValue: 20,    maxValue: 50,     sellValue: 30,    xp: 5,   color: '#7fe7ff', color2: '#2a6f8f', effect: 'glass' },
   { id: 'r3', name: 'Riftmarked',  weight: 600,  minValue: 60,    maxValue: 180,    sellValue: 100,   xp: 12,  color: '#ff5c8a', color2: '#7a1240', effect: 'rift' },
   { id: 'r4', name: 'Starwrought', weight: 180,  minValue: 250,   maxValue: 750,    sellValue: 400,   xp: 30,  color: '#ffd166', color2: '#8a5a00', effect: 'star' },
-  { id: 'r5', name: 'Voidcrowned', weight: 18,   minValue: 1000,  maxValue: 10000,  sellValue: 2500,  xp: 80,  color: '#b388ff', color2: '#24063f', effect: 'void' },
-  { id: 'r6', name: 'Origin Zero', weight: 2,    minValue: 50000, maxValue: 100000, sellValue: 60000, xp: 250, color: '#ffffff', color2: '#ff3df2', effect: 'origin' },
+  { id: 'r5', name: 'Voidcrowned', weight: 12,   minValue: 1000,  maxValue: 10000,  sellValue: 2500,  xp: 80,  color: '#b388ff', color2: '#24063f', effect: 'void' },
+  { id: 'r6', name: 'Origin Zero', weight: 1,    minValue: 50000, maxValue: 100000, sellValue: 60000, xp: 250, color: '#ffffff', color2: '#ff3df2', effect: 'origin' },
 ]
 
 // The v1 defaults, kept so an existing save can tell whether the creator has
@@ -59,7 +59,7 @@ export const DEFAULT_PACKS = [
     id: 'pk-void', name: 'Voidcrown Vault', tagline: 'Premium: Starwrought or better guaranteed',
     description: 'Five cards with boosted odds for the top three tiers. The last card is always Starwrought or rarer.',
     priceCash: 3500, priceUsd: 4.99, cardCount: 5, poolMode: 'all',
-    rarityWeights: { r1: 2500, r2: 3800, r3: 2800, r4: 800, r5: 90, r6: 10 },
+    rarityWeights: { r1: 2500, r2: 3800, r3: 2800, r4: 800, r5: 60, r6: 5 },
     guarantee: { minRarityId: 'r4' },
     active: true, featured: false, premium: true,
     limited: { enabled: false, stock: 0, sold: 0, endsAt: null },
@@ -96,3 +96,5 @@ export const DEFAULT_SETTINGS = {
   realMoneyEnabled: true,   // shows the simulated checkout in the prototype
   minAge: 18,
 }
+
+export const XP_BATTLE = { win: 30, friendlyWin: 10 }

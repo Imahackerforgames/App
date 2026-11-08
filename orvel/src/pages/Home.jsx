@@ -24,7 +24,9 @@ export default function Home() {
 
   const menu = [
     ['shop', 'OPEN PACKS', 'Spend Cash, pull cards'],
+    ['arena', 'ARENA', `${snap.player.battle.wins} wins · streak ${snap.player.battle.streak}`],
     ['collection', 'COLLECTION', `${completion.owned}/${completion.total} found`],
+    ['forge', 'FORGE', 'Design your own card'],
     ['profile', 'PLAYER FILE', rank.rank.label],
   ]
 
