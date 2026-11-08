@@ -15,18 +15,17 @@ export const ELEMENTS = [
 export const ELEMENT_BONUS = 3
 
 export const ABILITIES = [
-  { id: 'pierce', name: 'Pierce', text: "Strikes straight through the enemy's guard." },
-  { id: 'shield', name: 'Shield', text: '+4 guard whenever it is played, in either stance.' },
-  { id: 'drain', name: 'Drain', text: 'Heals you for half the damage its strike deals.' },
-  { id: 'rally', name: 'Rally', text: 'Your next card gets +3 ATK and +3 DEF.' },
-  { id: 'burn', name: 'Burn', text: 'The enemy takes 3 damage at the start of their next turn.' },
-  { id: 'surge', name: 'Surge', text: '+4 ATK while you have less HP than the enemy.' },
-  { id: 'counter', name: 'Counter', text: 'Guard with it and attackers take back half the damage your guard blocks.' },
-  { id: 'hex', name: 'Hex', text: "The enemy's next card gets −3 ATK and −3 DEF." },
+  { id: 'pierce', name: 'Pierce', text: 'Damage beyond what kills the enemy unit carries through to their leader.' },
+  { id: 'shield', name: 'Shield', text: 'Takes 2 less damage from every hit.' },
+  { id: 'drain', name: 'Drain', text: 'Heals your leader for half the damage it deals.' },
+  { id: 'rally', name: 'Rally', text: 'When played, your other units get +2 ATK this turn.' },
+  { id: 'burn', name: 'Burn', text: 'Units it hits burn for 2 at the start of their next turn.' },
+  { id: 'surge', name: 'Surge', text: '+3 ATK while your leader has less HP than theirs.' },
+  { id: 'counter', name: 'Counter', text: 'When hit and still standing, strikes back for half its ATK.' },
+  { id: 'hex', name: 'Hex', text: 'When played, the enemy unit in its lane loses 3 ATK for good.' },
 ]
 
-export const MAX_HP = 30
-export const DECK_SIZE = 5
+export const MAX_HP = 25 // kept for older imports; leaders use LEADER_HP
 
 function hash(text) {
   let h = 2166136261
@@ -101,162 +100,283 @@ export function validateCustom(input, { owned, level = 1 }) {
   return { name, atk, def, element: input.element, abilities, frame: input.frame, effect: input.effect, art: cleanArt, accent, fit: input.fit === 'cover' ? 'cover' : 'contain' }
 }
 
-// ───────────────────────── a round ─────────────────────────
-
 const beats = (a, b) => ELEMENTS.find((e) => e.id === a)?.beats === b
 export { beats }
 
-// ───────────────────────── the duel ─────────────────────────
+// ───────────────────────── lane battles ─────────────────────────
 //
-// Turn-based, open hands. You go first, then you alternate until both hands
-// are empty or someone hits 0 HP; more HP wins.
+// Each side has a leader (25 HP), three lanes, a hand and an 8-card deck.
+// Turn: refill energy (2 on your first turn, +1 a turn, max 6), draw a card,
+// play cards into empty lanes for their energy cost, use tactics, then End
+// Turn: every unit you have attacks down its lane — the enemy unit there, or
+// the enemy leader if the lane is empty.
 //
-// On your turn you play one card in one of two stances:
-//   STRIKE  deal ATK damage. The enemy's guard absorbs it first.
-//   GUARD   add DEF to your guard (max 20). Guard stays until it is broken.
-// Bonuses come from the top card of the pile (the last card played):
-//   MATCH    same element as the top card       +2
-//   COUNTER  your element beats the top card's  +3
-// Rally (+3) and Hex (−3) adjust the next card; abilities add the rest.
+//   terrain   each lane has an element; a unit on its own element gets +2 ATK
+//   element   attacking a unit whose element yours beats: +3 ATK
+//   tactics   Fortify (1 energy): a unit blocks 4 from every hit until your next turn
+//             Shift   (1 energy): move a unit to an empty lane (once a turn)
+//
+// A leader at 0 HP loses. After 10 turns each, the healthier leader wins.
 
-export const GUARD_CAP = 20
-export const MATCH_BONUS = 2
-export const STANCES = ['strike', 'guard']
+export const LANES = 3
+export const LEADER_HP = 25
+export const HAND_START = 4
+export const MAX_ENERGY = 6
+export const TURN_LIMIT = 10
+export const DECK_SIZE = 8
+export const TERRAIN_BONUS = 2
+export const TACTIC_COST = 1
 
-export function newSide(hand) {
-  return { hp: MAX_HP, guard: 0, rally: 0, hex: 0, burn: 0, counter: false, hand: hand.map((h) => ({ ...h, used: false })) }
+// Always-available basic units that top up a deck when a player owns fewer
+// than eight cards. Not collectible, not sellable, never bet.
+export const RECRUITS = [
+  { id: 'rc-ember', name: 'Cinder Recruit', art: 'gen:ember|hills|Cinder Recruit', stats: { atk: 3, def: 3, element: 'ember', abilities: [] } },
+  { id: 'rc-gale', name: 'Gale Recruit', art: 'gen:signal|crystal|Gale Recruit', stats: { atk: 2, def: 4, element: 'gale', abilities: [] } },
+  { id: 'rc-tide', name: 'Tide Recruit', art: 'gen:nocturne|sea|Tide Recruit', stats: { atk: 2, def: 4, element: 'tide', abilities: [] } },
+]
+
+// Card stats → a unit on the table.
+export function unitOf(stats) {
+  const cost = Math.max(1, Math.min(5, 1 + Math.floor((stats.atk + stats.def) / 6)))
+  return { atk: stats.atk, hp: stats.def + 3, maxHp: stats.def + 3, cost, element: stats.element, abilities: [...(stats.abilities || [])] }
 }
 
-// What a card would do if played now. Pure; used by the server to apply a
-// move, by the rival to think, and by the UI to preview both stances.
-export function previewPlay(m, side, idx, stance) {
-  const me = side === 'you' ? m.you : m.them
-  const foe = side === 'you' ? m.them : m.you
-  const c = me.hand[idx].stats
-  const has = (a) => c.abilities.includes(a)
-  const bonuses = []
-  if (m.top && m.top.element === c.element) bonuses.push({ k: 'match', label: 'Match', v: MATCH_BONUS })
-  if (m.top && beats(c.element, m.top.element)) bonuses.push({ k: 'element', label: 'Element', v: ELEMENT_BONUS })
-  if (me.rally) bonuses.push({ k: 'rally', label: 'Rally', v: me.rally })
-  if (me.hex) bonuses.push({ k: 'hex', label: 'Hexed', v: -me.hex })
-  const bonus = bonuses.reduce((t, b) => t + b.v, 0)
-  const out = { side, idx, stance, card: c, bonuses: [...bonuses], dmg: 0, absorbed: 0, guardGain: 0, heal: 0, reflect: 0, effects: [] }
-  if (stance === 'strike') {
-    let atk = c.atk + bonus
-    if (has('surge') && me.hp < foe.hp) { atk += 4; out.bonuses.push({ k: 'surge', label: 'Surge', v: 4 }) }
-    atk = Math.max(0, atk)
-    out.atk = atk
-    if (has('pierce')) { out.dmg = atk; out.effects.push('Pierce') }
-    else {
-      out.absorbed = Math.min(foe.guard, atk)
-      out.dmg = atk - out.absorbed
-      if (foe.counter && out.absorbed > 0) { out.reflect = Math.ceil(out.absorbed / 2); out.effects.push('Countered') }
-    }
-    if (has('drain') && out.dmg > 0) { out.heal = Math.floor(out.dmg / 2); out.effects.push('Drain') }
-  } else {
-    out.guardGain = Math.max(0, c.def + bonus)
-  }
-  if (has('shield')) { out.guardGain += 4; out.effects.push('Shield') }
-  if (has('rally')) out.effects.push('Rally')
-  if (has('burn')) out.effects.push('Burn')
-  if (has('hex')) out.effects.push('Hex')
-  if (has('counter') && stance === 'guard') out.effects.push('Counter')
-  return out
-}
-
-const sideKeys = (side) => (side === 'you' ? ['you', 'them'] : ['them', 'you'])
-const snap = (x) => ({ hp: x.hp, guard: x.guard, rally: x.rally, hex: x.hex, burn: x.burn, counter: x.counter })
-
-// Starts a side's turn: burn lands now.
-export function startTurn(m, side) {
-  const me = m[side]
-  if (me.burn) { const b = me.burn; me.hp -= b; me.burn = 0; return b }
-  return 0
-}
-
-// Applies a move to `m` in place and returns the log entry.
-export function applyPlay(m, side, idx, stance) {
-  const [mk, fk] = sideKeys(side)
-  const me = m[mk], foe = m[fk]
-  const burned = startTurn(m, mk)
-  const p = previewPlay(m, side, idx, stance)
-  const c = p.card
-  const has = (a) => c.abilities.includes(a)
-  me.rally = 0; me.hex = 0
-  if (stance === 'strike') {
-    foe.guard -= p.absorbed
-    if (foe.guard <= 0) { foe.guard = 0; foe.counter = false }
-    foe.hp -= p.dmg
-    me.hp = Math.min(MAX_HP, me.hp + p.heal) - p.reflect
-  }
-  me.guard = Math.min(GUARD_CAP, me.guard + p.guardGain)
-  if (has('counter') && stance === 'guard') me.counter = true
-  if (has('rally')) me.rally = 3
-  if (has('burn')) foe.burn = 3
-  if (has('hex')) foe.hex = 3
-  me.hand[idx].used = true
-  m.top = { side, idx, element: c.element }
-  m.turn = fk
-  const entry = { ...p, burned, after: { you: snap(m.you), them: snap(m.them) } }
-  delete entry.card
-  m.log.push(entry)
-  if (isOver(m)) m.turn = null
-  return entry
-}
-
-export function isOver(m) {
-  return m.you.hp <= 0 || m.them.hp <= 0 || (m.you.hand.every((h) => h.used) && m.them.hand.every((h) => h.used))
-}
-export function outcome(m) {
-  if (m.you.hp <= 0 && m.them.hp > 0) return 'lost'
-  if (m.them.hp <= 0 && m.you.hp > 0) return 'won'
-  return m.you.hp > m.them.hp ? 'won' : m.you.hp < m.them.hp ? 'lost' : 'draw'
-}
-
+const other = (side) => (side === 'you' ? 'them' : 'you')
 const clone = (x) => JSON.parse(JSON.stringify(x))
-const legal = (m, side) => m[side].hand.flatMap((h, i) => (h.used ? [] : STANCES.map((st) => ({ i, st }))))
+let uidN = 0
+const uidOf = () => 'u' + (++uidN).toString(36) + Math.floor(Math.random() * 1e6).toString(36)
 
-// Static evaluation from `side`'s point of view.
-function evaluate(m, side) {
-  const [mk, fk] = sideKeys(side)
-  const me = m[mk], foe = m[fk]
-  if (foe.hp <= 0 && me.hp > 0) return 1000
-  if (me.hp <= 0 && foe.hp > 0) return -1000
-  const power = (s) => s.hand.filter((h) => !h.used).reduce((t, h) => t + h.stats.atk + h.stats.def * 0.6, 0)
-  return (me.hp - foe.hp) * 2 + (me.guard - foe.guard) * 0.8 + (power(me) - power(foe)) * 0.35 - me.burn + foe.burn
+function shuffle(list, rand) {
+  const a = [...list]
+  for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]] }
+  return a
 }
 
-// The rival's move: searches its options and the player's best replies
-// (depth by skill), then occasionally picks a weaker option at low levels.
-export function npcChoose(m, skill) {
-  const options = legal(m, 'them')
-  if (!options.length) return null
-  if (randomInt(1000) / 1000 > skill) return options[randomInt(options.length)]
-  const depth = skill > 0.7 ? 3 : skill > 0.4 ? 2 : 1
-  const search = (state, side, d) => {
-    if (d === 0 || isOver(state)) {
-      const v = evaluate(state, 'them')
-      return Math.abs(v) >= 1000 ? v + Math.sign(v) * d * 10 : v // win sooner, lose later
-    }
-    const opts = legal(state, side)
-    if (!opts.length) return evaluate(state, 'them')
-    let best = side === 'them' ? -Infinity : Infinity
-    for (const o of opts) {
-      const next = clone(state)
-      applyPlay(next, side, o.i, o.st)
-      const v = search(next, side === 'them' ? 'you' : 'them', d - 1)
-      best = side === 'them' ? Math.max(best, v) : Math.min(best, v)
-    }
-    return best
+// decks: [{ ref, stats }]
+export function newMatch(youDeck, themDeck, rand = randomInt) {
+  const side = (deck) => ({
+    leader: LEADER_HP, energy: 0, maxEnergy: 0, turns: 0, board: [null, null, null], hand: [],
+    deck: shuffle(deck.map((c) => ({ id: uidOf(), ref: c.ref, unit: unitOf(c.stats) })), rand),
+  })
+  const m = {
+    engine: 'lanes', turn: 'you', first: 'you', over: false,
+    terrain: Array.from({ length: LANES }, () => ELEMENTS[rand(3)].id),
+    you: side(youDeck), them: side(themDeck), events: [],
   }
-  let best = null
-  for (const o of options) {
-    const next = clone(m)
-    applyPlay(next, 'them', o.i, o.st)
-    const v = search(next, 'you', depth - 1) + (randomInt(100) / 100) * (1 - skill) * 6
-    if (!best || v > best.v) best = { ...o, v }
+  for (let k = 0; k < HAND_START; k++) { draw(m, 'you', true); draw(m, 'them', true) }
+  startTurn(m, 'you')
+  return m
+}
+
+export function snapOf(m) {
+  const sd = (x) => ({ leader: x.leader, energy: x.energy, maxEnergy: x.maxEnergy, board: x.board.map((u) => (u ? { ...u } : null)), handCount: x.hand.length, deckCount: x.deck.length })
+  return { you: sd(m.you), them: sd(m.them), turn: m.turn }
+}
+function ev(m, e) { m.events.push({ ...e, snap: snapOf(m) }) }
+
+function draw(m, side, quiet) {
+  const s = m[side]
+  if (!s.deck.length) return
+  const c = s.deck.shift()
+  s.hand.push(c)
+  if (!quiet) ev(m, { t: 'draw', side, card: side === 'you' ? c : null })
+}
+
+export function startTurn(m, side) {
+  const s = m[side]
+  m.turn = side
+  s.turns += 1
+  s.maxEnergy = Math.min(MAX_ENERGY, s.turns + 1)
+  s.energy = s.maxEnergy
+  ev(m, { t: 'turn', side, n: s.turns })
+  for (let l = 0; l < LANES; l++) {
+    const u = s.board[l]
+    if (!u) continue
+    u.fortify = false
+    u.shifted = false
+    if (u.burn) {
+      u.hp -= u.burn
+      ev(m, { t: 'burn', side, lane: l, dmg: u.burn })
+      u.burn = 0
+      if (u.hp <= 0) { s.board[l] = null; ev(m, { t: 'die', side, lane: l }) }
+    }
   }
-  return { i: best.i, st: best.st }
+  if (!(side === m.first && s.turns === 1)) draw(m, side)
+}
+
+const has = (u, a) => u.abilities.includes(a)
+export function attackOf(m, side, lane) {
+  const me = m[side], foe = m[other(side)]
+  const u = me.board[lane]
+  if (!u) return null
+  const t = foe.board[lane]
+  const parts = [{ k: 'base', label: 'ATK', v: u.atk }]
+  if (m.terrain[lane] === u.element) parts.push({ k: 'terrain', label: 'Terrain', v: TERRAIN_BONUS })
+  if (t && beats(u.element, t.element)) parts.push({ k: 'element', label: 'Element', v: 3 })
+  if (u.buff) parts.push({ k: 'rally', label: 'Rally', v: u.buff })
+  if (has(u, 'surge') && me.leader < foe.leader) parts.push({ k: 'surge', label: 'Surge', v: 3 })
+  if (u.hex) parts.push({ k: 'hex', label: 'Hexed', v: -u.hex })
+  const atk = Math.max(0, parts.reduce((x, p) => x + p.v, 0))
+  let dmg = atk, blocked = 0
+  if (t) {
+    blocked = (has(t, 'shield') ? 2 : 0) + (t.fortify ? 4 : 0)
+    dmg = Math.max(0, atk - blocked)
+  }
+  return { atk, parts, target: t ? 'unit' : 'leader', dmg, blocked }
+}
+
+export function canPlay(m, side, handIdx, lane) {
+  const s = m[side]
+  const c = s.hand[handIdx]
+  if (m.over) return 'The duel is over'
+  if (m.turn !== side) return "It isn't your turn"
+  if (!c) return 'Pick a card from your hand'
+  if (!Number.isInteger(lane) || lane < 0 || lane >= LANES) return 'Pick a lane'
+  if (s.board[lane]) return 'That lane is taken'
+  if (c.unit.cost > s.energy) return `Not enough energy (needs ${c.unit.cost})`
+  return null
+}
+
+export function playCard(m, side, handIdx, lane) {
+  const err = canPlay(m, side, handIdx, lane)
+  if (err) throw new Error(err)
+  const s = m[side], foe = m[other(side)]
+  const c = s.hand.splice(handIdx, 1)[0]
+  s.energy -= c.unit.cost
+  const u = { id: c.id, ref: c.ref, ...clone(c.unit), burn: 0, hex: 0, buff: 0, fortify: false, shifted: false }
+  s.board[lane] = u
+  ev(m, { t: 'play', side, lane, card: { id: c.id, ref: c.ref, unit: c.unit } })
+  if (has(u, 'rally')) {
+    for (const o of s.board) if (o && o !== u) o.buff = (o.buff || 0) + 2
+    ev(m, { t: 'rally', side, lane })
+  }
+  if (has(u, 'hex') && foe.board[lane]) {
+    foe.board[lane].hex = (foe.board[lane].hex || 0) + 3
+    ev(m, { t: 'hex', side, lane })
+  }
+}
+
+export function canTactic(m, side, kind, lane, toLane) {
+  const s = m[side]
+  const u = s.board[lane]
+  if (m.over) return 'The duel is over'
+  if (m.turn !== side) return "It isn't your turn"
+  if (s.energy < TACTIC_COST) return 'Not enough energy'
+  if (!u) return 'Pick one of your units'
+  if (kind === 'fortify') return u.fortify ? 'Already fortified' : null
+  if (kind === 'shift') {
+    if (u.shifted) return 'It already moved this turn'
+    if (!Number.isInteger(toLane) || toLane < 0 || toLane >= LANES || s.board[toLane]) return 'Pick an empty lane'
+    return null
+  }
+  return 'Unknown tactic'
+}
+
+export function useTactic(m, side, kind, lane, toLane) {
+  const err = canTactic(m, side, kind, lane, toLane)
+  if (err) throw new Error(err)
+  const s = m[side]
+  s.energy -= TACTIC_COST
+  if (kind === 'fortify') { s.board[lane].fortify = true; ev(m, { t: 'fortify', side, lane }) }
+  else { const u = s.board[lane]; u.shifted = true; s.board[toLane] = u; s.board[lane] = null; ev(m, { t: 'shift', side, lane, toLane }) }
+}
+
+function battle(m, side) {
+  const me = m[side], foe = m[other(side)]
+  if (side === m.first && me.turns === 1) { ev(m, { t: 'nobattle', side }); return }
+  for (let l = 0; l < LANES; l++) {
+    const u = me.board[l]
+    if (!u || m.over) continue
+    const a = attackOf(m, side, l)
+    const t = foe.board[l]
+    if (t) {
+      t.hp -= a.dmg
+      let through = 0
+      if (has(u, 'pierce') && t.hp < 0) { through = -t.hp; foe.leader -= through }
+      if (has(u, 'burn') && a.dmg > 0) t.burn = 2
+      let heal = 0
+      if (has(u, 'drain') && a.dmg > 0) { heal = Math.floor(a.dmg / 2); me.leader = Math.min(LEADER_HP, me.leader + heal) }
+      let back = 0
+      if (t.hp > 0 && has(t, 'counter')) { back = Math.floor(t.atk / 2); u.hp -= back }
+      ev(m, { t: 'attack', side, lane: l, target: 'unit', dmg: a.dmg, blocked: a.blocked, through, heal, back, parts: a.parts, burned: has(u, 'burn') && a.dmg > 0 })
+      if (t.hp <= 0) { foe.board[l] = null; ev(m, { t: 'die', side: other(side), lane: l }) }
+      if (u.hp <= 0) { me.board[l] = null; ev(m, { t: 'die', side, lane: l }) }
+    } else {
+      foe.leader -= a.dmg
+      let heal = 0
+      if (has(u, 'drain') && a.dmg > 0) { heal = Math.floor(a.dmg / 2); me.leader = Math.min(LEADER_HP, me.leader + heal) }
+      ev(m, { t: 'attack', side, lane: l, target: 'leader', dmg: a.dmg, heal, parts: a.parts })
+    }
+    if (foe.leader <= 0 || me.leader <= 0) m.over = true
+  }
+  for (const u of me.board) if (u) u.buff = 0
+}
+
+// Ends `side`'s turn: its units attack, then the other side's turn starts.
+export function endTurn(m, side) {
+  if (m.over) throw new Error('The duel is over')
+  if (m.turn !== side) throw new Error("It isn't your turn")
+  battle(m, side)
+  if (!m.over && m.you.turns >= TURN_LIMIT && m.them.turns >= TURN_LIMIT) { m.over = true; ev(m, { t: 'timeup' }) }
+  if (!m.over) startTurn(m, other(side))
+  if (m.you.leader <= 0 || m.them.leader <= 0) m.over = true
+  if (m.over) m.turn = null
+}
+
+export function isOver(m) { return !!m.over }
+export function outcome(m) {
+  if (m.you.leader <= 0 && m.them.leader > 0) return 'lost'
+  if (m.them.leader <= 0 && m.you.leader > 0) return 'won'
+  return m.you.leader > m.them.leader ? 'won' : m.you.leader < m.them.leader ? 'lost' : 'draw'
+}
+
+// ───────────────────────── the rival's turn ─────────────────────────
+
+function evaluate(m, side) {
+  const me = m[side], foe = m[other(side)]
+  if (foe.leader <= 0 && me.leader > 0) return 10000
+  if (me.leader <= 0 && foe.leader > 0) return -10000
+  const army = (s) => s.board.reduce((t, u) => t + (u ? u.atk * 1.4 + u.hp * 0.8 + u.abilities.length * 1.5 : 0), 0)
+  const hand = (s) => s.hand.reduce((t, c) => t + c.unit.atk * 0.4 + c.unit.hp * 0.25, 0)
+  return (me.leader - foe.leader) * 3 + army(me) - army(foe) + hand(me) * 0.5 - hand(foe) * 0.5
+}
+
+// Score a position by letting `side` attack and the other side swing back
+// with what it has on the table (no new cards).
+function lookahead(m, side) {
+  const t = clone(m); t.events = []
+  battle(t, side)
+  if (!t.over) {
+    const o = other(side)
+    const saved = t[o].turns
+    t[o].turns = Math.max(2, saved + 1) // make sure the reply is allowed to attack
+    battle(t, o)
+  }
+  return evaluate(t, side)
+}
+
+// Plays the rival's cards and tactics for this turn (does not end the turn).
+// Higher skill: more often picks the best-scoring move instead of a random one.
+export function rivalPlays(m, skill, rand = randomInt) {
+  const side = 'them'
+  for (let guard = 0; guard < 12; guard++) {
+    const s = m[side]
+    const options = []
+    s.hand.forEach((c, i) => { for (let l = 0; l < LANES; l++) if (!canPlay(m, side, i, l)) options.push({ kind: 'play', i, l }) })
+    for (let l = 0; l < LANES; l++) if (s.board[l] && !canTactic(m, side, 'fortify', l)) options.push({ kind: 'fortify', l })
+    if (!options.length) break
+    const base = lookahead(m, side)
+    const scored = options.map((o) => {
+      const t = clone(m); t.events = []
+      if (o.kind === 'play') playCard(t, side, o.i, o.l); else useTactic(t, side, 'fortify', o.l)
+      return { ...o, v: lookahead(t, side) }
+    })
+    scored.sort((a, b) => b.v - a.v)
+    let pickIt = scored[0]
+    if (rand(1000) / 1000 > skill) pickIt = scored[rand(scored.length)]
+    if (pickIt.v <= base && rand(1000) / 1000 < skill) break // nothing worth doing
+    if (pickIt.kind === 'play') playCard(m, side, pickIt.i, pickIt.l); else useTactic(m, side, 'fortify', pickIt.l)
+  }
 }
 
 // ───────────────────────── rivals ─────────────────────────
@@ -350,10 +470,3 @@ export function avatarPixels(seed) {
   return px
 }
 
-// Exact result of a move from the current position, including any burn that
-// would land at the start of the turn. For the UI's Strike/Guard previews.
-export function previewMove(m, side, idx, stance) {
-  const c = JSON.parse(JSON.stringify(m))
-  startTurn(c, side)
-  return previewPlay(c, side, idx, stance)
-}

@@ -17,7 +17,8 @@ import {
   DEFAULT_XP_RULES, DEFAULT_SETTINGS, EFFECTS, V1_RARITY_DEFAULTS, V1_PACK_PRICES, XP_BATTLE, DAILY_REWARDS,
 } from './defaults.js'
 import {
-  cardStats, validateCustom, npcChoose, applyPlay, isOver, outcome, newSide, RIVALS, rivalSkill, rivalBetCap, rivalCardCap,
+  cardStats, validateCustom, newMatch, playCard as lanePlay, useTactic as laneTactic, endTurn as laneEnd, rivalPlays, outcome,
+  RECRUITS, RIVALS, rivalSkill, rivalBetCap, rivalCardCap,
   rivalBaseRecord, rivalCollection, FORGE, FRAMES, CARD_EFFECTS, MAX_HP, DECK_SIZE,
 } from './battle.js'
 import { randomInt, weightedPick, uid } from './rng.js'
@@ -50,7 +51,7 @@ function freshPlayer(settings, now) {
 export function freshState(now = Date.now()) {
   const settings = clone(DEFAULT_SETTINGS)
   return {
-    version: 4,
+    version: 5,
     settings,
     rarities: clone(DEFAULT_RARITIES),
     collections: clone(DEFAULT_COLLECTIONS),
@@ -163,7 +164,24 @@ export function migrate(s) {
     for (const p of Object.values(s.players)) p.signin ||= { day: 0 }
     s.version = 4
   }
+  if (s.version < 5) {
+    // v5: lane battles. A duel still running under the turn-based rules is
+    // cancelled and its bet returned.
+    for (const m of s.battles) if (m.status === 'active' && !m.game) refundBattle(s, m)
+    s.version = 5
+  }
   return s
+}
+
+function refundBattle(s, m) {
+  const p = s.players[m.player]
+  if (p && m.wager?.type === 'coins') p.cash += m.wager.amount || 0
+  if (p && m.wager?.type === 'card') {
+    const inv = p.inventory[m.wager.cardId] || (p.inventory[m.wager.cardId] = { count: 0, serials: [] })
+    inv.count += 1
+    if (m.wager.serial != null) inv.serials.push(m.wager.serial)
+  }
+  m.status = 'cancelled'
 }
 
 export function rarityIndex(state, rarityId) {
@@ -468,9 +486,9 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
     return { type: 'card', cardId: card.id, cardName: card.name, value: cardValue(s, card), rarityId: card.rarityId }
   }
   function checkDeck(s, p, deck, w) {
-    if (!Array.isArray(deck) || deck.length !== DECK_SIZE) fail('invalid', `Pick exactly ${DECK_SIZE} cards`)
+    if (!Array.isArray(deck) || deck.length > DECK_SIZE) fail('invalid', `Pick up to ${DECK_SIZE} cards`)
     const seen = new Set()
-    return deck.map((ref) => {
+    const picked = deck.map((ref) => {
       const key = `${ref?.kind}:${ref?.id}`
       if (seen.has(key)) fail('invalid', 'Each card can be in your deck once')
       seen.add(key)
@@ -488,10 +506,33 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
       }
       fail('invalid', 'Unknown card in deck')
     })
+    return fillRecruits(picked)
   }
+  function fillRecruits(list) {
+    const out = [...list]
+    for (let k = 0; out.length < DECK_SIZE; k++) { const rc = RECRUITS[k % RECRUITS.length]; out.push({ ref: { kind: 'recruit', id: rc.id }, stats: rc.stats }) }
+    return out
+  }
+  // What the player may see: their own hand, but only counts for the rival's
+  // hand and both decks.
   function battleView(s, m) {
     const r = RIVALS.find((x) => x.id === m.rivalId)
-    return { ...clone(m), rival: rivalSummary(s, r) }
+    const g = m.game
+    const side = (x, mine) => ({
+      leader: x.leader, energy: x.energy, maxEnergy: x.maxEnergy, turns: x.turns, board: x.board,
+      handCount: x.hand.length, deckCount: x.deck.length, ...(mine ? { hand: x.hand } : {}),
+    })
+    return clone({
+      id: m.id, rivalId: m.rivalId, status: m.status, at: m.at, wager: m.wager, stake: m.stake, payout: m.payout,
+      terrain: g.terrain, turn: g.turn, first: g.first, you: side(g.you, true), them: side(g.them, false),
+      events: g.events, rival: rivalSummary(s, r),
+    })
+  }
+  function activeGame(s, battleId) {
+    const m = s.battles.find((b) => b.id === battleId)
+    if (!m || m.status !== 'active' || !m.game) fail('not_active', 'That battle is over')
+    m.game.events = []
+    return m
   }
   function grantCard(s, p, cardId, serialNo) {
     const inv = p.inventory[cardId] || (p.inventory[cardId] = { count: 0, serials: [] })
@@ -505,7 +546,7 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
   function settle(s, m, r, forfeited = false) {
     const p = player(s)
     const rec = rivalRecord(s, r)
-    const result = forfeited ? 'lost' : outcome(m)
+    const result = forfeited ? 'lost' : outcome(m.game)
     m.status = result
     m.endedAt = now()
     const w = m.wager
@@ -758,17 +799,15 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
         inv.count -= 1
         escrowSerial = inv.serials.length ? inv.serials.pop() : null
       }
-      const pool = rivalCards(s, r).sort((a, b) => b.power - a.power).slice(0, DECK_SIZE + 2)
+      const pool = rivalCards(s, r).sort((a, b) => b.power - a.power).slice(0, DECK_SIZE + 3)
       const picks = []
       const want = Math.min(DECK_SIZE, pool.length)
       while (picks.length < want) picks.push(pool.splice(randomInt(pool.length), 1)[0])
-      if (picks.length < DECK_SIZE) fail('unavailable', 'This rival has no deck yet — publish more cards')
+      const theirDeck = fillRecruits(picks.map((c) => ({ ref: { kind: 'card', id: c.cardId }, stats: c.stats })))
       const m = {
         id: uid('bt_'), rivalId, status: 'active', at: now(), player: PLAYER,
         wager: { ...w, serial: escrowSerial }, stake,
-        you: newSide(hand),
-        them: newSide(picks.map((c) => ({ ref: { kind: 'card', id: c.cardId }, stats: c.stats }))),
-        turn: 'you', top: null, log: [],
+        game: newMatch(hand, theirDeck),
       }
       s.battles.push(m)
       if (s.battles.length > 60) s.battles.splice(0, s.battles.length - 60)
@@ -781,33 +820,39 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
       return m ? battleView(s, m) : null
     }),
 
-    // Your move, then the rival's reply. Both are applied by the same rules
-    // the UI previews, and both land in the log for the client to animate.
-    playRound: (battleId, handIndex, stance = 'strike') => serial((s) => {
-      const m = s.battles.find((b) => b.id === battleId)
-      if (!m || m.status !== 'active') fail('not_active', 'That battle is over')
-      if (m.turn !== 'you') fail('invalid', "It isn't your turn")
-      if (stance !== 'strike' && stance !== 'guard') fail('invalid', 'Choose Strike or Guard')
-      const mine = m.you.hand[handIndex]
-      if (!Number.isInteger(handIndex) || !mine || mine.used) fail('invalid', 'Pick a card you have not played yet')
+    // Lane battle actions. Your plays apply at once; End Turn runs your
+    // attacks, then the rival's whole turn. Every step is recorded in
+    // `events` for the table to animate.
+    playCard: (battleId, handIdx, lane) => serial((s) => {
+      const m = activeGame(s, battleId)
+      try { lanePlay(m.game, 'you', handIdx, lane) } catch (e) { fail('invalid', e.message) }
+      return battleView(s, m)
+    }),
+
+    useTactic: (battleId, kind, lane, toLane) => serial((s) => {
+      const m = activeGame(s, battleId)
+      try { laneTactic(m.game, 'you', kind, lane, toLane) } catch (e) { fail('invalid', e.message) }
+      return battleView(s, m)
+    }),
+
+    endTurn: (battleId) => serial((s) => {
+      const m = activeGame(s, battleId)
       const r = RIVALS.find((x) => x.id === m.rivalId)
-      applyPlay(m, 'you', handIndex, stance)
-      if (!isOver(m)) {
-        const mv = npcChoose(m, rivalSkill(r.level))
-        if (mv) applyPlay(m, 'them', mv.i, mv.st)
-      }
-      if (!isOver(m) && m.you.hand.every((h) => h.used)) {
-        // you're out of cards: the rival plays out the rest of its hand
-        while (!isOver(m)) { const mv = npcChoose(m, rivalSkill(r.level)); if (!mv) break; applyPlay(m, 'them', mv.i, mv.st) }
-      }
-      if (isOver(m)) settle(s, m, r)
+      try {
+        laneEnd(m.game, 'you')
+        if (!m.game.over) { rivalPlays(m.game, rivalSkill(r.level)); laneEnd(m.game, 'them') }
+      } catch (e) { fail('invalid', e.message) }
+      if (m.game.over) settle(s, m, r)
       return battleView(s, m)
     }),
 
     forfeit: (battleId) => serial((s) => {
       const m = s.battles.find((b) => b.id === battleId)
-      if (!m || m.status !== 'active') fail('not_active', 'That battle is over')
-      m.you.hp = 0
+      if (!m || m.status !== 'active' || !m.game) fail('not_active', 'That battle is over')
+      m.game.events = []
+      m.game.you.leader = 0
+      m.game.over = true
+      m.game.turn = null
       settle(s, m, RIVALS.find((x) => x.id === m.rivalId), true)
       return battleView(s, m)
     }),
@@ -858,7 +903,7 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
 
     deleteCustom: (id) => serial((s) => {
       const p = player(s)
-      if (s.battles.some((b) => b.status === 'active' && b.you.hand.some((h) => h.ref.kind === 'custom' && h.ref.id === id))) fail('busy', 'That card is in a battle right now')
+      if (s.battles.some((b) => b.status === 'active' && b.game && JSON.stringify(b.game.you).includes(id))) fail('busy', 'That card is in a battle right now')
       const c = p.customs.find((x) => x.id === id)
       p.customs = p.customs.filter((x) => x.id !== id)
       return { imageKey: c?.art?.kind === 'upload' ? c.art.imageKey : null }

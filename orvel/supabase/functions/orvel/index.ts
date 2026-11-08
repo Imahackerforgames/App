@@ -32,7 +32,7 @@ class Http extends Error { constructor(public status: number, msg: string, publi
 // What each kind of caller may do. Anything else is refused.
 const PLAYER_OPS = new Set([
   'snapshot', 'setPlayerName', 'claimDaily', 'buyPackWithCash', 'quoteSale', 'sellCard', 'quoteDuplicates', 'sellDuplicates',
-  'rivals', 'rivalProfile', 'battleQuote', 'startBattle', 'activeBattle', 'playRound', 'forfeit',
+  'rivals', 'rivalProfile', 'battleQuote', 'startBattle', 'activeBattle', 'playCard', 'useTactic', 'endTurn', 'forfeit',
   'buyCosmetic', 'saveCustom', 'upgradeCustom', 'deleteCustom',
 ])
 const ADMIN_OPS = new Set([

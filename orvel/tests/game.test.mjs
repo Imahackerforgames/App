@@ -222,7 +222,7 @@ test('a v1 save is moved to the new economy, but customised values are kept', ()
   assert.equal(s.packs[0].priceCash, 250)
   assert.equal(s.packs[1].priceCash, 333)
   assert.ok(s.cards[0].sellValue >= 50000)
-  assert.equal(s.version, 4)
+  assert.equal(s.version, 5)
 })
 
 test('rarity value ranges are validated', async () => {

@@ -4,7 +4,8 @@ import Avatar from '../components/Avatar.jsx'
 import { Btn, Cash, Modal, RarityTag, WindowTitle } from '../components/ui.jsx'
 import { useGame, fmt, server } from '../store.jsx'
 import { customDisplay } from '../lib/customCard.js'
-import { DECK_SIZE, MAX_HP, GUARD_CAP, ABILITIES, ELEMENTS, previewMove, applyPlay } from '../server/battle.js'
+import { DECK_SIZE, LEADER_HP, MAX_ENERGY, TURN_LIMIT, ABILITIES, ELEMENTS, RECRUITS, unitOf } from '../server/battle.js'
+import Table from '../components/Table.jsx'
 import { play } from '../lib/sound.js'
 
 // ───────────────────────── shared bits ─────────────────────────
@@ -16,15 +17,20 @@ const LEAGUES = [
   { id: 'diamond', name: 'Diamond League', min: 40, color: '#7ff6ff' },
   { id: 'master', name: 'Master League', min: 55, color: '#ff5cf0' },
 ]
-const leagueOf = (lvl) => [...LEAGUES].reverse().find((l) => lvl >= l.min)
-const tierColor = (lvl) => leagueOf(lvl).color
+export const leagueOf = (lvl) => [...LEAGUES].reverse().find((l) => lvl >= l.min)
+export const tierColor = (lvl) => leagueOf(lvl).color
 const titleFor = (wins) => (wins >= 100 ? 'Legend' : wins >= 40 ? 'Champion' : wins >= 15 ? 'Challenger' : wins >= 5 ? 'Contender' : 'Rookie')
 const EL = Object.fromEntries(ELEMENTS.map((e) => [e.id, e]))
 const AB = Object.fromEntries(ABILITIES.map((a) => [a.id, a]))
 
-function useResolve() {
+const RECRUIT_RARITY = { name: 'Recruit', color: '#9aa7b4', color2: '#3b4552', effect: 'matte' }
+export function useResolve() {
   const { snap, rarityById } = useGame()
   return useCallback((ref) => {
+    if (ref.kind === 'recruit') {
+      const rc = RECRUITS.find((x) => x.id === ref.id) || RECRUITS[0]
+      return { card: { id: rc.id, name: rc.name, code: 'RECRUIT', imageUrl: rc.art, collectionNumber: 0, fit: 'cover', limited: null }, rarity: RECRUIT_RARITY, footRight: 'BASIC' }
+    }
     if (ref.kind === 'custom') {
       const c = snap.player.customs.find((x) => x.id === ref.id)
       return c ? customDisplay(c) : null
@@ -34,7 +40,7 @@ function useResolve() {
   }, [snap, rarityById])
 }
 
-function Crest({ lvl, size = 22 }) {
+export function Crest({ lvl, size = 22 }) {
   const l = leagueOf(lvl)
   return (
     <svg className="crest" width={size} height={size} viewBox="0 0 24 24" aria-label={l.name}>
@@ -78,7 +84,7 @@ export default function Arena() {
         <div className="ah-content">
           <div className="ah-kicker">ORVEL</div>
           <h1 className="ah-title">ARENA</h1>
-          <p className="ah-sub">Strike. Guard. Read their hand. Win double.</p>
+          <p className="ah-sub">Three lanes. One table. Bet it all and win double.</p>
           <button className="link ah-rules" onClick={() => { play('click'); setRules(true) }}>How duels work</button>
         </div>
         <div className="fighter window">
@@ -169,15 +175,18 @@ function Rules({ onClose }) {
     <Modal onClose={onClose} label="How duels work">
       <WindowTitle onClose={onClose}>HOW DUELS WORK</WindowTitle>
       <div className="rules">
-        <p>Both players have <b>{MAX_HP} HP</b> and five cards, face up. You go first, then you take turns. When both hands are empty, more HP wins — or knock them to 0 first.</p>
-        <div className="rules-stances">
-          <div><b className="st-strike">⚔ STRIKE</b><span>Deal the card's ATK as damage. Their guard soaks it up first.</span></div>
-          <div><b className="st-guard">⛨ GUARD</b><span>Add the card's DEF to your guard (max {GUARD_CAP}). It stays until it's broken.</span></div>
+        <p>You and your rival each have a <b>leader with {LEADER_HP} HP</b>, three <b>lanes</b>, and a deck of {DECK_SIZE} cards (Recruits fill any empty slots). Knock their leader to 0 to win. After {TURN_LIMIT} turns each, the healthier leader wins.</p>
+        <div className="rules-steps">
+          <div><b>1 · ENERGY</b><span>Each turn your energy refills: 2 on your first turn, one more each turn, up to {MAX_ENERGY}. You draw a card.</span></div>
+          <div><b>2 · PLAY</b><span>Put cards into your empty lanes. Each card costs energy (shown on the card). On the table it becomes a unit with ATK and HP.</span></div>
+          <div><b>3 · TACTICS</b><span>Tap one of your units: <b>Fortify</b> (1 energy) blocks 4 from every hit until your next turn; <b>Shift</b> (1 energy) moves it to an empty lane.</span></div>
+          <div><b>4 · END TURN</b><span>Every unit you have attacks straight down its lane: the enemy unit there, or their leader if the lane is empty. Units attack the turn they're played — except the very first turn of the duel.</span></div>
         </div>
-        <p><b>The pile matters.</b> The last card played sits on top. Play the <b>same element</b> for +2, or the element that <b>beats it</b> for +3 — to ATK when striking, DEF when guarding.</p>
+        <p><b>Terrain:</b> each lane has an element. A unit standing on its own element gets <b>+2 ATK</b>.</p>
+        <p><b>Elements:</b> attacking a unit whose element yours beats gives <b>+3 ATK</b>.</p>
         <div className="rules-tri">{ELEMENTS.map((e) => <span key={e.id} style={{ color: e.color }}>{e.glyph} {e.name}</span>).reduce((a, x, i) => [...a, i ? <i key={'a' + i}>beats</i> : null, x], [])}<i>beats</i><span style={{ color: ELEMENTS[0].color }}>{ELEMENTS[0].glyph} {ELEMENTS[0].name}</span></div>
         <ul className="rules-ab">{ABILITIES.map((a) => <li key={a.id}><b>{a.name}</b> {a.text}</li>)}</ul>
-        <p className="fine">Tap any card in a duel to see exactly what Strike and Guard would do right now, and how hard they can hit back.</p>
+        <p className="fine">Tap any card or unit on the table to see its numbers and exactly what it will hit next.</p>
       </div>
     </Modal>
   )
@@ -247,6 +256,7 @@ function DuelSetup({ rival, onClose, onStart }) {
     try { const saved = JSON.parse(localStorage.getItem(DECK_KEY) || '[]'); const ok = saved.filter((k) => options.some((o) => key(o.ref) === k)); if (ok.length === DECK_SIZE) return ok } catch {}
     return options.slice(0, DECK_SIZE).map((o) => key(o.ref))
   })
+  const recruitsNeeded = DECK_SIZE - deck.length
   const [mode, setMode] = useState('coins')
   const [amount, setAmount] = useState(Math.min(rival.betCap, 100, snap.player.cash))
   const [betCard, setBetCard] = useState('')
@@ -281,7 +291,7 @@ function DuelSetup({ rival, onClose, onStart }) {
     } catch {} finally { setBusy(false) }
   }
   const stakeCard = stake?.type === 'card' && snap.cards.find((c) => c.id === stake.cardId)
-  const ready = deck.length === DECK_SIZE && wager && (wager.type !== 'card' || betCard)
+  const ready = wager && (wager.type !== 'card' || betCard)
   const deckPower = deck.reduce((t, k) => { const o = options.find((x) => key(x.ref) === k); return t + (o ? o.stats.atk + o.stats.def + o.stats.abilities.length * 3 : 0) }, 0)
 
   return (
@@ -297,8 +307,9 @@ function DuelSetup({ rival, onClose, onStart }) {
         <section>
           <div className="ds-head"><span className="label">YOUR DECK · {deck.length}/{DECK_SIZE}</span>
             <button className="link" onClick={() => setDeck(options.slice(0, DECK_SIZE).map((o) => key(o.ref)))}>Auto-pick strongest</button></div>
-          {options.length < DECK_SIZE ? (
-            <p className="warn">You need at least {DECK_SIZE} cards. Open packs in the shop or forge your own card.</p>
+          {recruitsNeeded > 0 && <p className="fine">{recruitsNeeded} empty {recruitsNeeded === 1 ? 'slot is' : 'slots are'} filled with basic Recruits. Open packs or forge cards to replace them.</p>}
+          {options.length === 0 ? (
+            <p className="warn">You don't own any cards yet — you'll fight with Recruits. Open packs in the shop to build a real deck.</p>
           ) : (
             <div className="ds-cards">
               {options.map((o) => {
@@ -306,7 +317,7 @@ function DuelSetup({ rival, onClose, onStart }) {
                 return d && (
                   <div key={k} className={`ds-card ${on ? 'on' : ''}`}>
                     <button className="ds-pick" onClick={() => toggle(k)} aria-pressed={on} aria-label={`${on ? 'Remove' : 'Add'} ${d.card.name}`}>
-                      <CardFrame card={d.card} rarity={d.rarity} frame={d.frame} footRight={d.footRight} size="sm" tilt={false} showCount={false} stats={o.stats} />
+                      <CardFrame card={d.card} rarity={d.rarity} frame={d.frame} footRight={d.footRight} size="sm" tilt={false} showCount={false} stats={unitOf(o.stats)} />
                     </button>
                     {on && <span className="ds-check">{deck.indexOf(k) + 1}</span>}
                     <button className="ds-info" onClick={() => { play('click'); setInfo({ ...o, d }) }} aria-label={`Details for ${d.card.name}`}>i</button>
@@ -375,259 +386,24 @@ function CardInfo({ item, onClose }) {
 }
 export function StatTiles({ stats }) {
   const e = EL[stats.element]
+  const u = stats.hp != null ? stats : unitOf(stats)
   return (
-    <div className="stat-tiles">
-      <div className="stt atk"><span>ATK</span><b>{stats.atk}</b><i>damage on Strike</i></div>
-      <div className="stt def"><span>DEF</span><b>{stats.def}</b><i>guard on Guard</i></div>
+    <div className="stat-tiles four">
+      <div className="stt cost"><span>COST</span><b>{u.cost}</b><i>energy to play</i></div>
+      <div className="stt atk"><span>ATK</span><b>{u.atk}</b><i>damage per attack</i></div>
+      <div className="stt def"><span>HP</span><b>{u.hp}</b><i>health on the table</i></div>
       <div className="stt el" style={{ '--ec': e?.color }}><span>ELEMENT</span><b>{e?.glyph}</b><i>{e?.name} · beats {EL[e?.beats]?.name}</i></div>
     </div>
   )
 }
-function Abilities({ list }) {
+export function Abilities({ list }) {
   if (!list?.length) return <p className="fine">No special ability.</p>
   return <ul className="ab-list">{list.map((a) => <li key={a}><b>{AB[a]?.name}</b> {AB[a]?.text}</li>)}</ul>
 }
 
-// ───────────────────────── the duel ─────────────────────────
+const Battle = Table
 
-const CHAT = {
-  hurt: ['ugh', 'ok nice', 'wait what', 'hm.', 'lucky'],
-  hit: ['gotcha', ':)', 'too easy?', 'yes!!', 'called it'],
-  guard: ['not today', 'nope', 'try again'],
-}
-const pick = (a) => a[Math.floor(Math.random() * a.length)]
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-
-function Battle({ initial, onClose, onRematch }) {
-  const { call } = useGame()
-  const resolve = useResolve()
-  const [b, setB] = useState(initial)
-  const [shown, setShown] = useState(initial.log.length) // log entries already animated
-  const [sheet, setSheet] = useState(null) // { side, idx }
-  const [busy, setBusy] = useState(false)
-  const [thinking, setThinking] = useState(false)
-  const [fx, setFx] = useState(null) // the entry being animated
-  const [pops, setPops] = useState([])
-  const [chat, setChat] = useState(initial.rival.line)
-  const [banner, setBanner] = useState(initial.log.length ? null : 'start')
-  const [showResult, setShowResult] = useState(initial.status !== 'active')
-  const alive = useRef(true)
-  useEffect(() => () => { alive.current = false }, [])
-  useEffect(() => { const p = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = p } }, [])
-  useEffect(() => { if (!chat) return; const t = setTimeout(() => setChat(null), 2600); return () => clearTimeout(t) }, [chat])
-  useEffect(() => { if (!banner) return; const t = setTimeout(() => setBanner(null), 1300); return () => clearTimeout(t) }, [banner])
-
-  // What is on screen: the state after the last animated entry.
-  const base = { hp: MAX_HP, guard: 0, rally: 0, hex: 0, burn: 0, counter: false }
-  const view = shown ? b.log[shown - 1].after : { you: base, them: base }
-  const usedSet = useMemo(() => new Set(b.log.slice(0, shown).map((e) => `${e.side}:${e.idx}`)), [b.log, shown])
-  const pile = b.log.slice(0, shown).slice(-3)
-  const myTurn = !busy && shown === b.log.length && b.status === 'active' && b.turn === 'you'
-  const r = b.rival
-
-  function pop(side, text, kind) {
-    const id = Math.random()
-    setPops((p) => [...p, { id, side, text, kind }])
-    setTimeout(() => alive.current && setPops((p) => p.filter((x) => x.id !== id)), 1300)
-  }
-
-  async function animate(entries, final) {
-    for (const e of entries) {
-      if (!alive.current) return
-      if (e.side === 'them') { setThinking(true); await sleep(700 + Math.random() * 600); setThinking(false) }
-      setFx(e)
-      play('flip')
-      await sleep(380)
-      const target = e.side === 'you' ? 'them' : 'you'
-      if (e.burned) pop(e.side, `BURN −${e.burned}`, 'burn')
-      if (e.stance === 'strike') {
-        play('hit', e.dmg >= 8)
-        if (e.absorbed) pop(target, `⛨ −${e.absorbed}`, 'block')
-        pop(target, e.dmg ? `−${e.dmg}` : 'BLOCKED', e.dmg ? 'dmg' : 'block')
-        if (e.heal) pop(e.side, `+${e.heal}`, 'heal')
-        if (e.reflect) pop(e.side, `−${e.reflect}`, 'dmg')
-        if (e.side === 'you' && Math.random() < 0.5) setChat(pick(e.dmg ? CHAT.hurt : CHAT.guard))
-        if (e.side === 'them' && e.dmg && Math.random() < 0.5) setChat(pick(CHAT.hit))
-      } else {
-        play('guard')
-        pop(e.side, `⛨ +${e.guardGain}`, 'guard')
-      }
-      setShown((n) => n + 1)
-      await sleep(e.stance === 'strike' && e.dmg >= 8 ? 900 : 650)
-      setFx(null)
-    }
-    if (final.status === 'active') { setBanner('you'); play('turn') }
-    else { await sleep(500); setShowResult(true); play(final.status === 'won' ? 'cash' : 'back') }
-  }
-
-  async function act(idx, stance) {
-    setSheet(null)
-    if (!myTurn) return
-    setBusy(true)
-    try {
-      const before = b.log.length
-      const nb = await call((s) => s.playRound(b.id, idx, stance))
-      setB(nb)
-      await animate(nb.log.slice(before), nb)
-    } catch {} finally { if (alive.current) setBusy(false) }
-  }
-  async function forfeit() {
-    try { const nb = await call((s) => s.forfeit(b.id)); setB(nb); setShown(nb.log.length); setShowResult(true) } catch {}
-  }
-
-  const Status = ({ side }) => {
-    const st = view[side]
-    const hpPct = Math.max(0, st.hp) / MAX_HP
-    return (
-      <div className={`bst bst-${side} ${fx && fx.stance === 'strike' && fx.side !== side ? 'hit' : ''} ${fx && fx.stance === 'guard' && fx.side === side ? 'guarding' : ''}`}>
-        <div className="bst-hp">
-          <div className="bst-bar"><i style={{ width: `${hpPct * 100}%`, background: hpPct > 0.4 ? 'var(--green)' : hpPct > 0.2 ? 'var(--gold)' : 'var(--red)' }} /><span className="mono">{Math.max(0, st.hp)}</span></div>
-        </div>
-        <div className={`bst-guard ${st.guard ? 'on' : ''}`} title="Guard"><span>⛨</span><b className="mono">{st.guard}</b></div>
-        <div className="bst-chips">
-          {st.counter && <span className="chip-s counter">COUNTER</span>}
-          {st.rally > 0 && <span className="chip-s rally">RALLY +{st.rally}</span>}
-          {st.hex > 0 && <span className="chip-s hex">HEXED −{st.hex}</span>}
-          {st.burn > 0 && <span className="chip-s burn">BURN {st.burn}</span>}
-        </div>
-        <div className="pops">{pops.filter((p) => p.side === side).map((p) => <span key={p.id} className={`pop pop-${p.kind}`}>{p.text}</span>)}</div>
-      </div>
-    )
-  }
-
-  const Hand = ({ side }) => {
-    const hand = b[side].hand
-    const left = hand.map((h, i) => ({ h, i })).filter(({ i }) => !usedSet.has(`${side}:${i}`))
-    const n = left.length
-    return (
-      <div className={`fan fan-${side}`}>
-        {left.map(({ h, i }, k) => {
-          const d = resolve(h.ref)
-          if (!d) return null
-          const off = k - (n - 1) / 2
-          const canPlay = side === 'you' && myTurn
-          return (
-            <button key={i} className={`fan-card ${canPlay ? 'ready' : ''}`} style={{ '--r': `${off * (side === 'you' ? 7 : -5)}deg`, '--y': `${Math.abs(off) * (side === 'you' ? 8 : -5)}px` }}
-              onClick={() => { play('click'); setSheet({ side, idx: i }) }} aria-label={`${d.card.name}: attack ${h.stats.atk}, defense ${h.stats.def}`}>
-              <CardFrame card={d.card} rarity={d.rarity} frame={d.frame} footRight={d.footRight} size="xs" tilt={false} showCount={false} stats={h.stats} />
-            </button>
-          )
-        })}
-      </div>
-    )
-  }
-
-  const flying = fx && resolve(b[fx.side].hand[fx.idx].ref)
-  return (
-    <div className={`battle ${fx && fx.stance === 'strike' && fx.dmg >= 8 ? 'quake' : ''}`} role="dialog" aria-modal="true" aria-label={`Duel against ${r.name}`}>
-      <div className="arena-bg" aria-hidden="true"><div className="ab-spot l" /><div className="ab-spot r" /><div className="ab-floor" /><div className="ab-dust" /></div>
-
-      <header className="bt-top">
-        <div className="bt-who">
-          <Avatar seed={r.id} size={42} ring={tierColor(r.level)} />
-          <div><b>{r.name}</b><div className="bt-sub"><Crest lvl={r.level} size={16} /> LV {r.level}{r.streak ? ` · ▲${r.streak}` : ''}</div></div>
-          {chat && <div className="bt-chat">{chat}</div>}
-          <button className="bt-x" onClick={forfeit} disabled={b.status !== 'active'} aria-label="Forfeit">FORFEIT</button>
-        </div>
-        <Status side="them" />
-        <Hand side="them" />
-      </header>
-
-      <div className="bt-floor">
-        <div className="bt-turn mono">
-          {b.status !== 'active' && shown === b.log.length ? 'DUEL OVER' : thinking ? <>{r.name} is thinking<span className="dots"><i>.</i><i>.</i><i>.</i></span></> : myTurn ? 'YOUR TURN — tap a card' : ' '}
-        </div>
-        <div className="pile">
-          {pile.length === 0 && <div className="pile-empty">PILE<br /><span className="fine">first card sets the element</span></div>}
-          {pile.map((e, k) => {
-            const d = resolve(b[e.side].hand[e.idx].ref)
-            const top = k === pile.length - 1
-            return d && (
-              <div key={`${e.side}${e.idx}`} className={`pile-card ${top ? 'top' : ''}`} style={{ '--pr': `${(k - pile.length + 1) * 9 + (e.side === 'you' ? 4 : -4)}deg`, '--ec': EL[b[e.side].hand[e.idx].stats.element]?.color }}>
-                <CardFrame card={d.card} rarity={d.rarity} frame={d.frame} footRight={d.footRight} size="xs" tilt={false} showCount={false} stats={b[e.side].hand[e.idx].stats} />
-                {top && <span className={`pile-stance ${e.stance}`}>{e.stance === 'strike' ? '⚔' : '⛨'}</span>}
-              </div>
-            )
-          })}
-          {fx && flying && (
-            <div className={`flyer from-${fx.side}`} key={`${fx.side}${fx.idx}`}>
-              <CardFrame card={flying.card} rarity={flying.rarity} frame={flying.frame} footRight={flying.footRight} size="xs" tilt={false} showCount={false} stats={b[fx.side].hand[fx.idx].stats} />
-            </div>
-          )}
-        </div>
-        {pile.length > 0 && <div className="pile-el" style={{ color: EL[b[pile[pile.length - 1].side].hand[pile[pile.length - 1].idx].stats.element]?.color }}>TOP: {EL[b[pile[pile.length - 1].side].hand[pile[pile.length - 1].idx].stats.element]?.glyph} {EL[b[pile[pile.length - 1].side].hand[pile[pile.length - 1].idx].stats.element]?.name}</div>}
-        {banner && <div className="turn-banner">{banner === 'start' ? 'DUEL START' : 'YOUR TURN'}</div>}
-      </div>
-
-      <footer className="bt-bottom">
-        <Hand side="you" />
-        <Status side="you" />
-        <div className="bt-pot mono">{b.wager.type === 'coins' && b.wager.amount > 0 ? `POT ${fmt(b.wager.amount * 2)}` : b.wager.type === 'card' ? `CARD BET · ${b.wager.cardName}` : 'FRIENDLY'}</div>
-      </footer>
-
-      {sheet && <PlaySheet b={b} sheet={sheet} myTurn={myTurn} resolve={resolve} onAct={act} onClose={() => setSheet(null)} />}
-      {showResult && b.status !== 'active' && <Result b={b} onClose={onClose} onRematch={() => onRematch(r)} />}
-    </div>
-  )
-}
-
-// Tap a card: its stats, its abilities, and the exact result of each stance.
-function PlaySheet({ b, sheet, myTurn, resolve, onAct, onClose }) {
-  const h = b[sheet.side].hand[sheet.idx]
-  const d = resolve(h.ref)
-  const mine = sheet.side === 'you'
-  const can = mine && myTurn && !h.used
-  const strike = can ? previewMove(b, 'you', sheet.idx, 'strike') : null
-  const guard = can ? previewMove(b, 'you', sheet.idx, 'guard') : null
-  // their biggest possible hit after each choice
-  const threat = (stance) => {
-    const m = JSON.parse(JSON.stringify(b))
-    applyPlay(m, 'you', sheet.idx, stance)
-    if (m.them.hp <= 0) return null
-    return Math.max(0, ...m.them.hand.map((x, i) => (x.used ? 0 : previewMove(m, 'them', i, 'strike').dmg)))
-  }
-  const tS = can ? threat('strike') : null
-  const tG = can ? threat('guard') : null
-  const lethal = strike && strike.dmg >= b.them.hp
-  return (
-    <div className="sheet-back" onClick={onClose}>
-      <div className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`${d.card.name}`}>
-        <div className="sheet-card"><CardFrame card={d.card} rarity={d.rarity} frame={d.frame} footRight={d.footRight} size="sm" tilt={false} showCount={false} /></div>
-        <div className="sheet-info">
-          <h3>{d.card.name} {!mine && <span className="cpu-tag">{b.rival.name}'s</span>}</h3>
-          <StatTiles stats={h.stats} />
-          <Abilities list={h.stats.abilities} />
-          {can && strike.bonuses.length > 0 && <div className="bonus-row">{strike.bonuses.map((x) => <span key={x.k} className={`bonus ${x.v < 0 ? 'neg' : ''}`}>{x.label} {x.v > 0 ? '+' : ''}{x.v}</span>)}</div>}
-        </div>
-        {can ? (
-          <div className="stance-btns">
-            <button className={`stance strike ${lethal ? 'lethal' : ''}`} onClick={() => onAct(sheet.idx, 'strike')}>
-              <span className="st-ic">⚔</span>
-              <span className="st-main">STRIKE <b>{strike.dmg}</b> dmg{lethal ? ' · KO!' : ''}</span>
-              <span className="st-sub">
-                {strike.absorbed ? `${strike.absorbed} soaked by guard · ` : ''}{strike.effects.filter((x) => x !== 'Counter').join(' · ')}{strike.heal ? ` · heal ${strike.heal}` : ''}{strike.reflect ? ` · you take ${strike.reflect} back` : ''}
-                {tS != null && <><br />then they can hit for up to {tS}</>}
-              </span>
-            </button>
-            <button className="stance guard" onClick={() => onAct(sheet.idx, 'guard')}>
-              <span className="st-ic">⛨</span>
-              <span className="st-main">GUARD <b>+{guard.guardGain}</b></span>
-              <span className="st-sub">
-                guard {b.you.guard} → {Math.min(GUARD_CAP, b.you.guard + guard.guardGain)}{guard.effects.length ? ' · ' + guard.effects.join(' · ') : ''}
-                {tG != null && <><br />then they can hit for up to {tG}</>}
-              </span>
-            </button>
-          </div>
-        ) : (
-          <p className="fine center">{mine ? (h.used ? 'Already played.' : 'Wait for your turn.') : 'Their card — plan around it.'}</p>
-        )}
-        <button className="link sheet-close" onClick={onClose}>Close</button>
-      </div>
-    </div>
-  )
-}
-
-function Result({ b, onClose, onRematch }) {
+export function Result({ b, onClose, onRematch }) {
   const { snap, rarityById } = useGame()
   const won = b.status === 'won', lost = b.status === 'lost'
   const cards = (b.payout?.cards || []).map((c) => ({ ...c, card: snap.cards.find((x) => x.id === c.cardId) })).filter((c) => c.card)
@@ -636,9 +412,9 @@ function Result({ b, onClose, onRematch }) {
       {won && <div className="confetti" aria-hidden="true">{Array.from({ length: 40 }, (_, i) => <i key={i} style={{ '--i': i }} />)}</div>}
       <div className="br-title">{won ? 'VICTORY' : lost ? 'DEFEAT' : 'DRAW'}</div>
       <div className="br-vs">
-        <div><Avatar seed={'player:' + snap.player.name} size={48} ring="var(--accent)" /><span className="mono">{Math.max(0, b.you.hp)} HP</span></div>
+        <div><Avatar seed={'player:' + snap.player.name} size={48} ring="var(--accent)" /><span className="mono">{Math.max(0, b.you.leader)} HP</span></div>
         <span className="mono">vs</span>
-        <div><Avatar seed={b.rival.id} size={48} ring={tierColor(b.rival.level)} /><span className="mono">{Math.max(0, b.them.hp)} HP</span></div>
+        <div><Avatar seed={b.rival.id} size={48} ring={tierColor(b.rival.level)} /><span className="mono">{Math.max(0, b.them.leader)} HP</span></div>
       </div>
       {won && b.wager.type === 'coins' && b.wager.amount > 0 && <div className="br-pay">+<Cash amount={b.payout.coins} big /></div>}
       {won && cards.length > 0 && (

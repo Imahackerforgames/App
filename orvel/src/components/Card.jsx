@@ -71,8 +71,9 @@ export function StatBar({ stats }) {
   return (
     <div className="statbar">
       <span className="sb-el" style={{ color: c }} title={stats.element}>{g}</span>
+      {stats.cost != null && <span className="sb-cost" title="Energy cost">{stats.cost}</span>}
       <span className="sb-atk" title="Attack">{stats.atk}</span>
-      <span className="sb-def" title="Defense">{stats.def}</span>
+      {stats.hp != null ? <span className="sb-hp" title="Health">{stats.hp}</span> : <span className="sb-def" title="Defense">{stats.def}</span>}
       {stats.abilities?.map((a) => <span key={a} className="sb-ab" title={a}>{AB[a] || a}</span>)}
     </div>
   )

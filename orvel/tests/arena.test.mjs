@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGameServer } from '../src/server/game.js'
-import { applyPlay, previewPlay, newSide, npcChoose, FORGE, MAX_HP, GUARD_CAP, RIVALS, rivalBetCap } from '../src/server/battle.js'
+import { newMatch, playCard, useTactic, endTurn, rivalPlays, attackOf, unitOf, startTurn, FORGE, RIVALS, rivalBetCap, LEADER_HP, DECK_SIZE, TURN_LIMIT } from '../src/server/battle.js'
 import { migrate, freshState } from '../src/server/game.js'
 import { seedCards } from '../src/lib/seedArt.js'
 
@@ -18,8 +18,15 @@ async function setup(cash = 50000) {
   return { g, token }
 }
 const deckOf = (snap) => Object.entries(snap.player.inventory).filter(([, v]) => v.count > 0).slice(0, 5).map(([id]) => ({ kind: 'card', id }))
+// plays whatever fits, then ends the turn, until the duel is over
 async function playOut(g, b) {
-  while (b.status === 'active') b = await g.playRound(b.id, b.you.hand.findIndex((h) => !h.used))
+  for (let guard = 0; guard < 60 && b.status === 'active'; guard++) {
+    for (let i = 0; i < b.you.hand.length; i++) {
+      const lane = b.you.board.findIndex((u) => !u)
+      if (lane >= 0 && b.you.hand[i].unit.cost <= b.you.energy) { b = await g.playCard(b.id, i, lane); i = -1 }
+    }
+    b = await g.endTurn(b.id)
+  }
   return b
 }
 
@@ -76,7 +83,9 @@ test('cannot bet or play cards you do not own, and decks must be 5 distinct card
   await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck, wager: { type: 'card', cardId: unowned.id } }), /own/)
   await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck: [...deck.slice(0, 4), { kind: 'card', id: unowned.id }] }), /own/)
   await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck: [...deck.slice(0, 4), deck[0]] }), /once/)
-  await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck: deck.slice(0, 3) }), /exactly/)
+  await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck: Array.from({ length: 9 }, (_, i) => deck[i % deck.length]) }), /up to/)
+  const b = await g.startBattle({ rivalId: RIVALS[0].id, deck: deck.slice(0, 2) }) // Recruits fill the rest
+  assert.equal(b.you.hand.length + b.you.deckCount, DECK_SIZE)
 })
 
 test('a forfeit loses the bet; only one battle at a time', async () => {
@@ -87,76 +96,118 @@ test('a forfeit loses the bet; only one battle at a time', async () => {
   const f = await g.forfeit(b.id)
   assert.equal(f.status, 'lost')
   assert.equal((await g.snapshot()).player.cash, s0.player.cash - 100)
-  await assert.rejects(g.playRound(b.id, 0), /over/)
+  await assert.rejects(g.endTurn(b.id), /over/)
 })
 
-test('a card cannot be played twice in one battle', async () => {
+test('the rival hand and both decks stay hidden', async () => {
   const { g } = await setup()
   const s0 = await g.snapshot()
   const b = await g.startBattle({ rivalId: RIVALS[0].id, deck: deckOf(s0) })
-  await g.playRound(b.id, 0)
-  await assert.rejects(g.playRound(b.id, 0), /not played/)
+  assert.equal(b.them.hand, undefined)
+  assert.equal(typeof b.them.handCount, 'number')
+  assert.equal(b.you.deck, undefined)
+  assert.ok(b.events.every((e) => !(e.t === 'draw' && e.side === 'them' && e.card)))
 })
 
-const card = (atk, def, element = 'ember', abilities = []) => ({ stats: { atk, def, element, abilities } })
-const duel = (you, them) => ({ you: newSide(you), them: newSide(them), turn: 'you', top: null, log: [] })
+const c = (atk, def, element = 'gale', abilities = []) => ({ ref: { kind: 'recruit', id: 'x' }, stats: { atk, def, element, abilities } })
+const seq = (...xs) => { let i = 0; return (n) => (xs[i++] ?? 0) % n } // fixed "random" for shuffles and terrain
+// a match where both decks are in order and every lane is Tide terrain
+function match(you, them) {
+  const m = newMatch(you, them, (n) => n - 1) // keeps decks in the order given
+  m.terrain = ['tide', 'tide', 'tide']
+  return m
+}
 
-test('strike vs guard: guard absorbs first and persists until broken', () => {
-  const m = duel([card(6, 8, 'gale'), card(9, 1, 'gale')], [card(5, 5, 'gale'), card(5, 5, 'gale')])
-  applyPlay(m, 'you', 0, 'guard')
-  assert.equal(m.you.guard, 8)
-  applyPlay(m, 'them', 0, 'strike') // 5 + match 2 = 7, all absorbed
-  assert.equal(m.you.hp, MAX_HP)
-  assert.equal(m.you.guard, 1)
-  applyPlay(m, 'you', 1, 'strike') // 9 + match 2, them unguarded
-  assert.equal(m.them.hp, MAX_HP - 11)
+test('units attack down their lane; an empty lane hits the leader', () => {
+  const m = match([c(5, 5), c(5, 5), c(5, 5), c(5, 5)], [c(4, 4), c(4, 4), c(4, 4), c(4, 4)])
+  assert.equal(m.you.hand.length, 4)
+  assert.equal(m.you.energy, 2) // first turn
+  playCard(m, 'you', 0, 0)
+  endTurn(m, 'you') // the player who goes first doesn't attack on turn 1
+  assert.equal(m.them.leader, LEADER_HP)
+  playCard(m, 'them', 0, 0)
+  endTurn(m, 'them')
+  assert.equal(m.you.board[0].hp, unitOf(c(5, 5).stats).hp - 4)
+  endTurn(m, 'you')
+  assert.equal(m.them.board[0].hp, 7 - 5)
+  playCard(m, 'them', 0, 1)
+  endTurn(m, 'them')
+  assert.equal(m.you.leader, LEADER_HP - 4) // their lane-1 unit faces an empty lane and hits the leader
+  // (units attack the turn they're played, except on the very first turn)
 })
 
-test('match +2, element advantage +3, rally, hex, burn, pierce, counter, cap', () => {
-  let m = duel([card(5, 5, 'tide')], [card(4, 4, 'ember')])
-  m.top = { element: 'ember' }
-  assert.equal(previewPlay(m, 'you', 0, 'strike').atk, 8) // tide beats ember
-  m.top = { element: 'tide' }
-  assert.equal(previewPlay(m, 'you', 0, 'strike').atk, 7) // match
-  m = duel([card(2, 2, 'gale', ['rally']), card(5, 5, 'tide')], [card(1, 1, 'gale'), card(1, 1, 'tide')])
-  applyPlay(m, 'you', 0, 'guard'); applyPlay(m, 'them', 0, 'guard')
-  assert.equal(previewPlay(m, 'you', 1, 'strike').atk, 5 + 3)
-  m = duel([card(2, 2, 'gale', ['hex', 'burn'])], [card(6, 6, 'tide')])
-  applyPlay(m, 'you', 0, 'guard')
-  const e = applyPlay(m, 'them', 0, 'strike')
-  assert.equal(e.burned, 3)
-  assert.equal(e.atk, 6 - 3)
-  m = duel([card(9, 1, 'gale', ['pierce'])], [card(1, 15, 'tide')])
-  m.them.guard = 15
-  assert.equal(previewPlay(m, 'you', 0, 'strike').dmg, 9)
-  m = duel([card(1, 10, 'gale', ['counter'])], [card(8, 1, 'tide')])
-  applyPlay(m, 'you', 0, 'guard')
-  const c = applyPlay(m, 'them', 0, 'strike')
-  assert.equal(c.reflect, 4)
-  assert.equal(m.them.hp, MAX_HP - 4)
-  m = duel([card(1, 30, 'gale')], [card(1, 1, 'tide')])
-  applyPlay(m, 'you', 0, 'guard')
-  assert.equal(m.you.guard, GUARD_CAP)
+test('energy grows by one a turn up to six, and costs are enforced', () => {
+  const big = c(12, 12) // cost 5
+  const m = match([big, big, big, big, big, big], [c(1, 1), c(1, 1), c(1, 1), c(1, 1)])
+  assert.throws(() => playCard(m, 'you', 0, 0), /energy/)
+  const seen = []
+  for (let k = 0; k < 7; k++) { seen.push(m.you.maxEnergy); endTurn(m, 'you'); endTurn(m, 'them') }
+  assert.deepEqual(seen, [2, 3, 4, 5, 6, 6, 6])
 })
 
-test('the rival plays after you, and you cannot play twice in a row', async () => {
-  const { g } = await setup()
-  const s0 = await g.snapshot()
-  let b = await g.startBattle({ rivalId: RIVALS[2].id, deck: deckOf(s0) })
-  assert.equal(b.turn, 'you')
-  b = await g.playRound(b.id, 0, 'guard')
-  assert.equal(b.log.length, 2)
-  assert.equal(b.log[0].side, 'you'); assert.equal(b.log[1].side, 'them')
-  assert.equal(b.turn, 'you')
-  await assert.rejects(g.playRound(b.id, 1, 'dance'), /Strike or Guard/)
+test('terrain +2, element +3, shield and fortify block, pierce carries through', () => {
+  let m = match([c(5, 5, 'tide')], [c(1, 9, 'ember')])
+  m.you.board[0] = { ...unitOf(c(5, 5, 'tide').stats), id: 'a', buff: 0, hex: 0, burn: 0 }
+  m.them.board[0] = { ...unitOf(c(1, 9, 'ember').stats), id: 'b', buff: 0, hex: 0, burn: 0 }
+  let a = attackOf(m, 'you', 0)
+  assert.equal(a.atk, 5 + 2 + 3) // tide terrain, tide beats ember
+  m.them.board[0].abilities = ['shield']; m.them.board[0].fortify = true
+  a = attackOf(m, 'you', 0)
+  assert.equal(a.dmg, 10 - 2 - 4)
+  m = match([c(9, 1, 'gale', ['pierce'])], [c(1, 1, 'gale')])
+  m.you.turns = 2
+  m.you.board[0] = { ...unitOf(c(9, 1, 'gale', ['pierce']).stats), id: 'a', buff: 0, hex: 0, burn: 0 }
+  m.them.board[0] = { ...unitOf(c(1, 1, 'gale').stats), id: 'b', buff: 0, hex: 0, burn: 0 } // 4 hp
+  endTurn(m, 'you')
+  assert.equal(m.them.board[0], null)
+  assert.equal(m.them.leader, LEADER_HP - 5)
 })
 
-test('rivals find a lethal strike when there is one', () => {
-  const m = duel([card(1, 1, 'gale'), card(1, 1, 'gale')], [card(3, 3, 'gale'), card(12, 1, 'gale')])
-  m.you.hp = 10
-  m.turn = 'them'
-  const mv = npcChoose(m, 1)
-  assert.deepEqual(mv, { i: 1, st: 'strike' })
+test('counter strikes back, drain heals, burn ticks, rally and hex apply on play', () => {
+  const m = match([c(6, 2, 'gale', ['drain', 'burn']), c(2, 2, 'gale', ['rally']), c(2, 2, 'gale', ['hex'])], [c(4, 10, 'gale', ['counter']), c(1, 1, 'gale')])
+  m.you.turns = 3; m.you.energy = 6; m.you.leader = 20
+  playCard(m, 'you', 0, 0)
+  m.them.board[0] = { ...unitOf(c(4, 10, 'gale', ['counter']).stats), id: 'b', buff: 0, hex: 0, burn: 0 }
+  playCard(m, 'you', 0, 1) // rally: others +2 this turn
+  assert.equal(m.you.board[0].buff, 2)
+  playCard(m, 'you', 0, 0 + 2) // hex lane 2: no enemy there, no effect
+  endTurn(m, 'you')
+  const hit = m.you.board[0]
+  assert.equal(m.you.leader, 20 + 4) // drain: half of 8 (6 ATK + 2 rally)
+  assert.equal(hit.hp, 5 - 2) // counter: half of 4
+  assert.equal(m.them.board[0].hp, 13 - 8 - 2) // 8 damage, then burn 2 as their turn starts
+})
+
+test('tactics: fortify and shift cost energy; shift once a turn', () => {
+  const m = match([c(2, 2), c(2, 2), c(2, 2), c(2, 2)], [c(1, 1), c(1, 1), c(1, 1), c(1, 1)])
+  playCard(m, 'you', 0, 0) // cost 1
+  useTactic(m, 'you', 'shift', 0, 2) // cost 1
+  assert.equal(m.you.board[2].atk, 2)
+  assert.equal(m.you.energy, 0)
+  assert.throws(() => useTactic(m, 'you', 'fortify', 2), /energy/)
+  endTurn(m, 'you'); endTurn(m, 'them')
+  useTactic(m, 'you', 'fortify', 2)
+  assert.equal(m.you.board[2].fortify, true)
+  m.you.energy = 3
+  useTactic(m, 'you', 'shift', 2, 1)
+  assert.throws(() => useTactic(m, 'you', 'shift', 1, 0), /already moved/)
+})
+
+test('rivals take a lethal line when one exists', () => {
+  const m = match([c(1, 1), c(1, 1), c(1, 1), c(1, 1)], [c(9, 1, 'gale'), c(1, 1), c(1, 1), c(1, 1)])
+  endTurn(m, 'you') // rival's turn starts
+  m.them.turns = 3; m.them.energy = 6
+  m.you.leader = 9
+  rivalPlays(m, 1)
+  endTurn(m, 'them')
+  assert.ok(m.you.leader <= 0)
+})
+
+test('a duel always ends: turn limit decides on leader HP', () => {
+  const m = match(Array(8).fill(c(1, 30)), Array(8).fill(c(1, 30)))
+  for (let k = 0; k < 40 && !m.over; k++) { endTurn(m, m.turn) }
+  assert.equal(m.over, true)
+  assert.ok(m.you.turns >= TURN_LIMIT)
 })
 
 test('30-day sign-in: rewards grow, packs and cosmetics arrive, then it loops', async () => {
@@ -211,7 +262,9 @@ test('forge: stat budget, owned cosmetics, upgrades cost coins', async () => {
   await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck: deckOf(s), wager: { type: 'card', cardId: c.id } }), /own/)
   const deck = [{ kind: 'custom', id: c.id }, ...deckOf(s).slice(0, 4)]
   const b = await g.startBattle({ rivalId: RIVALS[0].id, deck })
-  assert.equal(b.you.hand[0].stats.atk, 6)
+  assert.equal(b.you.hand.length + b.you.deckCount, DECK_SIZE)
+  const mine = b.you.hand.find((h) => h.ref.kind === 'custom')
+  if (mine) assert.equal(mine.unit.atk, 6)
 })
 
 test('top rarities are rarer than before', async () => {
