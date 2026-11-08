@@ -6,6 +6,7 @@ import { play, isMuted, setMuted, onMuteChange } from '../lib/sound.js'
 export default function Settings() {
   const [theme, setTheme] = usePref('theme')
   const [crt, setCrt] = usePref('crt')
+  const [haptics, setHaptics] = usePref('haptics')
   const [muted, setM] = useState(isMuted())
   useEffect(() => onMuteChange(setM), [])
 
@@ -41,10 +42,20 @@ export default function Settings() {
             <Btn variant={muted ? 'ghost' : 'primary'} size="sm" onClick={() => setMuted(!muted)}>{muted ? 'OFF' : 'ON'}</Btn>
           </div>
           <div className="set-row">
+            <div><b>Vibration</b><div className="fine">Buzz on taps and rare pulls, on phones that support it.</div></div>
+            <Btn variant={haptics === 'off' ? 'ghost' : 'primary'} size="sm" onClick={() => setHaptics(haptics === 'off' ? 'on' : 'off')}>{haptics === 'off' ? 'OFF' : 'ON'}</Btn>
+          </div>
+          <div className="set-row">
             <div><b>CRT effect</b><div className="fine">Scanlines, screen vignette and the moving grid in the background.</div></div>
             <Btn variant={crt === 'off' ? 'ghost' : 'primary'} size="sm" onClick={() => setCrt(crt === 'off' ? 'on' : 'off')}>{crt === 'off' ? 'OFF' : 'ON'}</Btn>
           </div>
         </div>
+      </section>
+
+      <section className="window">
+        <div className="panel-title">SAVE DATA</div>
+        <p className="fine">Your cards, ORVEL Cash and rank are saved on this device, in this browser. Clearing your browser data erases them.</p>
+        <a className="link" href="#admin">Open the creator dashboard</a>
       </section>
     </div>
   )

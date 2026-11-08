@@ -55,7 +55,23 @@ const sounds = {
   charge: (tier = 0) => tone(120, 0, 0.6 + tier * 0.15, { type: 'sawtooth', slide: 400 + tier * 300, vol: 0.03 }),
 }
 
-export function play(name, arg) { if (!muted) try { sounds[name]?.(arg) } catch { /* audio unavailable */ } }
+// Vibration on phones that support it (Android; iOS Safari ignores it).
+const BUZZ = {
+  click: 8, back: 6, error: [30, 40, 30], coin: 15, cash: [15, 40, 15, 40, 25], open: [20, 30, 60], flip: 10,
+  reveal: (t) => (t >= 5 ? [60, 40, 60, 40, 200] : t >= 4 ? [40, 40, 120] : t >= 3 ? [30, 30, 60] : t >= 2 ? 25 : 0),
+  charge: (t) => (t >= 2 ? Array.from({ length: 4 + t * 2 }, (_, i) => (i % 2 ? 50 : 15)) : 0),
+}
+function hapticsOn() { try { return localStorage.getItem('orvel:haptics') !== 'off' } catch { return true } }
+export function buzz(name, arg) {
+  if (!hapticsOn() || !navigator.vibrate) return
+  const b = typeof BUZZ[name] === 'function' ? BUZZ[name](arg) : BUZZ[name]
+  if (b) try { navigator.vibrate(b) } catch { /* not allowed */ }
+}
+
+export function play(name, arg) {
+  buzz(name, arg)
+  if (!muted) try { sounds[name]?.(arg) } catch { /* audio unavailable */ }
+}
 export function isMuted() { return muted }
 export function setMuted(m) {
   muted = m

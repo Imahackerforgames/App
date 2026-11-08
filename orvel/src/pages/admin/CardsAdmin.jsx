@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import CardFrame from '../../components/Card.jsx'
 import { ArtZoom } from '../../components/CardViewer.jsx'
-import { Btn, Modal, RarityTag, WindowTitle } from '../../components/ui.jsx'
+import { Btn, Modal, RarityTag, WindowTitle, ask } from '../../components/ui.jsx'
 import { images } from '../../lib/storage.js'
 import { fmt } from '../../store.jsx'
 
@@ -94,7 +94,7 @@ export default function CardsAdmin({ data, run, toast }) {
       {samples > 0 && (
         <div className="note">
           {samples} sample cards with generated placeholder art are in the catalog so the game is playable out of the box.
-          {' '}<button className="link" onClick={() => confirm(`Remove all ${samples} sample cards? Copies players hold are removed too.`) && run((s, tk) => s.removeSampleCards(tk)).then((r) => toast(`Removed ${r.removed} sample cards`))}>Remove sample cards</button>
+          {' '}<button className="link" onClick={async () => (await ask(`Remove all ${samples} sample cards? Copies players hold are removed too.`, { ok: 'Remove samples', danger: true })) && run((s, tk) => s.removeSampleCards(tk)).then((r) => toast(`Removed ${r.removed} sample cards`))}>Remove sample cards</button>
         </div>
       )}
 
@@ -184,7 +184,7 @@ function CardEditor({ draft: initial, data, run, toast, onClose }) {
     } catch { /* toast shown */ } finally { setBusy(false) }
   }
   async function del() {
-    if (!confirm(`Delete "${d.name}" permanently?`)) return
+    if (!(await ask(`Delete "${d.name}" permanently?`, { ok: 'Delete card', danger: true }))) return
     try {
       const r = await run((s, tk) => s.deleteCard(tk, d.id))
       if (r.imageKey) await images.remove(r.imageKey)

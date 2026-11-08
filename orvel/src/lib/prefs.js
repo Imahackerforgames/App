@@ -7,7 +7,7 @@ export const THEMES = [
   { id: 'deepsea', name: 'Deep Sea', blurb: 'Cool midnight blue', swatch: ['#040c1f', '#11254f', '#3fb8ff', '#7ff6ff'], meta: '#040c1f' },
   { id: 'ember', name: 'Ember', blurb: 'Warm sunset orange', swatch: ['#150806', '#36190f', '#ff6a3d', '#ffc23d'], meta: '#150806' },
 ]
-const DEFAULTS = { theme: 'phosphor', crt: 'on' }
+const DEFAULTS = { theme: 'phosphor', crt: 'on', haptics: 'on' }
 const listeners = new Set()
 
 function read(k) {

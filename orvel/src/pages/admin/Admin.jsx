@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import CardsAdmin from './CardsAdmin.jsx'
 import CardFrame from '../../components/Card.jsx'
 import PackArt, { EMBLEM_IDS } from '../../components/PackArt.jsx'
-import { Btn, Modal, RarityTag, WindowTitle } from '../../components/ui.jsx'
+import { Btn, Modal, RarityTag, WindowTitle, ask } from '../../components/ui.jsx'
 import { useGame, server, fmt } from '../../store.jsx'
 import { packOdds } from '../../server/game.js'
 import { images, wipeEverything } from '../../lib/storage.js'
@@ -182,7 +182,7 @@ function PackEditor({ pack, data, run, toast, onClose }) {
     try { await run((s, tk) => s.upsertPack(tk, p)); toast('Pack saved'); onClose() } catch {}
   }
   async function del() {
-    if (!confirm(`Delete the pack "${p.name}"? Players keep every card they already pulled from it.`)) return
+    if (!(await ask(`Delete the pack "${p.name}"? Players keep every card they already pulled from it.`, { ok: 'Delete pack', danger: true }))) return
     await run((s, tk) => s.deletePack(tk, p.id)); toast('Pack deleted'); onClose()
   }
 
@@ -296,7 +296,7 @@ function CollectionRow({ col, count, run, toast }) {
       <label className="field grow"><span>Description</span><input value={c.description} onChange={(e) => setC({ ...c, description: e.target.value })} /></label>
       <span className="mono muted">{count} cards</span>
       {dirty && <Btn size="sm" onClick={() => run((s, tk) => s.upsertCollection(tk, c)).then(() => toast('Saved')).catch(() => {})}>Save</Btn>}
-      <Btn size="sm" variant="danger" onClick={() => confirm(`Delete "${col.name}"? Cards stay; they just leave this collection.`) && run((s, tk) => s.deleteCollection(tk, col.id))}>Delete</Btn>
+      <Btn size="sm" variant="danger" onClick={async () => (await ask(`Delete "${col.name}"? Cards stay; they just leave this collection.`, { ok: 'Delete', danger: true })) && run((s, tk) => s.deleteCollection(tk, col.id))}>Delete</Btn>
     </div>
   )
 }
@@ -404,8 +404,8 @@ function SettingsAdmin({ data, run, toast, token }) {
           <Btn variant="ghost" onClick={() => run((sv, tk) => sv.adminGrantCash(tk, grant)).then((r) => toast(`Balance is now ${fmt(r.cash)}`)).catch(() => {})}>Apply</Btn>
         </div>
         <div className="adm-bar">
-          <Btn variant="danger" onClick={() => confirm('Reset the player: balance, cards, rank and history? The catalog is kept.') && run((sv, tk) => sv.adminResetPlayer(tk)).then(() => toast('Player reset'))}>Reset player progress</Btn>
-          <Btn variant="danger" onClick={async () => { if (confirm('Erase EVERYTHING in this browser — catalog, artwork, player, PIN? Export first if you want to keep it.')) { await wipeEverything(); location.reload() } }}>Erase all data</Btn>
+          <Btn variant="danger" onClick={async () => (await ask('Reset the player: balance, cards, rank and history? The catalog is kept.', { ok: 'Reset player', danger: true })) && run((sv, tk) => sv.adminResetPlayer(tk)).then(() => toast('Player reset'))}>Reset player progress</Btn>
+          <Btn variant="danger" onClick={async () => { if (await ask('Erase EVERYTHING in this browser — catalog, artwork, player, PIN? Export first if you want to keep it.', { ok: 'Erase everything', danger: true })) { await wipeEverything(); location.reload() } }}>Erase all data</Btn>
         </div>
       </div>
     </div>

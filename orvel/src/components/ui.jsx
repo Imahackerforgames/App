@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { play } from '../lib/sound.js'
 import { useGame, fmt } from '../store.jsx'
 
@@ -71,6 +71,32 @@ export function Toasts() {
   return (
     <div className="toasts" role="status" aria-live="polite">
       {toasts.map((t) => <div key={t.id} className={`toast toast-${t.kind}`}>{t.msg}</div>)}
+    </div>
+  )
+}
+
+// In-page replacement for window.confirm(), which embedded and app web views
+// often block. Usage: if (await ask('Delete it?', { ok: 'Delete', danger: true })) …
+let pushAsk = null
+export function ask(message, { ok = 'Confirm', cancel = 'Cancel', danger = false } = {}) {
+  if (!pushAsk) return Promise.resolve(false)
+  return new Promise((resolve) => pushAsk({ message, ok, cancel, danger, resolve }))
+}
+export function AskHost() {
+  const [q, setQ] = useState(null)
+  useEffect(() => { pushAsk = setQ; return () => { pushAsk = null } }, [])
+  if (!q) return null
+  const done = (v) => { q.resolve(v); setQ(null) }
+  return (
+    <div className="confirm-back ask-back" role="alertdialog" aria-modal="true" aria-label="Confirm">
+      <div className="window confirm">
+        <WindowTitle>ARE YOU SURE?</WindowTitle>
+        <p className="ask-msg">{q.message}</p>
+        <div className="confirm-btns">
+          <Btn variant="ghost" sound="back" onClick={() => done(false)}>{q.cancel}</Btn>
+          <Btn variant={q.danger ? 'danger' : 'primary'} onClick={() => done(true)}>{q.ok}</Btn>
+        </div>
+      </div>
     </div>
   )
 }

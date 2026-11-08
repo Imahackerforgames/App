@@ -13,6 +13,18 @@ export default function CardViewer({ cardId, list, onClose, onNavigate }) {
   const [sellStage, setSellStage] = useState(null) // null | {qty, unit} | {done, total}
   const [qty, setQty] = useState(1)
   const idx = list ? list.indexOf(cardId) : -1
+  const touch = useRef(null)
+  function tStart(e) { if (e.touches.length === 1) touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() } }
+  function tEnd(e) {
+    const s = touch.current; touch.current = null
+    if (!s || zoom || sellStage) return
+    const dx = e.changedTouches[0].clientX - s.x, dy = e.changedTouches[0].clientY - s.y
+    if (Date.now() - s.t > 600) return
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      const n = dx < 0 ? idx + 1 : idx - 1
+      if (list && n >= 0 && n < list.length) { play('flip'); onNavigate(list[n]) }
+    } else if (dy > 90 && Math.abs(dy) > Math.abs(dx) * 1.5 && window.scrollY <= 0 && e.currentTarget.scrollTop <= 0) { play('back'); onClose() }
+  }
 
   useEffect(() => { setQty(1); setSellStage(null) }, [cardId])
   useEffect(() => {
@@ -48,11 +60,13 @@ export default function CardViewer({ cardId, list, onClose, onNavigate }) {
   }
 
   return (
-    <div className="viewer" role="dialog" aria-modal="true" aria-label={`${card.name} details`}>
+    <div className="viewer" role="dialog" aria-modal="true" aria-label={`${card.name} details`} onTouchStart={tStart} onTouchEnd={tEnd}>
       <div className="viewer-back" onClick={() => { play('back'); onClose() }} />
+      <button className="viewer-close" aria-label="Close" onClick={() => { play('back'); onClose() }}>✕</button>
       <div className="viewer-stage">
         <div className="viewer-card">
           <CardFrame card={card} rarity={rarity} size="xl" count={count} owned={count > 0 ? true : null} showCount={false} />
+          {list && list.length > 1 && <div className="swipe-hint mono">◀ swipe ▶ · {idx + 1}/{list.length}</div>}
           <div className="viewer-card-actions">
             <Btn variant="ghost" size="sm" onClick={() => setZoom(true)}>⌕ Zoom artwork</Btn>
           </div>

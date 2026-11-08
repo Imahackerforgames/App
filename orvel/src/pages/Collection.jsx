@@ -71,6 +71,7 @@ export default function Collection() {
   const [limit, setLimit] = useState(PAGE)
   const [open, setOpen] = useState(null)
   const [bulk, setBulk] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
   const dq = useDeferredValue(q)
   const sentinel = useRef(null)
   const searchRef = useRef(null)
@@ -133,11 +134,14 @@ export default function Collection() {
       <div className="toolbar window">
         <div className="search">
           <span className="search-icon" aria-hidden="true">⌕</span>
-          <input ref={searchRef} type="search" placeholder="Search by card name or ID…  ( / )" value={q}
+          <input ref={searchRef} type="search" placeholder="Search cards by name or ID" value={q}
             onChange={(e) => setQ(e.target.value)} aria-label="Search cards by name or ID" autoComplete="off" spellCheck="false" />
           {q && <button className="search-clear" onClick={() => setQ('')} aria-label="Clear search">✕</button>}
         </div>
-        <div className="filters">
+        <button className={`filter-toggle ${showFilters ? 'on' : ''}`} onClick={() => { play('click'); setShowFilters(!showFilters) }} aria-expanded={showFilters}>
+          ☰ Filters &amp; sort{(rarities.size || own !== 'all' || theme) ? ' •' : ''}
+        </button>
+        <div className={`filters ${showFilters ? 'open' : ''}`}>
           <div className="chips" role="group" aria-label="Filter by rarity">
             {snap.rarities.map((r) => (
               <button key={r.id} className={`chip ${rarities.has(r.id) ? 'on' : ''}`} style={{ '--c1': r.color }} onClick={() => toggleRarity(r.id)} aria-pressed={rarities.has(r.id)}>

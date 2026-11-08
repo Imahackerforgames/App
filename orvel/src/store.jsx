@@ -83,12 +83,12 @@ export function useArtUrl(card) {
 }
 
 export function useHashRoute() {
-  const get = () => (location.hash.replace(/^#\/?/, '') || 'home').split('?')[0]
+  const get = () => (location.hash.replace(/^#\/?/, '') || 'home').split(/[?/]/)[0]
   const [route, setRoute] = useState(get)
   useEffect(() => { const f = () => setRoute(get()); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f) }, [])
   return route
 }
-export const go = (r) => { location.hash = '/' + r }
+export const go = (r) => { location.hash = r }
 
 export function fmt(n) { return Number(n || 0).toLocaleString() }
 

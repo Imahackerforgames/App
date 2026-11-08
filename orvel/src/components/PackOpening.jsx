@@ -114,7 +114,7 @@ export default function PackOpening({ opening, pack, onClose, onAgain }) {
           <p className="muted center">All {cards.length} cards have been added to your collection.</p>
           <div className="op-sum-btns">
             {onAgain && <Btn variant="primary" onClick={onAgain}>Open another</Btn>}
-            <Btn variant="ghost" onClick={() => { onClose(); location.hash = '/collection' }}>View collection</Btn>
+            <Btn variant="ghost" onClick={() => { onClose(); location.hash = 'collection' }}>View collection</Btn>
             <Btn variant="ghost" sound="back" onClick={onClose}>Done</Btn>
           </div>
         </div>
