@@ -383,7 +383,6 @@ function SettingsAdmin({ data, run, toast, token }) {
         <div className="field-row">
           <label className="field"><span>Currency name</span><input value={s.currencyName} onChange={(e) => setS({ ...s, currencyName: e.target.value })} /></label>
           <label className="field"><span>Starting balance</span><input type="number" min="0" value={s.startingCash} onChange={(e) => setS({ ...s, startingCash: Number(e.target.value) })} /></label>
-          <label className="field"><span>Daily bonus</span><input type="number" min="0" value={s.dailyReward} onChange={(e) => setS({ ...s, dailyReward: Number(e.target.value) })} /></label>
         </div>
         <div className="panel-title">REAL-MONEY PURCHASES</div>
         <label className="check"><input type="checkbox" checked={s.realMoneyEnabled} onChange={(e) => setS({ ...s, realMoneyEnabled: e.target.checked })} /><span>Show real-money prices (simulated checkout in this prototype)</span></label>

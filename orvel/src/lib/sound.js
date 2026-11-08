@@ -74,6 +74,9 @@ const sounds = {
   shake: () => tone(110, 0, 0.12, { vol: 0.03 }),
   flip: () => whoosh(0, 0.18, 0.035, 900, 2600),
   swipe: () => whoosh(0, 0.22, 0.04, 600, 2000),
+  hit: (big = false) => { tone(big ? 110 : 150, 0, 0.22, { type: 'triangle', vol: 0.05, slide: -60 }); whoosh(0, 0.12, 0.03, 300, 900) },
+  guard: () => { bell(784, 0, 0.5, 0.02); tone(392, 0, 0.6, { vol: 0.015, attack: 0.05 }) },
+  turn: () => bell(1047, 0, 0.3, 0.015),
   hold: (p = 0) => tone(392 + p * 400, 0, 0.12, { vol: 0.012, attack: 0.03 }),
   // tier 0..5 — rarer cards get more notes and a longer, warmer tail
   reveal: (tier = 0) => {
@@ -96,7 +99,7 @@ const sounds = {
 // Vibration on phones that support it (Android; iOS Safari ignores it).
 const BUZZ = {
   click: 6, back: 5, error: [20, 40, 20], coin: 10, cash: [12, 40, 12, 40, 18], open: [15, 30, 40], flip: 8, swipe: 8,
-  hold: 4,
+  hold: 4, hit: (big) => (big ? [30, 30, 50] : 22), guard: 12, turn: 0,
   reveal: (t) => (t >= 5 ? [40, 40, 40, 40, 160] : t >= 4 ? [30, 40, 90] : t >= 3 ? [20, 30, 45] : t >= 2 ? 18 : 0),
   charge: (t) => (t >= 2 ? Array.from({ length: 4 + t * 2 }, (_, i) => (i % 2 ? 50 : 10)) : 0),
   finaleBuild: () => [10, 80, 10, 70, 12, 60, 14, 50, 16, 40, 20],

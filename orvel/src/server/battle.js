@@ -15,12 +15,14 @@ export const ELEMENTS = [
 export const ELEMENT_BONUS = 3
 
 export const ABILITIES = [
-  { id: 'pierce', name: 'Pierce', text: "Ignores the enemy card's DEF." },
-  { id: 'shield', name: 'Shield', text: 'Blocks 3 extra damage this round.' },
-  { id: 'drain', name: 'Drain', text: 'Heals you for half the damage it deals.' },
-  { id: 'rally', name: 'Rally', text: 'Your next card gets +3 ATK.' },
-  { id: 'burn', name: 'Burn', text: 'The enemy takes 2 damage at the start of next round.' },
+  { id: 'pierce', name: 'Pierce', text: "Strikes straight through the enemy's guard." },
+  { id: 'shield', name: 'Shield', text: '+4 guard whenever it is played, in either stance.' },
+  { id: 'drain', name: 'Drain', text: 'Heals you for half the damage its strike deals.' },
+  { id: 'rally', name: 'Rally', text: 'Your next card gets +3 ATK and +3 DEF.' },
+  { id: 'burn', name: 'Burn', text: 'The enemy takes 3 damage at the start of their next turn.' },
   { id: 'surge', name: 'Surge', text: '+4 ATK while you have less HP than the enemy.' },
+  { id: 'counter', name: 'Counter', text: 'Guard with it and attackers take back half the damage your guard blocks.' },
+  { id: 'hex', name: 'Hex', text: "The enemy's next card gets −3 ATK and −3 DEF." },
 ]
 
 export const MAX_HP = 30
@@ -102,61 +104,159 @@ export function validateCustom(input, { owned, level = 1 }) {
 // ───────────────────────── a round ─────────────────────────
 
 const beats = (a, b) => ELEMENTS.find((e) => e.id === a)?.beats === b
+export { beats }
 
-// Resolves one round. `side` objects: { hp, rally, burn } carried between
-// rounds. Returns new sides and a log entry. Pure: no randomness.
-export function resolveRound(pCard, nCard, pSide, nSide) {
-  const P = { ...pSide }, N = { ...nSide }
-  const notes = []
-  // burn from last round lands first
-  if (P.burn) { P.hp -= P.burn; notes.push({ who: 'p', text: `Burn ${P.burn}` }) }
-  if (N.burn) { N.hp -= N.burn; notes.push({ who: 'n', text: `Burn ${N.burn}` }) }
-  P.burn = 0; N.burn = 0
+// ───────────────────────── the duel ─────────────────────────
+//
+// Turn-based, open hands. You go first, then you alternate until both hands
+// are empty or someone hits 0 HP; more HP wins.
+//
+// On your turn you play one card in one of two stances:
+//   STRIKE  deal ATK damage. The enemy's guard absorbs it first.
+//   GUARD   add DEF to your guard (max 20). Guard stays until it is broken.
+// Bonuses come from the top card of the pile (the last card played):
+//   MATCH    same element as the top card       +2
+//   COUNTER  your element beats the top card's  +3
+// Rally (+3) and Hex (−3) adjust the next card; abilities add the rest.
 
-  const has = (c, a) => c.abilities.includes(a)
-  const atkOf = (me, them, meSide, themSide, who) => {
-    let atk = me.atk + (meSide.rally || 0)
-    if (meSide.rally) notes.push({ who, text: `Rally +${meSide.rally}` })
-    if (beats(me.element, them.element)) { atk += ELEMENT_BONUS; notes.push({ who, text: `Element +${ELEMENT_BONUS}` }) }
-    if (has(me, 'surge') && meSide.hp < themSide.hp) { atk += 4; notes.push({ who, text: 'Surge +4' }) }
-    return atk
-  }
-  const aP = atkOf(pCard, nCard, P, N, 'p')
-  const aN = atkOf(nCard, pCard, N, P, 'n')
-  const dmg = (atk, me, them) => {
-    let d = has(me, 'pierce') ? atk : Math.max(1, atk - Math.floor(them.def * 0.6))
-    if (has(them, 'shield')) d = Math.max(0, d - 3)
-    return d
-  }
-  const toN = dmg(aP, pCard, nCard)
-  const toP = dmg(aN, nCard, pCard)
-  N.hp -= toN; P.hp -= toP
-  if (has(pCard, 'drain') && toN > 0) { const h = Math.floor(toN / 2); P.hp = Math.min(MAX_HP, P.hp + h); notes.push({ who: 'p', text: `Drain +${h}` }) }
-  if (has(nCard, 'drain') && toP > 0) { const h = Math.floor(toP / 2); N.hp = Math.min(MAX_HP, N.hp + h); notes.push({ who: 'n', text: `Drain +${h}` }) }
-  P.rally = has(pCard, 'rally') ? 3 : 0
-  N.rally = has(nCard, 'rally') ? 3 : 0
-  if (has(pCard, 'burn')) N.burn = 2
-  if (has(nCard, 'burn')) P.burn = 2
-  return { P, N, entry: { toN, toP, aP, aN, notes } }
+export const GUARD_CAP = 20
+export const MATCH_BONUS = 2
+export const STANCES = ['strike', 'guard']
+
+export function newSide(hand) {
+  return { hp: MAX_HP, guard: 0, rally: 0, hex: 0, burn: 0, counter: false, hand: hand.map((h) => ({ ...h, used: false })) }
 }
 
-// How the rival picks a card. It never sees which card the player chose this
-// round; it reasons only about the player's remaining hand. Higher-level
-// rivals pick well more often and weigh their worst case more heavily.
-export function npcChoose(nHand, pHand, pSide, nSide, skill) {
-  const mine = nHand.map((c, i) => ({ c, i })).filter((x) => !x.c.used)
-  const theirs = pHand.filter((c) => !c.used)
-  if (mine.length === 1) return mine[0].i
-  if (randomInt(1000) / 1000 > skill) return mine[randomInt(mine.length)].i
-  let best = null
-  for (const m of mine) {
-    const outcomes = theirs.map((t) => { const r = resolveRound(t.stats, m.c.stats, pSide, nSide); return (r.N.hp - r.P.hp) })
-    const avg = outcomes.reduce((a, b) => a + b, 0) / outcomes.length
-    const worst = Math.min(...outcomes)
-    const score = avg * (1 - skill * 0.5) + worst * skill * 0.5
-    if (!best || score > best.score) best = { i: m.i, score }
+// What a card would do if played now. Pure; used by the server to apply a
+// move, by the rival to think, and by the UI to preview both stances.
+export function previewPlay(m, side, idx, stance) {
+  const me = side === 'you' ? m.you : m.them
+  const foe = side === 'you' ? m.them : m.you
+  const c = me.hand[idx].stats
+  const has = (a) => c.abilities.includes(a)
+  const bonuses = []
+  if (m.top && m.top.element === c.element) bonuses.push({ k: 'match', label: 'Match', v: MATCH_BONUS })
+  if (m.top && beats(c.element, m.top.element)) bonuses.push({ k: 'element', label: 'Element', v: ELEMENT_BONUS })
+  if (me.rally) bonuses.push({ k: 'rally', label: 'Rally', v: me.rally })
+  if (me.hex) bonuses.push({ k: 'hex', label: 'Hexed', v: -me.hex })
+  const bonus = bonuses.reduce((t, b) => t + b.v, 0)
+  const out = { side, idx, stance, card: c, bonuses: [...bonuses], dmg: 0, absorbed: 0, guardGain: 0, heal: 0, reflect: 0, effects: [] }
+  if (stance === 'strike') {
+    let atk = c.atk + bonus
+    if (has('surge') && me.hp < foe.hp) { atk += 4; out.bonuses.push({ k: 'surge', label: 'Surge', v: 4 }) }
+    atk = Math.max(0, atk)
+    out.atk = atk
+    if (has('pierce')) { out.dmg = atk; out.effects.push('Pierce') }
+    else {
+      out.absorbed = Math.min(foe.guard, atk)
+      out.dmg = atk - out.absorbed
+      if (foe.counter && out.absorbed > 0) { out.reflect = Math.ceil(out.absorbed / 2); out.effects.push('Countered') }
+    }
+    if (has('drain') && out.dmg > 0) { out.heal = Math.floor(out.dmg / 2); out.effects.push('Drain') }
+  } else {
+    out.guardGain = Math.max(0, c.def + bonus)
   }
-  return best.i
+  if (has('shield')) { out.guardGain += 4; out.effects.push('Shield') }
+  if (has('rally')) out.effects.push('Rally')
+  if (has('burn')) out.effects.push('Burn')
+  if (has('hex')) out.effects.push('Hex')
+  if (has('counter') && stance === 'guard') out.effects.push('Counter')
+  return out
+}
+
+const sideKeys = (side) => (side === 'you' ? ['you', 'them'] : ['them', 'you'])
+const snap = (x) => ({ hp: x.hp, guard: x.guard, rally: x.rally, hex: x.hex, burn: x.burn, counter: x.counter })
+
+// Starts a side's turn: burn lands now.
+export function startTurn(m, side) {
+  const me = m[side]
+  if (me.burn) { const b = me.burn; me.hp -= b; me.burn = 0; return b }
+  return 0
+}
+
+// Applies a move to `m` in place and returns the log entry.
+export function applyPlay(m, side, idx, stance) {
+  const [mk, fk] = sideKeys(side)
+  const me = m[mk], foe = m[fk]
+  const burned = startTurn(m, mk)
+  const p = previewPlay(m, side, idx, stance)
+  const c = p.card
+  const has = (a) => c.abilities.includes(a)
+  me.rally = 0; me.hex = 0
+  if (stance === 'strike') {
+    foe.guard -= p.absorbed
+    if (foe.guard <= 0) { foe.guard = 0; foe.counter = false }
+    foe.hp -= p.dmg
+    me.hp = Math.min(MAX_HP, me.hp + p.heal) - p.reflect
+  }
+  me.guard = Math.min(GUARD_CAP, me.guard + p.guardGain)
+  if (has('counter') && stance === 'guard') me.counter = true
+  if (has('rally')) me.rally = 3
+  if (has('burn')) foe.burn = 3
+  if (has('hex')) foe.hex = 3
+  me.hand[idx].used = true
+  m.top = { side, idx, element: c.element }
+  m.turn = fk
+  const entry = { ...p, burned, after: { you: snap(m.you), them: snap(m.them) } }
+  delete entry.card
+  m.log.push(entry)
+  if (isOver(m)) m.turn = null
+  return entry
+}
+
+export function isOver(m) {
+  return m.you.hp <= 0 || m.them.hp <= 0 || (m.you.hand.every((h) => h.used) && m.them.hand.every((h) => h.used))
+}
+export function outcome(m) {
+  if (m.you.hp <= 0 && m.them.hp > 0) return 'lost'
+  if (m.them.hp <= 0 && m.you.hp > 0) return 'won'
+  return m.you.hp > m.them.hp ? 'won' : m.you.hp < m.them.hp ? 'lost' : 'draw'
+}
+
+const clone = (x) => JSON.parse(JSON.stringify(x))
+const legal = (m, side) => m[side].hand.flatMap((h, i) => (h.used ? [] : STANCES.map((st) => ({ i, st }))))
+
+// Static evaluation from `side`'s point of view.
+function evaluate(m, side) {
+  const [mk, fk] = sideKeys(side)
+  const me = m[mk], foe = m[fk]
+  if (foe.hp <= 0 && me.hp > 0) return 1000
+  if (me.hp <= 0 && foe.hp > 0) return -1000
+  const power = (s) => s.hand.filter((h) => !h.used).reduce((t, h) => t + h.stats.atk + h.stats.def * 0.6, 0)
+  return (me.hp - foe.hp) * 2 + (me.guard - foe.guard) * 0.8 + (power(me) - power(foe)) * 0.35 - me.burn + foe.burn
+}
+
+// The rival's move: searches its options and the player's best replies
+// (depth by skill), then occasionally picks a weaker option at low levels.
+export function npcChoose(m, skill) {
+  const options = legal(m, 'them')
+  if (!options.length) return null
+  if (randomInt(1000) / 1000 > skill) return options[randomInt(options.length)]
+  const depth = skill > 0.7 ? 3 : skill > 0.4 ? 2 : 1
+  const search = (state, side, d) => {
+    if (d === 0 || isOver(state)) {
+      const v = evaluate(state, 'them')
+      return Math.abs(v) >= 1000 ? v + Math.sign(v) * d * 10 : v // win sooner, lose later
+    }
+    const opts = legal(state, side)
+    if (!opts.length) return evaluate(state, 'them')
+    let best = side === 'them' ? -Infinity : Infinity
+    for (const o of opts) {
+      const next = clone(state)
+      applyPlay(next, side, o.i, o.st)
+      const v = search(next, side === 'them' ? 'you' : 'them', d - 1)
+      best = side === 'them' ? Math.max(best, v) : Math.min(best, v)
+    }
+    return best
+  }
+  let best = null
+  for (const o of options) {
+    const next = clone(m)
+    applyPlay(next, 'them', o.i, o.st)
+    const v = search(next, 'you', depth - 1) + (randomInt(100) / 100) * (1 - skill) * 6
+    if (!best || v > best.v) best = { ...o, v }
+  }
+  return { i: best.i, st: best.st }
 }
 
 // ───────────────────────── rivals ─────────────────────────
@@ -248,4 +348,12 @@ export function avatarPixels(seed) {
   else if (mouth === 1) { put(4, 7, '#7a3b3b'); put(5, 7, '#7a3b3b'); put(6, 7, '#7a3b3b'); put(7, 7, '#7a3b3b') }
   else put(6, 7, '#7a3b3b')
   return px
+}
+
+// Exact result of a move from the current position, including any burn that
+// would land at the start of the turn. For the UI's Strike/Guard previews.
+export function previewMove(m, side, idx, stance) {
+  const c = JSON.parse(JSON.stringify(m))
+  startTurn(c, side)
+  return previewPlay(c, side, idx, stance)
 }

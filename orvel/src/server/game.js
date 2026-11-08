@@ -14,10 +14,10 @@
 
 import {
   DEFAULT_RARITIES, DEFAULT_COLLECTIONS, DEFAULT_PACKS, DEFAULT_RANKS,
-  DEFAULT_XP_RULES, DEFAULT_SETTINGS, EFFECTS, V1_RARITY_DEFAULTS, V1_PACK_PRICES, XP_BATTLE,
+  DEFAULT_XP_RULES, DEFAULT_SETTINGS, EFFECTS, V1_RARITY_DEFAULTS, V1_PACK_PRICES, XP_BATTLE, DAILY_REWARDS,
 } from './defaults.js'
 import {
-  cardStats, validateCustom, resolveRound, npcChoose, RIVALS, rivalSkill, rivalBetCap, rivalCardCap,
+  cardStats, validateCustom, npcChoose, applyPlay, isOver, outcome, newSide, RIVALS, rivalSkill, rivalBetCap, rivalCardCap,
   rivalBaseRecord, rivalCollection, FORGE, FRAMES, CARD_EFFECTS, MAX_HP, DECK_SIZE,
 } from './battle.js'
 import { randomInt, weightedPick, uid } from './rng.js'
@@ -43,13 +43,14 @@ function freshPlayer(settings, now) {
     lastDaily: null, createdAt: now,
     customs: [], cosmetics: { frames: ['basic'], effects: ['matte'] },
     battle: { wins: 0, losses: 0, draws: 0, streak: 0, best: 0 },
+    signin: { day: 0 },
   }
 }
 
 export function freshState(now = Date.now()) {
   const settings = clone(DEFAULT_SETTINGS)
   return {
-    version: 3,
+    version: 4,
     settings,
     rarities: clone(DEFAULT_RARITIES),
     collections: clone(DEFAULT_COLLECTIONS),
@@ -144,6 +145,23 @@ export function migrate(s) {
       p.battle ||= { wins: 0, losses: 0, draws: 0, streak: 0, best: 0 }
     }
     s.version = 3
+  }
+  if (s.version < 4) {
+    // v4: turn-based duels and the 30-day sign-in. A duel still running
+    // under the old rules is cancelled and its bet returned.
+    for (const m of s.battles) {
+      if (m.status !== 'active' || m.turn !== undefined) continue
+      const p = s.players[m.player]
+      if (p && m.wager?.type === 'coins') p.cash += m.wager.amount || 0
+      if (p && m.wager?.type === 'card') {
+        const inv = p.inventory[m.wager.cardId] || (p.inventory[m.wager.cardId] = { count: 0, serials: [] })
+        inv.count += 1
+        if (m.wager.serial != null) inv.serials.push(m.wager.serial)
+      }
+      m.status = 'cancelled'
+    }
+    for (const p of Object.values(s.players)) p.signin ||= { day: 0 }
+    s.version = 4
   }
   return s
 }
@@ -466,7 +484,6 @@ export function createGameServer(storage, { now = () => Date.now() } = {}) {
       fail('invalid', 'Unknown card in deck')
     })
   }
-  const sideOf = (x) => ({ hp: x.hp, rally: x.rally, burn: x.burn })
   function battleView(s, m) {
     const r = RIVALS.find((x) => x.id === m.rivalId)
     return { ...clone(m), rival: rivalSummary(s, r) }
@@ -483,7 +500,7 @@ export function createGameServer(storage, { now = () => Date.now() } = {}) {
   function settle(s, m, r, forfeited = false) {
     const p = player(s)
     const rec = rivalRecord(s, r)
-    const result = m.you.hp > m.them.hp && !forfeited ? 'won' : m.you.hp < m.them.hp || forfeited ? 'lost' : 'draw'
+    const result = forfeited ? 'lost' : outcome(m)
     m.status = result
     m.endedAt = now()
     const w = m.wager
@@ -522,6 +539,7 @@ export function createGameServer(storage, { now = () => Date.now() } = {}) {
         ranks: s.ranks, xpRules: s.xpRules, effects: EFFECTS,
         cards: visible, player: p,
         transactions: s.transactions.filter((t) => t.player === PLAYER).slice(-200).reverse(),
+        dailyRewards: DAILY_REWARDS,
         activeBattleId: s.battles.find((b) => b.status === 'active' && b.player === PLAYER)?.id || null,
         cardStats: Object.fromEntries(visible.map((c) => [c.id, statsOfCard(s, c)])),
         adminConfigured: !!s.admin.pinHash,
@@ -539,12 +557,31 @@ export function createGameServer(storage, { now = () => Date.now() } = {}) {
     claimDaily: () => serial((s) => {
       const p = player(s)
       const d = today(now())
-      if (p.lastDaily === d) fail('already', 'Daily reward already claimed — come back tomorrow')
+      if (p.lastDaily === d) fail('already', 'Already signed in today — come back tomorrow')
       p.lastDaily = d
-      p.cash += s.settings.dailyReward
-      p.stats.cashEarned += s.settings.dailyReward
-      log(s, { type: 'daily', amount: s.settings.dailyReward })
-      return { amount: s.settings.dailyReward, cash: p.cash }
+      p.signin ||= { day: 0 }
+      p.signin.day = (p.signin.day % DAILY_REWARDS.length) + 1
+      const day = p.signin.day
+      const reward = DAILY_REWARDS[day - 1]
+      let coins = reward.coins || 0
+      let opening = null, cosmetic = null
+      if (reward.pack) {
+        const pack = s.packs.find((x) => x.id === reward.pack)
+        if (pack && packStatus(s, pack, now()).ok) opening = { ...rollPack(s, pack), packName: pack.name }
+        else coins += pack?.priceCash || 500 // pack unavailable: its price in coins instead
+      }
+      if (reward.cosmetic) {
+        const { kind, id } = reward.cosmetic
+        const list = kind === 'frame' ? FRAMES : CARD_EFFECTS
+        const item = list.find((x) => x.id === id)
+        const owned = kind === 'frame' ? p.cosmetics.frames : p.cosmetics.effects
+        if (item && !owned.includes(id)) { owned.push(id); cosmetic = { kind, id, name: item.name } }
+        else coins += item?.price || 0
+      }
+      p.cash += coins
+      p.stats.cashEarned += coins
+      log(s, { type: 'daily', day, amount: coins, packName: opening?.packName, itemName: cosmetic?.name })
+      return { day, coins, opening, cosmetic, cash: p.cash }
     }),
 
     buyPackWithCash: (packId) => serial((s) => {
@@ -724,9 +761,9 @@ export function createGameServer(storage, { now = () => Date.now() } = {}) {
       const m = {
         id: uid('bt_'), rivalId, status: 'active', at: now(), player: PLAYER,
         wager: { ...w, serial: escrowSerial }, stake,
-        you: { hp: MAX_HP, rally: 0, burn: 0, hand: hand.map((h) => ({ ...h, used: false })) },
-        them: { hp: MAX_HP, rally: 0, burn: 0, hand: picks.map((c) => ({ ref: { kind: 'card', id: c.cardId }, stats: c.stats, used: false })) },
-        log: [],
+        you: newSide(hand),
+        them: newSide(picks.map((c) => ({ ref: { kind: 'card', id: c.cardId }, stats: c.stats }))),
+        turn: 'you', top: null, log: [],
       }
       s.battles.push(m)
       if (s.battles.length > 60) s.battles.splice(0, s.battles.length - 60)
@@ -739,21 +776,26 @@ export function createGameServer(storage, { now = () => Date.now() } = {}) {
       return m ? battleView(s, m) : null
     }),
 
-    playRound: (battleId, handIndex) => serial((s) => {
+    // Your move, then the rival's reply. Both are applied by the same rules
+    // the UI previews, and both land in the log for the client to animate.
+    playRound: (battleId, handIndex, stance = 'strike') => serial((s) => {
       const m = s.battles.find((b) => b.id === battleId)
       if (!m || m.status !== 'active') fail('not_active', 'That battle is over')
+      if (m.turn !== 'you') fail('invalid', "It isn't your turn")
+      if (stance !== 'strike' && stance !== 'guard') fail('invalid', 'Choose Strike or Guard')
       const mine = m.you.hand[handIndex]
       if (!Number.isInteger(handIndex) || !mine || mine.used) fail('invalid', 'Pick a card you have not played yet')
       const r = RIVALS.find((x) => x.id === m.rivalId)
-      // the rival commits without seeing which card you just chose
-      const ni = npcChoose(m.them.hand, m.you.hand, sideOf(m.you), sideOf(m.them), rivalSkill(r.level))
-      const theirs = m.them.hand[ni]
-      const res = resolveRound(mine.stats, theirs.stats, sideOf(m.you), sideOf(m.them))
-      Object.assign(m.you, res.P); Object.assign(m.them, res.N)
-      mine.used = true; theirs.used = true
-      m.log.push({ p: handIndex, n: ni, ...res.entry, hpP: m.you.hp, hpN: m.them.hp })
-      const done = m.you.hp <= 0 || m.them.hp <= 0 || m.you.hand.every((c) => c.used)
-      if (done) settle(s, m, r)
+      applyPlay(m, 'you', handIndex, stance)
+      if (!isOver(m)) {
+        const mv = npcChoose(m, rivalSkill(r.level))
+        if (mv) applyPlay(m, 'them', mv.i, mv.st)
+      }
+      if (!isOver(m) && m.you.hand.every((h) => h.used)) {
+        // you're out of cards: the rival plays out the rest of its hand
+        while (!isOver(m)) { const mv = npcChoose(m, rivalSkill(r.level)); if (!mv) break; applyPlay(m, 'them', mv.i, mv.st) }
+      }
+      if (isOver(m)) settle(s, m, r)
       return battleView(s, m)
     }),
 

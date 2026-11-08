@@ -16,7 +16,7 @@ const fonts = html.match(/<link href="https:\/\/fonts\.googleapis\.com[^>]+>/)[0
 
 // The host page supplies <!doctype>, <html>, <head>, <body>; we write content only.
 const out = `<title>ORVEL</title>
-<meta name="theme-color" content="#04130b">
+<meta name="theme-color" content="#040c1f">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 ${fonts}

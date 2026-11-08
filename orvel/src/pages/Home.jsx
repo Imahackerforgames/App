@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import DailyCalendar, { signinState } from '../components/DailyCalendar.jsx'
 import Logo from '../components/Logo.jsx'
 import PackArt from '../components/PackArt.jsx'
 import CardFrame from '../components/Card.jsx'
@@ -8,8 +9,8 @@ import { play } from '../lib/sound.js'
 
 export default function Home() {
   const { snap, rank, completion, call, rarityById } = useGame()
-  const today = new Date().toISOString().slice(0, 10)
-  const dailyReady = snap.player.lastDaily !== today
+  const sign = signinState(snap)
+  const [cal, setCal] = useState(false)
   const featured = snap.packs.find((p) => p.featured && p.status.ok) || snap.packs.find((p) => p.status.ok)
 
   const lastPull = useMemo(() => {
@@ -18,9 +19,6 @@ export default function Home() {
     return { ...t, cards: t.cards.map((id) => snap.cards.find((c) => c.id === id)).filter(Boolean) }
   }, [snap.transactions, snap.cards])
 
-  async function daily() {
-    try { await call((s) => s.claimDaily()); play('cash') } catch {}
-  }
 
   const menu = [
     ['shop', 'OPEN PACKS', 'Spend Cash, pull cards'],
@@ -47,13 +45,13 @@ export default function Home() {
 
       <section className="home-grid">
         <div className="window panel">
-          <div className="panel-title">DAILY BONUS</div>
+          <div className="panel-title">DAILY SIGN-IN</div>
           <div className="daily">
-            <Cash amount={snap.settings.dailyReward} big />
-            {dailyReady
-              ? <Btn variant="primary" onClick={daily}>Claim</Btn>
-              : <span className="muted mono">CLAIMED — BACK TOMORROW</span>}
+            <div><div className="comp-big mono">{sign.next || sign.day}<small>/{sign.total}</small></div><div className="mono muted">{sign.claimedToday ? 'collected today' : `day ${sign.next} is ready`}</div></div>
+            <Btn variant={sign.claimedToday ? 'ghost' : 'primary'} onClick={() => setCal(true)}>{sign.claimedToday ? 'Calendar' : 'Claim'}</Btn>
           </div>
+          <div className="mini-cal" aria-hidden="true">{snap.dailyRewards.map((r, i) => <i key={i} className={`${i < sign.done ? 'got' : ''} ${i + 1 === sign.next ? 'today' : ''} ${r.pack || r.cosmetic ? 'big' : ''}`} />)}</div>
+          {cal && <DailyCalendar onClose={() => setCal(false)} />}
         </div>
         <div className="window panel">
           <div className="panel-title">RANK</div>

@@ -1,7 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGameServer } from '../src/server/game.js'
-import { resolveRound, npcChoose, FORGE, MAX_HP, RIVALS, rivalBetCap } from '../src/server/battle.js'
+import { applyPlay, previewPlay, newSide, npcChoose, FORGE, MAX_HP, GUARD_CAP, RIVALS, rivalBetCap } from '../src/server/battle.js'
+import { migrate, freshState } from '../src/server/game.js'
 import { seedCards } from '../src/lib/seedArt.js'
 
 function memStorage() {
@@ -97,28 +98,95 @@ test('a card cannot be played twice in one battle', async () => {
   await assert.rejects(g.playRound(b.id, 0), /not played/)
 })
 
-test('the rival choice never depends on which card the player picked', () => {
-  const mk = (atk, def, element = 'ember', abilities = []) => ({ stats: { atk, def, element, abilities }, used: false })
-  const n = [mk(5, 5), mk(9, 2, 'tide'), mk(3, 9, 'gale'), mk(6, 6), mk(7, 3)]
-  const p = [mk(4, 4), mk(8, 8), mk(2, 9), mk(10, 1), mk(5, 5)]
-  const side = { hp: MAX_HP, rally: 0, burn: 0 }
-  // npcChoose has no parameter for the player's current pick at all
-  assert.equal(npcChoose.length, 5)
-  const picks = new Set(Array.from({ length: 30 }, () => npcChoose(n, p, side, side, 1)))
-  assert.equal(picks.size, 1) // full skill is deterministic given the visible hands
+const card = (atk, def, element = 'ember', abilities = []) => ({ stats: { atk, def, element, abilities } })
+const duel = (you, them) => ({ you: newSide(you), them: newSide(them), turn: 'you', top: null, log: [] })
+
+test('strike vs guard: guard absorbs first and persists until broken', () => {
+  const m = duel([card(6, 8, 'gale'), card(9, 1, 'gale')], [card(5, 5, 'gale'), card(5, 5, 'gale')])
+  applyPlay(m, 'you', 0, 'guard')
+  assert.equal(m.you.guard, 8)
+  applyPlay(m, 'them', 0, 'strike') // 5 + match 2 = 7, all absorbed
+  assert.equal(m.you.hp, MAX_HP)
+  assert.equal(m.you.guard, 1)
+  applyPlay(m, 'you', 1, 'strike') // 9 + match 2, them unguarded
+  assert.equal(m.them.hp, MAX_HP - 11)
 })
 
-test('round resolution: element bonus, pierce, shield, drain, burn', () => {
-  const side = { hp: 30, rally: 0, burn: 0 }
-  const r1 = resolveRound({ atk: 6, def: 4, element: 'ember', abilities: [] }, { atk: 6, def: 4, element: 'gale', abilities: [] }, side, side)
-  assert.ok(r1.N.hp < r1.P.hp) // ember beats gale
-  const r2 = resolveRound({ atk: 5, def: 1, element: 'gale', abilities: ['pierce'] }, { atk: 1, def: 20, element: 'gale', abilities: [] }, side, side)
-  assert.equal(r2.entry.toN, 5)
-  const r3 = resolveRound({ atk: 10, def: 1, element: 'gale', abilities: [] }, { atk: 1, def: 1, element: 'gale', abilities: ['shield'] }, side, side)
-  assert.equal(r3.entry.toN, 7)
-  const r4 = resolveRound({ atk: 10, def: 1, element: 'gale', abilities: ['burn', 'drain'] }, { atk: 1, def: 1, element: 'gale', abilities: [] }, { ...side, hp: 20 }, side)
-  assert.equal(r4.N.burn, 2)
-  assert.equal(r4.P.hp, 20 - 1 + 5)
+test('match +2, element advantage +3, rally, hex, burn, pierce, counter, cap', () => {
+  let m = duel([card(5, 5, 'tide')], [card(4, 4, 'ember')])
+  m.top = { element: 'ember' }
+  assert.equal(previewPlay(m, 'you', 0, 'strike').atk, 8) // tide beats ember
+  m.top = { element: 'tide' }
+  assert.equal(previewPlay(m, 'you', 0, 'strike').atk, 7) // match
+  m = duel([card(2, 2, 'gale', ['rally']), card(5, 5, 'tide')], [card(1, 1, 'gale'), card(1, 1, 'tide')])
+  applyPlay(m, 'you', 0, 'guard'); applyPlay(m, 'them', 0, 'guard')
+  assert.equal(previewPlay(m, 'you', 1, 'strike').atk, 5 + 3)
+  m = duel([card(2, 2, 'gale', ['hex', 'burn'])], [card(6, 6, 'tide')])
+  applyPlay(m, 'you', 0, 'guard')
+  const e = applyPlay(m, 'them', 0, 'strike')
+  assert.equal(e.burned, 3)
+  assert.equal(e.atk, 6 - 3)
+  m = duel([card(9, 1, 'gale', ['pierce'])], [card(1, 15, 'tide')])
+  m.them.guard = 15
+  assert.equal(previewPlay(m, 'you', 0, 'strike').dmg, 9)
+  m = duel([card(1, 10, 'gale', ['counter'])], [card(8, 1, 'tide')])
+  applyPlay(m, 'you', 0, 'guard')
+  const c = applyPlay(m, 'them', 0, 'strike')
+  assert.equal(c.reflect, 4)
+  assert.equal(m.them.hp, MAX_HP - 4)
+  m = duel([card(1, 30, 'gale')], [card(1, 1, 'tide')])
+  applyPlay(m, 'you', 0, 'guard')
+  assert.equal(m.you.guard, GUARD_CAP)
+})
+
+test('the rival plays after you, and you cannot play twice in a row', async () => {
+  const { g } = await setup()
+  const s0 = await g.snapshot()
+  let b = await g.startBattle({ rivalId: RIVALS[2].id, deck: deckOf(s0) })
+  assert.equal(b.turn, 'you')
+  b = await g.playRound(b.id, 0, 'guard')
+  assert.equal(b.log.length, 2)
+  assert.equal(b.log[0].side, 'you'); assert.equal(b.log[1].side, 'them')
+  assert.equal(b.turn, 'you')
+  await assert.rejects(g.playRound(b.id, 1, 'dance'), /Strike or Guard/)
+})
+
+test('rivals find a lethal strike when there is one', () => {
+  const m = duel([card(1, 1, 'gale'), card(1, 1, 'gale')], [card(3, 3, 'gale'), card(12, 1, 'gale')])
+  m.you.hp = 10
+  m.turn = 'them'
+  const mv = npcChoose(m, 1)
+  assert.deepEqual(mv, { i: 1, st: 'strike' })
+})
+
+test('30-day sign-in: rewards grow, packs and cosmetics arrive, then it loops', async () => {
+  let t = Date.UTC(2026, 0, 1, 12)
+  const g = createGameServer(memStorage(), { now: () => t })
+  await g._seedIfEmpty(seedCards())
+  const got = []
+  for (let d = 1; d <= 31; d++) {
+    const r = await g.claimDaily()
+    got.push(r)
+    await assert.rejects(g.claimDaily(), /Already/)
+    t += 86400000
+  }
+  assert.equal(got[0].day, 1); assert.equal(got[29].day, 30); assert.equal(got[30].day, 1)
+  assert.ok(got[1].coins > got[0].coins && got[28].coins > got[10].coins)
+  assert.equal(got[6].opening.cards.length, 3)
+  assert.equal(got[13].cosmetic.id, 'chrome')
+  assert.equal(got[29].opening.cards.length, 5)
+  const s = await g.snapshot()
+  assert.ok(s.player.cosmetics.frames.includes('chrome'))
+})
+
+test('a duel left running under the old rules is refunded', () => {
+  const s = freshState()
+  s.version = 3
+  s.players.local.cash = 100
+  s.battles = [{ id: 'old', status: 'active', player: 'local', wager: { type: 'coins', amount: 250 }, you: {}, them: {}, log: [] }]
+  migrate(s)
+  assert.equal(s.players.local.cash, 350)
+  assert.equal(s.battles[0].status, 'cancelled')
 })
 
 test('forge: stat budget, owned cosmetics, upgrades cost coins', async () => {

@@ -12,6 +12,7 @@ import Arena from './pages/Arena.jsx'
 import Forge from './pages/Forge.jsx'
 import { play, isMuted, setMuted, onMuteChange } from './lib/sound.js'
 import { usePref } from './lib/prefs.js'
+import DailyCalendar, { signinState } from './components/DailyCalendar.jsx'
 
 const NAV = [
   ['home', 'HOME', '⌂'],
@@ -67,6 +68,20 @@ function Shell() {
       </footer>
       <Toasts />
       <AskHost />
+      <AutoDaily />
     </div>
   )
+}
+
+// Opens the sign-in calendar once per day, on the first visit, until claimed.
+function AutoDaily() {
+  const { snap } = useGame()
+  const route = useHashRoute()
+  const [open, setOpen] = useState(() => {
+    const key = 'orvel:calShown:' + new Date().toISOString().slice(0, 10)
+    try { if (sessionStorage.getItem(key)) return false; sessionStorage.setItem(key, '1') } catch {}
+    return true
+  })
+  if (!open || !snap || route === 'admin' || signinState(snap).claimedToday) return null
+  return <DailyCalendar onClose={() => setOpen(false)} />
 }

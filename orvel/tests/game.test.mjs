@@ -174,7 +174,7 @@ test('daily reward once per day', async () => {
   let t = Date.UTC(2026, 0, 1, 10)
   const g = createGameServer(memStorage(), { now: () => t })
   await g.claimDaily()
-  await assert.rejects(g.claimDaily(), /already/)
+  await assert.rejects(g.claimDaily(), /already/i)
   t += 24 * 3600 * 1000
   await g.claimDaily()
 })
@@ -222,7 +222,7 @@ test('a v1 save is moved to the new economy, but customised values are kept', ()
   assert.equal(s.packs[0].priceCash, 250)
   assert.equal(s.packs[1].priceCash, 333)
   assert.ok(s.cards[0].sellValue >= 50000)
-  assert.equal(s.version, 3)
+  assert.equal(s.version, 4)
 })
 
 test('rarity value ranges are validated', async () => {

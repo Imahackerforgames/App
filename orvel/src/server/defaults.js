@@ -98,3 +98,19 @@ export const DEFAULT_SETTINGS = {
 }
 
 export const XP_BATTLE = { win: 30, friendlyWin: 10 }
+
+// 30-day sign-in calendar. One step per day you sign in (missed days don't
+// reset it); after day 30 it starts again. Packs open on the spot; a
+// cosmetic you already own pays its coin value instead.
+export const DAILY_REWARDS = [
+  { coins: 100 }, { coins: 150 }, { coins: 200 }, { coins: 250 }, { coins: 300 }, { coins: 400 },
+  { pack: 'pk-drift', coins: 100 },
+  { coins: 400 }, { coins: 450 }, { coins: 500 }, { coins: 550 }, { coins: 600 }, { coins: 700 },
+  { cosmetic: { kind: 'frame', id: 'chrome' }, coins: 500 },
+  { coins: 750 }, { coins: 800 }, { coins: 850 }, { coins: 900 }, { coins: 1000 }, { coins: 1100 },
+  { pack: 'pk-rift', coins: 300 },
+  { coins: 1200 }, { coins: 1300 }, { coins: 1400 }, { coins: 1500 }, { coins: 1600 }, { coins: 1800 },
+  { cosmetic: { kind: 'effect', id: 'glass' }, coins: 1000 },
+  { coins: 2000 },
+  { pack: 'pk-void', coins: 3000 },
+]
