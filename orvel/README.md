@@ -8,12 +8,65 @@ cards, rarities, packs, odds, ranks — from a private dashboard.
 This is a self-contained project. It shares a repository with Reamp but
 nothing else: its own `package.json`, its own build, no shared code.
 
+## Accounts and saved progress
+
+ORVEL runs on its own free Supabase project, **ORVEL** (`yhiyehwsqaromgxfpkxh`),
+separate from Reamp.
+
+- **Sign up** (top right) with a username, an email and a password. No Apple or
+  Google sign-in. **Log in** with the username or the email.
+- Progress — cards, ORVEL Cash, rank, duels, Forge cards, sign-in days — is
+  saved to the account on the server. Closing the app, logging out, or
+  switching phones loses nothing. Sessions stay signed in on each device.
+- **Change password** in Settings → Account. **Forgot password?** on the log-in
+  screen emails a reset link (see the email note below).
+- Guests can look around (catalog, shop, rivals); anything that changes the
+  game asks them to sign up first.
+- The game rules run on the server (`supabase/functions/orvel`), inside a
+  database transaction with the player's save locked. The browser only sends
+  requests like "buy this pack"; it never holds or writes coins or cards, so a
+  save can't be edited to cheat.
+- **Creator account**: the first account to open the dashboard (footer →
+  Creator dashboard) can claim it. After that, only that account can upload
+  art and edit cards, packs, rarities and ranks. Card art goes to Supabase
+  Storage and is shared with every player.
+- The simulated real-money checkout is creator-only on the server, so players
+  can't mint free packs with it.
+
+Everything here fits Supabase's free tier: no credits, no per-use charges.
+
+### One-time setup still needed
+
+1. **Host it.** On vercel.com: Add New → Project → import `imahackerforgames/app`
+   → set **Root Directory** to `orvel` → Deploy. (`orvel/vercel.json` holds the
+   rest.) That gives the game its address, e.g. `orvel-xyz.vercel.app`.
+2. **Reset links.** Supabase → ORVEL project → Authentication → URL
+   Configuration: set **Site URL** to that address, so password-reset emails
+   link back to the game.
+3. **Reset emails to players.** Supabase's built-in email only delivers to
+   your own team's addresses. To email players, add an SMTP provider
+   (Authentication → Emails → SMTP), e.g. Resend with a verified domain.
+   Changing a password from Settings works without this.
+4. Free Supabase projects pause after about a week with no visits; restore it
+   from the dashboard if that happens.
+
+### Server
+
+```bash
+./scripts/deploy-function.sh        # needs the Supabase CLI and a login
+```
+
+The deployed function currently imports the engine from a pinned commit of
+this public repo. After changing `src/server/*`, redeploy so the server runs
+the same rules as the tests.
+
 ## Run it
 
 ```bash
 cd orvel
 npm install
-npm run dev        # http://localhost:5174
+npm run dev        # http://localhost:5174 (uses the ORVEL cloud)
+VITE_ORVEL_MODE=local npm run dev   # fully offline, saves in the browser
 npm test           # rules-engine tests (no browser needed)
 npm run build      # static bundle in dist/
 ```
@@ -71,7 +124,11 @@ server: the UI never changes a balance or an inventory itself. It enforces:
 `tests/game.test.mjs` covers each of these, including a 9,000-card draw
 that checks observed rarity frequencies against the disclosed odds.
 
-## Where data lives (prototype)
+## Where data lives
+
+In the cloud by default (see *Accounts* above). The notes below apply to
+offline mode (`VITE_ORVEL_MODE=local`) and the claude.ai preview link.
+
 
 In this browser's IndexedDB. That makes the prototype fully playable with no
 backend, and it also means:

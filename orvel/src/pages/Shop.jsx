@@ -2,7 +2,7 @@ import { useState } from 'react'
 import PackArt from '../components/PackArt.jsx'
 import PackOpening from '../components/PackOpening.jsx'
 import { Btn, Cash, Meter, Modal, RarityTag, WindowTitle } from '../components/ui.jsx'
-import { useGame, fmt } from '../store.jsx'
+import { useGame, fmt, CLOUD } from '../store.jsx'
 import { play } from '../lib/sound.js'
 import { Cosmetic } from './Forge.jsx'
 import { FRAMES, CARD_EFFECTS } from '../server/battle.js'
@@ -27,7 +27,7 @@ export default function Shop() {
       const r = await call((s) => s.buyPackWithCash(pack.id))
       setConfirmBuy(null)
       setOpening({ opening: r.opening, pack, method: 'cash' })
-    } catch { /* toast already shown */ } finally { setBusy(false) }
+    } catch (e) { if (e.code === 'auth') setConfirmBuy(null) /* sign-up prompt takes over */ } finally { setBusy(false) }
   }
 
   const live = (id) => snap.packs.find((p) => p.id === id)
@@ -148,7 +148,7 @@ function PackMeta({ pack }) {
 }
 
 function PriceButtons({ pack, onCash, onReal, onOdds, big }) {
-  const { snap } = useGame()
+  const { snap, account } = useGame()
   const off = !pack.status.ok
   return (
     <div className={`prices ${big ? 'prices-big' : ''}`}>
@@ -157,7 +157,7 @@ function PriceButtons({ pack, onCash, onReal, onOdds, big }) {
           <Cash amount={pack.priceCash} />
         </Btn>
       )}
-      {pack.priceUsd != null && snap.settings.realMoneyEnabled && (
+      {pack.priceUsd != null && snap.settings.realMoneyEnabled && (!CLOUD || account?.isAdmin) && (
         <Btn variant="real" disabled={off} onClick={onReal} aria-label={`Buy for ${usd(pack.priceUsd)}`}>
           {usd(pack.priceUsd)}
         </Btn>

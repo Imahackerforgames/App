@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Btn } from '../components/ui.jsx'
 import { THEMES, usePref } from '../lib/prefs.js'
 import { play, isMuted, setMuted, onMuteChange } from '../lib/sound.js'
+import { AccountPanel } from '../components/Auth.jsx'
+import { CLOUD } from '../lib/cloud.js'
 
 export default function Settings() {
   const [theme, setTheme] = usePref('theme')
@@ -13,6 +15,7 @@ export default function Settings() {
   return (
     <div className="page settings">
       <header className="page-head"><h1 className="page-title"><span className="pt-icon">⚙</span> SETTINGS</h1></header>
+      <AccountPanel />
 
       <section className="window">
         <div className="panel-title">THEME</div>
@@ -54,7 +57,7 @@ export default function Settings() {
 
       <section className="window">
         <div className="panel-title">SAVE DATA</div>
-        <p className="fine">Your cards, ORVEL Cash and rank are saved on this device, in this browser. Clearing your browser data erases them.</p>
+        <p className="fine">{CLOUD ? 'Your cards, ORVEL Cash, rank and Forge cards are saved to your account on the server. Theme, sound and vibration settings are saved on this device.' : 'Offline mode: your cards, ORVEL Cash and rank are saved on this device, in this browser. Clearing your browser data erases them.'}</p>
         <a className="link" href="#admin">Open the creator dashboard</a>
       </section>
     </div>

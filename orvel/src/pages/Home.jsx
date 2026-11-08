@@ -8,7 +8,7 @@ import { useGame, go, fmt } from '../store.jsx'
 import { play } from '../lib/sound.js'
 
 export default function Home() {
-  const { snap, rank, completion, call, rarityById } = useGame()
+  const { snap, rank, completion, call, rarityById, guest, setAuthOpen } = useGame()
   const sign = signinState(snap)
   const [cal, setCal] = useState(false)
   const featured = snap.packs.find((p) => p.featured && p.status.ok) || snap.packs.find((p) => p.status.ok)
@@ -42,6 +42,13 @@ export default function Home() {
           ))}
         </nav>
       </section>
+
+      {guest && (
+        <section className="guest-banner">
+          <p><b>Make a free account</b> to open packs, duel and build your collection. Everything saves to your account.</p>
+          <Btn onClick={() => setAuthOpen('signup')}>Sign up</Btn>
+        </section>
+      )}
 
       <section className="home-grid">
         <div className="window panel">

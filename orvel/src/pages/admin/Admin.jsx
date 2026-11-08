@@ -3,7 +3,8 @@ import CardsAdmin from './CardsAdmin.jsx'
 import CardFrame from '../../components/Card.jsx'
 import PackArt, { EMBLEM_IDS } from '../../components/PackArt.jsx'
 import { Btn, Modal, RarityTag, WindowTitle, ask } from '../../components/ui.jsx'
-import { useGame, server, fmt } from '../../store.jsx'
+import { useGame, server, fmt, CLOUD } from '../../store.jsx'
+import { account as cloudAccount } from '../../lib/cloud.js'
 import { packOdds, packExpectedValue } from '../../server/game.js'
 import { images, wipeEverything } from '../../lib/storage.js'
 
@@ -13,7 +14,11 @@ const TABS = [
 ]
 
 export default function Admin() {
-  const { adminToken, setAdminToken, snap } = useGame()
+  const { adminToken, setAdminToken, snap, account } = useGame()
+  if (CLOUD) {
+    if (!account?.isAdmin) return <CreatorGate />
+    return <AdminDash token="account" onLogout={() => { location.hash = 'home' }} />
+  }
   if (!adminToken) return <AdminGate configured={snap.adminConfigured} onToken={setAdminToken} />
   return <AdminDash token={adminToken} onLogout={() => { server.adminLogout(adminToken); setAdminToken(null) }} />
 }
@@ -409,7 +414,7 @@ function SettingsAdmin({ data, run, toast, token }) {
         </div>
         <div className="adm-bar">
           <Btn variant="danger" onClick={async () => (await ask('Reset the player: balance, cards, rank and history? The catalog is kept.', { ok: 'Reset player', danger: true })) && run((sv, tk) => sv.adminResetPlayer(tk)).then(() => toast('Player reset'))}>Reset player progress</Btn>
-          <Btn variant="danger" onClick={async () => { if (await ask('Erase EVERYTHING in this browser — catalog, artwork, player, PIN? Export first if you want to keep it.', { ok: 'Erase everything', danger: true })) { await wipeEverything(); location.reload() } }}>Erase all data</Btn>
+          {!CLOUD && <Btn variant="danger" onClick={async () => { if (await ask('Erase EVERYTHING in this browser — catalog, artwork, player, PIN? Export first if you want to keep it.', { ok: 'Erase everything', danger: true })) { await wipeEverything(); location.reload() } }}>Erase all data</Btn>}
         </div>
       </div>
     </div>
@@ -448,5 +453,28 @@ function EvLine({ ev, price, long }) {
       {long && level === 'warn' && <span>Close to break-even. Most games keep this around 50–70%.</span>}
       {long && level === 'ok' && <span>Players get back less than they spend on average; big pulls still pay off.</span>}
     </div>
+  )
+}
+
+// Cloud mode: the creator dashboard belongs to one account. The first account
+// to claim it becomes the creator; after that the button is gone for everyone.
+function CreatorGate() {
+  const { account, setAuthOpen, refreshAccount, toast } = useGame()
+  const [busy, setBusy] = useState(false)
+  if (!account || account.guest) return (
+    <div className="page admin-gate"><div className="window gate"><WindowTitle>CREATOR DASHBOARD</WindowTitle>
+      <div className="modal-body"><p>Log in with the creator account to manage cards, packs and rarities.</p><Btn onClick={() => setAuthOpen('login')}>Log in</Btn></div></div></div>
+  )
+  if (account.adminClaimable) return (
+    <div className="page admin-gate"><div className="window gate"><WindowTitle>CLAIM THE CREATOR ACCOUNT</WindowTitle>
+      <div className="modal-body">
+        <p>Nobody runs this game yet. Make <b>{account.username}</b> the creator account: it gets this dashboard to upload artwork and manage cards, packs, rarities and ranks.</p>
+        <p className="warn">Only one account can ever claim this, so do it from your own account.</p>
+        <Btn disabled={busy} onClick={async () => { setBusy(true); try { await cloudAccount.claimCreator(); await refreshAccount(); toast('You are the creator now') } catch (e) { toast(e.message, 'error') } finally { setBusy(false) } }}>Make {account.username} the creator</Btn>
+      </div></div></div>
+  )
+  return (
+    <div className="page admin-gate"><div className="window gate"><WindowTitle>CREATOR DASHBOARD</WindowTitle>
+      <div className="modal-body"><p>Only the creator account can open this dashboard.</p></div></div></div>
   )
 }

@@ -5,6 +5,8 @@ import { Btn, Modal, RarityTag, WindowTitle, ask } from '../../components/ui.jsx
 import { images } from '../../lib/storage.js'
 import { fmt } from '../../store.jsx'
 import { valueInRange } from '../../server/game.js'
+import { CLOUD, uploadImage } from '../../lib/cloud.js'
+import { artFromRef } from '../../lib/seedArt.js'
 
 const MAX_MB = 40
 
@@ -27,6 +29,7 @@ export async function storeArtwork(file) {
   if (!file.type.startsWith('image/')) throw new Error(`${file.name} is not an image`)
   if (file.size > MAX_MB * 1024 * 1024) throw new Error(`${file.name} is over ${MAX_MB} MB`)
   const { w, h } = await readDims(file)
+  if (CLOUD) return { imageUrl: await uploadImage('art', file, 'cards'), imageKey: null, imageW: w, imageH: h }
   const imageKey = await images.put(file)
   return { imageKey, imageW: w, imageH: h }
 }
@@ -148,7 +151,7 @@ export default function CardsAdmin({ data, run, toast }) {
 
 function Thumb({ card }) {
   // tiny, but still the original image — the browser scales it for display only
-  const [u, setU] = useState(card.imageUrl || null)
+  const [u, setU] = useState(artFromRef(card.imageUrl) || null)
   useEffect(() => { if (!card.imageUrl && card.imageKey) images.url(card.imageKey).then(setU) }, [card.imageKey, card.imageUrl])
   return u ? <img src={u} alt="" loading="lazy" /> : <span className="muted">—</span>
 }

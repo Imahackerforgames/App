@@ -5,7 +5,8 @@ import { execSync } from 'node:child_process'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-execSync('npx vite build', { stdio: 'inherit' })
+// the single-file preview runs offline: the claude.ai viewer can't reach the server
+execSync('npx vite build', { stdio: 'inherit', env: { ...process.env, VITE_ORVEL_MODE: 'local' } })
 const dist = 'dist'
 const html = readFileSync(join(dist, 'index.html'), 'utf8')
 const jsPath = html.match(/<script type="module" crossorigin src="\/([^"]+)"/)[1]

@@ -4,6 +4,7 @@ import { Btn, Cash, Modal, WindowTitle, ask } from '../components/ui.jsx'
 import { useGame, fmt, go } from '../store.jsx'
 import { customDisplay, sceneArt } from '../lib/customCard.js'
 import { images } from '../lib/storage.js'
+import { CLOUD, uploadImage, myUserId } from '../lib/cloud.js'
 import { FORGE, FRAMES, CARD_EFFECTS, ELEMENTS, ABILITIES, ART_SCENES, ART_PALETTES } from '../server/battle.js'
 import { play } from '../lib/sound.js'
 
@@ -21,7 +22,7 @@ export default function Forge() {
   }
   async function remove(c) {
     if (!(await ask(`Scrap ${c.name}? Upgrades are not refunded.`, { ok: 'Scrap card', danger: true }))) return
-    try { const r = await call((s) => s.deleteCustom(c.id)); if (r.imageKey) images.remove(r.imageKey) } catch {}
+    try { const r = await call((s) => s.deleteCustom(c.id)); if (r.imageKey && !CLOUD) images.remove(r.imageKey) } catch {}
   }
 
   return (
@@ -86,8 +87,11 @@ function ForgeEditor({ initial, onClose }) {
   async function upload(f) {
     if (!f) return
     if (!f.type.startsWith('image/')) return toast('Choose an image file', 'error')
-    const imageKey = await images.put(f)
-    setC((x) => ({ ...x, art: { kind: 'upload', imageKey } }))
+    if (f.size > 8 * 1024 * 1024) return toast('Images for Forge cards can be up to 8 MB', 'error')
+    try {
+      const imageKey = CLOUD ? await uploadImage('forge', f, await myUserId()) : await images.put(f)
+      setC((x) => ({ ...x, art: { kind: 'upload', imageKey } }))
+    } catch (e) { toast(e.message, 'error') }
   }
   async function save() {
     setBusy(true)

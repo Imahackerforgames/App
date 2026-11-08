@@ -4,9 +4,12 @@ import { kvStorage, images } from './lib/storage.js'
 import { seedCards, artFromRef } from './lib/seedArt.js'
 import { play } from './lib/sound.js'
 
-// One server per page load. In production this object is replaced by an
-// HTTP client with the same method names (see docs/PRODUCTION.md).
-export const server = createGameServer(kvStorage)
+import { CLOUD, cloudServer, supabase, account as cloudAccount } from './lib/cloud.js'
+
+// The game server: the real one in the cloud, or the in-browser engine when
+// running offline (VITE_ORVEL_MODE=local). Both expose the same methods.
+export const server = CLOUD ? cloudServer : createGameServer(kvStorage)
+export { CLOUD }
 
 const Ctx = createContext(null)
 
@@ -15,17 +18,37 @@ export function GameProvider({ children }) {
   const [toasts, setToasts] = useState([])
   const [bootError, setBootError] = useState(null)
   const [adminToken, setAdminToken] = useState(null)
+  // account: null while loading; { guest: true } when signed out
+  const [account, setAccount] = useState(CLOUD ? null : { guest: false, username: 'Collector', local: true })
+  const [authOpen, setAuthOpen] = useState(null) // 'signup' | 'login' | 'forgot' | null
+  const [recovery, setRecovery] = useState(false)
 
   const refresh = useCallback(async () => { const s = await server.snapshot(); setSnap(s); return s }, [])
+  const refreshAccount = useCallback(async () => {
+    if (!CLOUD) return
+    try { const me = await cloudAccount.me(); setAccount(me ? { guest: false, ...me } : { guest: true }) }
+    catch { setAccount({ guest: true }) }
+  }, [])
 
   useEffect(() => {
     (async () => {
       try {
-        await server._seedIfEmpty(seedCards())
+        if (!CLOUD) await server._seedIfEmpty(seedCards())
+        await refreshAccount()
         await refresh()
       } catch (e) { setBootError(e) }
     })()
-  }, [refresh])
+    if (!CLOUD) return
+    // sign-in, sign-out, token refresh and password-reset links all land here
+    const { data } = supabase.auth.onAuthStateChange((evt) => {
+      if (evt === 'PASSWORD_RECOVERY') setRecovery(true)
+      if (evt === 'SIGNED_IN' || evt === 'SIGNED_OUT' || evt === 'USER_UPDATED') {
+        setAdminToken(null)
+        refreshAccount(); refresh().catch(() => {})
+      }
+    })
+    return () => data.subscription.unsubscribe()
+  }, [refresh, refreshAccount])
 
   const toast = useCallback((msg, kind = 'info') => {
     const id = Math.random().toString(36).slice(2)
@@ -40,7 +63,8 @@ export function GameProvider({ children }) {
       await refresh()
       return r
     } catch (e) {
-      if (!quiet) { play('error'); toast(e.message || 'Something went wrong', 'error') }
+      if (e.code === 'auth') { setAuthOpen('signup'); if (!quiet) toast('Create a free account to play — your progress is saved to it') }
+      else if (!quiet) { play('error'); toast(e.message || 'Something went wrong', 'error') }
       throw e
     }
   }, [refresh, toast])
@@ -59,7 +83,7 @@ export function GameProvider({ children }) {
     }
   }, [snap])
 
-  const value = { snap, ...derived, refresh, call, toast, toasts, adminToken, setAdminToken, bootError }
+  const value = { snap, ...derived, refresh, call, toast, toasts, adminToken, setAdminToken, bootError, account, refreshAccount, authOpen, setAuthOpen, recovery, setRecovery, guest: !!account?.guest }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
 
