@@ -33,7 +33,7 @@ class Http extends Error { constructor(public status: number, msg: string, publi
 const PLAYER_OPS = new Set([
   'snapshot', 'setPlayerName', 'claimDaily', 'buyPackWithCash', 'quoteSale', 'sellCard', 'quoteDuplicates', 'sellDuplicates',
   'rivals', 'rivalProfile', 'battleQuote', 'startBattle', 'activeBattle', 'playCard', 'useTactic', 'endTurn', 'forfeit',
-  'buyCosmetic', 'saveCustom', 'upgradeCustom', 'deleteCustom', 'completeTutorial',
+  'buyCosmetic', 'saveCustom', 'upgradeCustom', 'deleteCustom', 'completeTutorial', 'setAvatar',
 ])
 const ADMIN_OPS = new Set([
   'adminSnapshot', 'upsertCard', 'setPublished', 'deleteCard', 'removeSampleCards', 'saveRarities', 'upsertPack', 'deletePack',

@@ -641,6 +641,18 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
     }),
 
     // ── player actions ──
+    // Profile picture: one of the ready-made portraits, or the player's own
+    // picture, already shrunk to a small square by the app. null resets to
+    // the pixel face.
+    setAvatar: (avatar) => serial((s) => {
+      const p = player(s)
+      if (avatar == null) { delete p.avatar; return { avatar: null } }
+      if (avatar.kind === 'preset' && /^[a-z]{1,20}$/.test(String(avatar.id))) p.avatar = { kind: 'preset', id: String(avatar.id) }
+      else if (avatar.kind === 'upload' && typeof avatar.data === 'string' && avatar.data.length <= 120000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(avatar.data)) p.avatar = { kind: 'upload', data: avatar.data }
+      else fail('invalid', 'That picture could not be used — try a smaller PNG or JPG')
+      return { avatar: p.avatar }
+    }),
+
     setPlayerName: (name) => serial((s) => {
       const n = String(name || '').trim().slice(0, 24)
       if (!n) fail('invalid', 'Name cannot be empty')

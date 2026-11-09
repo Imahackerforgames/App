@@ -1,18 +1,34 @@
 import { memo, useMemo } from 'react'
-import { avatarPixels } from '../server/battle.js'
-import { contestantLook } from './Fighter.jsx'
-import { CREW_ART } from '../lib/crewArt.js'
+import { avatarPixels, RIVALS } from '../server/battle.js'
+import { PORTRAITS, portraitById } from '../lib/portraits.js'
 
-// A portrait. Arena contestants (and Pip the trainer) are members of the
-// ORVEL crew and show the creator's own artwork of them; everyone else gets a
-// retro 12×12 pixel face, unique per player id.
-function Avatar({ seed, size = 48, ring, facing = 'right' }) {
-  const c = useMemo(() => contestantLook(seed), [seed])
-  const px = useMemo(() => (c ? null : avatarPixels(seed)), [seed, c])
-  if (c) {
+// Arena contestants wear the creator's drawn portraits, dealt in a shuffled
+// order so neighbours in the lobby never share a face. Pip gets one too.
+const CONTESTANT_ORDER = [2, 0, 4, 1, 3, 0, 2, 4, 1, 3, 2, 0]
+export function contestantPortrait(id) {
+  if (id === 'trainer-pip') return PORTRAITS[3]
+  const i = RIVALS.findIndex((r) => r.id === id)
+  return i < 0 ? null : PORTRAITS[CONTESTANT_ORDER[i % CONTESTANT_ORDER.length]]
+}
+
+// A player's own picture: set on their profile (saved with their account),
+// or kept on this device if the server can't store it yet.
+export function playerPic(player) {
+  if (player?.avatar) return player.avatar
+  try { const v = JSON.parse(localStorage.getItem('orvel:avatar') || 'null'); if (v) return v } catch {}
+  return null
+}
+const picSrc = (pic) => (pic?.kind === 'upload' ? pic.data : pic?.kind === 'preset' ? portraitById(pic.id)?.src : null)
+
+// A portrait: a contestant's drawn portrait, a player's chosen picture, or —
+// when there is none — a retro 12×12 pixel face unique per player.
+function Avatar({ seed, size = 48, ring, pic = null }) {
+  const src = useMemo(() => picSrc(pic) || contestantPortrait(seed)?.src || null, [seed, pic])
+  const px = useMemo(() => (src ? null : avatarPixels(seed)), [seed, src])
+  if (src) {
     return (
-      <span className="avatar avatar-crew" style={{ width: size, height: size, '--ring': ring || 'var(--line2)' }} aria-hidden="true">
-        <img src={CREW_ART[c.crew].face} alt="" draggable="false" style={facing === 'left' ? { transform: 'scaleX(-1)' } : undefined} />
+      <span className="avatar avatar-pic" style={{ width: size, height: size, '--ring': ring || 'var(--line2)' }} aria-hidden="true">
+        <img src={src} alt="" draggable="false" />
       </span>
     )
   }

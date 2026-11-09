@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CardFrame from '../components/Card.jsx'
-import Avatar from '../components/Avatar.jsx'
+import Avatar, { playerPic } from '../components/Avatar.jsx'
 import { Btn, Cash, Modal, RarityTag, WindowTitle } from '../components/ui.jsx'
 import { useGame, fmt, server } from '../store.jsx'
 import { customDisplay } from '../lib/customCard.js'
@@ -102,7 +102,7 @@ export default function Arena() {
           </div>
         </div>
         <div className="fighter window">
-          <div className="fighter-av"><Avatar seed={'player:' + snap.player.name} size={64} ring="var(--accent)" />{b.streak >= 3 && <span className="onfire">ON FIRE</span>}</div>
+          <div className="fighter-av"><Avatar seed={'player:' + snap.player.name} pic={playerPic(snap.player)} size={64} ring="var(--accent)" />{b.streak >= 3 && <span className="onfire">ON FIRE</span>}</div>
           <div className="fighter-id">
             <div className="fighter-title">{titleFor(b.wins).toUpperCase()}</div>
             <div className="fighter-name">{snap.player.name}</div>
@@ -371,7 +371,7 @@ function DuelSetup({ rival, onClose, onStart }) {
       <WindowTitle onClose={onClose}>DUEL SETUP</WindowTitle>
       <div className="duel-setup">
         <div className="ds-vs" style={{ '--lc': tierColor(rival.level) }}>
-          <div className="ds-side"><Avatar seed={'player:' + snap.player.name} size={56} ring="var(--accent)" /><b>{snap.player.name}</b><span className="mono muted">deck {deckPower}</span></div>
+          <div className="ds-side"><Avatar seed={'player:' + snap.player.name} pic={playerPic(snap.player)} size={56} ring="var(--accent)" /><b>{snap.player.name}</b><span className="mono muted">deck {deckPower}</span></div>
           <span className="ds-vs-x">VS</span>
           <div className="ds-side"><Avatar seed={rival.id} size={56} ring={tierColor(rival.level)} /><b>{rival.name}</b><span className="mono muted">deck {rival.deckPower}</span></div>
         </div>
@@ -514,7 +514,7 @@ export function Result({ b, onClose, onRematch }) {
       {won && <div className="confetti" aria-hidden="true">{Array.from({ length: 40 }, (_, i) => <i key={i} style={{ '--i': i }} />)}</div>}
       <div className="br-title">{won ? 'VICTORY' : lost ? 'DEFEAT' : 'DRAW'}</div>
       <div className="br-vs">
-        <div><Avatar seed={'player:' + snap.player.name} size={48} ring="var(--accent)" /><span className="mono">{Math.max(0, b.you.leader)} HP</span></div>
+        <div><Avatar seed={'player:' + snap.player.name} pic={playerPic(snap.player)} size={48} ring="var(--accent)" /><span className="mono">{Math.max(0, b.you.leader)} HP</span></div>
         <span className="mono">vs</span>
         <div><Avatar seed={b.rival.id} size={48} ring={tierColor(b.rival.level)} /><span className="mono">{Math.max(0, b.them.leader)} HP</span></div>
       </div>

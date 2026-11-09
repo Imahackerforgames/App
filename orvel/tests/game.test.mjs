@@ -233,3 +233,15 @@ test('rarity value ranges are validated', async () => {
   const outside = a.rarities.map((r, i) => (i === 3 ? { ...r, sellValue: 9000 } : r))
   await assert.rejects(g.saveRarities(token, outside), /inside its range/)
 })
+
+test('a player can set a ready-made or uploaded profile picture, and reset it', async () => {
+  const g = createGameServer(memStorage())
+  await g.setAvatar({ kind: 'preset', id: 'beanie' })
+  assert.deepEqual((await g.snapshot()).player.avatar, { kind: 'preset', id: 'beanie' })
+  await g.setAvatar({ kind: 'upload', data: 'data:image/webp;base64,AAAA' })
+  assert.equal((await g.snapshot()).player.avatar.kind, 'upload')
+  await assert.rejects(g.setAvatar({ kind: 'upload', data: 'javascript:alert(1)' }), /could not be used/)
+  await assert.rejects(g.setAvatar({ kind: 'upload', data: 'data:image/png;base64,' + 'A'.repeat(130000) }), /could not be used/)
+  await g.setAvatar(null)
+  assert.equal((await g.snapshot()).player.avatar, undefined)
+})

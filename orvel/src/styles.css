@@ -1847,3 +1847,18 @@ img.contestant-fig { object-fit: cover; border-radius: 10px; -webkit-mask: linea
 @keyframes banner { to { transform: skewY(3deg) scaleX(.94); } }
 .mt-scene { position: relative; }
 .avatar-crew { box-shadow: 0 0 0 3px var(--ring), 0 0 0 5px #0008, 0 6px 14px #000a; }
+
+/* drawn portraits and player pictures */
+.avatar-pic { border-radius: 50%; background: #b8a4d4; }
+.avatar-pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.pic-edit { position: relative; display: grid; gap: 10px; justify-items: start; }
+.pic-current { position: relative; border: 0; padding: 0; background: none; cursor: pointer; border-radius: 50%; }
+.pic-pen { position: absolute; right: -2px; bottom: -2px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--bg-deep); font-size: 15px; border: 2px solid var(--bg-deep); }
+.pic-panel { grid-column: 1 / -1; display: grid; gap: 10px; padding: 12px; border-radius: 12px; background: var(--bg-deep); border: 1px solid var(--line); min-width: min(320px, 80vw); }
+.pic-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.pic-opt { border: 0; padding: 0; background: none; border-radius: 50%; cursor: pointer; aspect-ratio: 1; box-shadow: 0 0 0 2px var(--line2); transition: transform .15s; }
+.pic-opt img { width: 100%; height: 100%; border-radius: 50%; display: block; }
+.pic-opt.on { box-shadow: 0 0 0 3px var(--accent), 0 0 14px var(--accent); }
+.pic-opt:hover { transform: scale(1.06); }
+.pic-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.rank-big:has(.pic-panel) { flex-wrap: wrap; }
