@@ -1,4 +1,6 @@
-import { memo, useRef } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
+import Fighter from './Fighter.jsx'
+import { cardStats } from '../server/battle.js'
 import { useArtUrl } from '../store.jsx'
 
 // The collectible frame. Artwork is never resampled or cropped by default:
@@ -44,7 +46,7 @@ function CardFrame({ card, rarity, owned = null, count = 0, size = 'md', tilt = 
           <div className="card-art">
             {url && card.fit !== 'cover' && <img className="art-bg" src={url} alt="" aria-hidden="true" loading="lazy" decoding="async" />}
             {url ? <img className={`art art-${card.fit || 'contain'}`} src={url} alt={card.name} loading="lazy" decoding="async" draggable="false" />
-              : <div className="art-missing">NO ART</div>}
+              : <ArtFighter card={card} tier={rarity?.tier ?? 0} />}
             <div className="art-fx" />
             {card.limited?.enabled && <span className="card-ltd">LTD{serial ? ` #${serial}/${card.limited.editionSize}` : ` /${card.limited.editionSize}`}</span>}
           </div>
@@ -93,6 +95,26 @@ export function CardBack({ size = 'md' }) {
         <div className="back-orb" />
         <div className="back-word">ORVEL</div>
       </div>
+    </div>
+  )
+}
+
+// A card without a picture yet shows the fighter it becomes in a duel —
+// the same outfit, colours and weapon every time.
+function ArtFighter({ card, tier }) {
+  const ref = useRef(null)
+  const [k, setK] = useState(0)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([e]) => setK(e.contentRect.height / 170))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const unit = { id: card.id, ref: { kind: 'card', id: card.id }, element: cardStats(card, tier).element, atk: 1, hp: 1, abilities: [] }
+  return (
+    <div ref={ref} className="art-fighter" aria-hidden="true">
+      {k > 0 && <div className="af-box" style={{ transform: `translateX(-50%) scale(${k})` }}><Fighter unit={unit} rarity={{ tier }} side="you" pose="still" /></div>}
     </div>
   )
 }

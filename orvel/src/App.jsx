@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { GameProvider, useGame, useHashRoute, go } from './store.jsx'
 import Logo from './components/Logo.jsx'
+import { FighterDefs } from './components/Fighter.jsx'
 import { AskHost, Cash, Toasts } from './components/ui.jsx'
 import Home from './pages/Home.jsx'
 import Collection from './pages/Collection.jsx'
@@ -41,6 +42,7 @@ function Shell() {
   const Page = { home: Home, collection: Collection, shop: Shop, profile: Profile, arena: Arena, forge: Forge, options: Settings, admin: Admin }[route] || Home
   return (
     <div className="app">
+      <FighterDefs />
       <div className="bg" aria-hidden="true"><div className="bg-grid" /><div className="bg-sun" /><div className="bg-scan" /></div>
       <header className="topbar">
         <button className="tb-logo" onClick={() => { play('click'); go('home') }} aria-label="ORVEL home"><Logo size={128} animated={false} /></button>

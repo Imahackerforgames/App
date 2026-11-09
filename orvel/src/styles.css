@@ -1633,3 +1633,87 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 .ftr.wpn-scythe .j-handN { rotate: 20deg; }
 .dock { margin-top: 2px; }
 .op-new.small { left: auto; right: -6px; z-index: 4; }
+/* variety: per-fighter rhythm, bows, heads */
+.ftr .j-head > .fp { transform-origin: 15px 45px; }
+.pose-idle .j-torso, .pose-idle .j-root, .pose-idle .j-armN { animation-duration: var(--tempo, 2.6s); }
+.ftr.wpn-bow .j-handN { rotate: 96deg; }
+.ftr.wpn-bow .j-foreN { rotate: -58deg; }
+.ftr.wpn-greatsword .j-handN, .ftr.wpn-mace .j-handN { rotate: 4deg; }
+.ftr.wpn-sabre .j-handN { rotate: 14deg; }
+.sty-cast.wpn-bow.pose-atk .j-handN { animation-name: bw-hand; }
+@keyframes bw-hand { 0% { rotate: 96deg; } 42% { rotate: 150deg; } 56% { rotate: 96deg; } 80% { rotate: 96deg; } 100% { rotate: 96deg; } }
+.sty-cast.wpn-bow.pose-atk .j-armN { animation-name: bw-arm; }
+@keyframes bw-arm { 0% { rotate: -36deg; } 42% { rotate: -90deg; } 56% { rotate: -88deg; } 80% { rotate: -88deg; } 100% { rotate: -36deg; } }
+.sty-cast.wpn-bow.pose-atk .j-foreN { animation-name: bw-fore; }
+@keyframes bw-fore { 0% { rotate: -58deg; } 42% { rotate: -2deg; } 100% { rotate: -58deg; } }
+/* the cape and robe trail behind a runner, and stream in a strike */
+.pose-atk .j-cape { animation: a-cape .56s ease-out; }
+@keyframes a-cape { 40% { rotate: 4deg; } 60% { rotate: 32deg; } 100% { rotate: 10deg; } }
+
+/* ═════════════ hit effects ═════════════ */
+.world.hitstop .ftr, .world.hitstop .ftr * { animation-play-state: paused !important; }
+.world.hitstop .mover { transition-duration: 0s; }
+.fx-impact { position: absolute; left: 50%; bottom: 70px; width: 0; height: 0; z-index: 30; pointer-events: none; }
+.fx-impact > * { position: absolute; left: 0; top: 0; }
+.fx-flash { width: 70px; height: 70px; margin: -35px; border-radius: 50%; background: radial-gradient(closest-side, #fff, #fff8 35%, transparent); animation: fxflash .26s ease-out forwards; }
+.fx-impact.big .fx-flash { width: 120px; height: 120px; margin: -60px; }
+@keyframes fxflash { 0% { scale: .3; opacity: 1; } 100% { scale: 1.3; opacity: 0; } }
+.fx-ring { width: 60px; height: 60px; margin: -30px; border-radius: 50%; border: 3px solid var(--fxc, #fff); box-shadow: 0 0 12px var(--fxc, #fff); animation: fxring .42s ease-out forwards; }
+.fx-impact.big .fx-ring { border-width: 5px; }
+@keyframes fxring { 0% { scale: .15; opacity: 1; } 100% { scale: 1.6; opacity: 0; } }
+.fx-cut { width: 84px; height: 6px; margin: -3px -42px; border-radius: 3px; background: linear-gradient(90deg, transparent, #fff, var(--fxc, #fff), transparent); rotate: calc(-35deg * var(--dir)); box-shadow: 0 0 10px var(--fxc); animation: fxcut .3s ease-out forwards; }
+@keyframes fxcut { 0% { scale: .1 1; opacity: 1; } 60% { scale: 1.1 1; opacity: 1; } 100% { scale: 1.2 .2; opacity: 0; } }
+.fx-impact i { width: var(--sz); height: var(--sz); margin: calc(var(--sz) / -2); border-radius: 50%; background: var(--fxc, #fff); box-shadow: 0 0 6px var(--fxc, #fff); opacity: 0; animation: fxpart .62s var(--dl) cubic-bezier(.15,.7,.4,1) forwards; }
+@keyframes fxpart { 0% { translate: 0 0; opacity: 1; scale: 1; } 65% { translate: var(--dx) var(--dy); opacity: 1; } 100% { translate: var(--dx) calc(var(--dy) + 22px); opacity: 0; scale: .4; } }
+.fx-ember { --fxc: #ffb04a; } .fx-ember i:nth-child(3n) { background: #ff5a1a; box-shadow: 0 0 8px #ff3a0a; } .fx-ember i:nth-child(4n) { background: #fff3b0; }
+.fx-ember .fx-flash { background: radial-gradient(closest-side, #fff, #ffcf6a 30%, #ff5a1a55 60%, transparent); }
+.fx-tide { --fxc: #7fe0ff; } .fx-tide i { border-radius: 50% 50% 50% 0; rotate: 45deg; background: linear-gradient(135deg, #e8fbff, #3fb4ff); }
+.fx-tide .fx-ring { border-style: double; }
+.fx-gale { --fxc: #c6ff6a; } .fx-gale i { border-radius: 100% 0; width: calc(var(--sz) * 1.8); background: linear-gradient(135deg, #eaffc0, #5fd04a); rotate: var(--rt); animation-name: fxleaf; }
+@keyframes fxleaf { 0% { translate: 0 0; opacity: 1; } 65% { translate: var(--dx) var(--dy); opacity: 1; rotate: calc(var(--rt) + 220deg); } 100% { translate: calc(var(--dx) * 1.2) calc(var(--dy) + 14px); opacity: 0; rotate: calc(var(--rt) + 360deg); } }
+.fx-block { --fxc: #bfe8ff; } .fx-block i { border-radius: 1px; width: 2px; height: calc(var(--sz) * 2.4); background: #fff; rotate: var(--rt); }
+.fx-block .fx-ring { border-radius: 30%; rotate: 45deg; }
+/* weapon trail: the arc a blade cuts through the air */
+.trail { position: absolute; left: 0; bottom: 34px; width: 110px; height: 110px; margin-left: -20px; pointer-events: none; z-index: 5; border-radius: 50%; opacity: 0;
+  background: conic-gradient(from 200deg, transparent 0 8%, color-mix(in srgb, var(--tc) 30%, transparent) 14%, #ffffffcc 22%, transparent 24%);
+  -webkit-mask: radial-gradient(closest-side, transparent 56%, #000 60% 96%, transparent); mask: radial-gradient(closest-side, transparent 56%, #000 60% 96%, transparent);
+  animation: trail .56s ease-out forwards; }
+.trail.side-them { scale: -1 1; margin-left: -90px; }
+.trail-thrust { height: 18px; bottom: 82px; border-radius: 9px; width: 120px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--tc) 50%, transparent), #fffd); -webkit-mask: none; mask: none; }
+.trail-smash { bottom: 20px; width: 130px; height: 130px; }
+@keyframes trail { 0%, 38% { opacity: 0; rotate: -90deg; } 46% { opacity: 1; } 60% { opacity: .9; rotate: 40deg; } 100% { opacity: 0; rotate: 60deg; } }
+.trail-thrust { animation-name: thrusttrail; }
+@keyframes thrusttrail { 0%, 40% { opacity: 0; scale: .2 1; } 55% { opacity: 1; scale: 1 1; } 100% { opacity: 0; scale: 1.2 .4; } }
+.trail-thrust.side-them { scale: -1 1; animation-name: thrusttrailR; }
+@keyframes thrusttrailR { 0%, 40% { opacity: 0; scale: -.2 1; } 55% { opacity: 1; scale: -1 1; } 100% { opacity: 0; scale: -1.2 .4; } }
+/* dust kicked up by running feet */
+.dust { position: absolute; left: 0; bottom: -4px; width: 0; height: 0; pointer-events: none; }
+.dust i { position: absolute; width: 14px; height: 9px; margin: -4px -7px; border-radius: 50%; background: radial-gradient(closest-side, #d8c8a8aa, transparent); animation: dust .42s ease-out infinite; }
+.dust i:nth-child(2) { animation-delay: -.14s; left: -10px; } .dust i:nth-child(3) { animation-delay: -.28s; left: -18px; }
+@keyframes dust { 0% { scale: .3; opacity: .9; translate: 0 0; } 100% { scale: 1.8; opacity: 0; translate: -14px -8px; } }
+.spot-them .dust { scale: -1 1; }
+/* arrows fly flat and fast */
+.bolt-arrow { width: 34px; height: 3px; margin-left: -17px; border-radius: 1px; background: linear-gradient(90deg, #e8e2d0 0 20%, #6a4a2a 20% 85%, #cfd6e0 85%); box-shadow: none; animation-duration: .22s; animation-delay: .3s; }
+.bolt-arrow.side-them { scale: -1 1; }
+.bolt-arrow::before { content: ''; position: absolute; left: -2px; top: -3px; width: 7px; height: 9px; background: var(--c2, #d24a3a); clip-path: polygon(0 0, 100% 50%, 0 100%, 40% 50%); }
+/* knock-out */
+.ko-burst { position: absolute; left: 0; bottom: 30px; width: 120px; height: 120px; margin-left: -60px; border-radius: 50%; pointer-events: none; z-index: 6;
+  background: radial-gradient(closest-side, #fff, #ffd16688 40%, transparent); animation: fxflash .5s ease-out forwards; }
+.pop-ko { font-family: var(--f-pixel); font-size: 22px !important; color: #ffd166; -webkit-text-stroke: 1px #000; text-shadow: 0 3px 0 #a33, 0 0 12px #ffd166; }
+.pop.heavy { font-size: 40px !important; color: #ffdf6a; text-shadow: 0 2px 0 #000, 0 0 16px #ff6a2a; animation: popup 1.25s ease-out forwards, heavypop .3s ease-out; }
+@keyframes heavypop { 0% { scale: 2.2; } 100% { scale: 1; } }
+.screen-flash { position: absolute; inset: 0; z-index: 35; pointer-events: none; background: radial-gradient(closest-side, #fff8, #fff3); animation: edgeflash .38s ease-out forwards; }
+.hcard, .spot { -webkit-tap-highlight-color: transparent; }
+.fx-impact { translate: calc(-14px * var(--dir)) 0; }
+.art-fighter { position: absolute; inset: 0; overflow: hidden; background: radial-gradient(80% 60% at 50% 30%, color-mix(in srgb, var(--c1) 45%, #1a2030), #0a0d14); }
+.art-fighter::after { content: ''; position: absolute; left: 10%; right: 10%; bottom: 4%; height: 10%; border-radius: 50%; background: radial-gradient(closest-side, #0008, transparent); }
+.af-box { position: absolute; left: 50%; bottom: 6%; width: 100px; height: 150px; transform-origin: 50% 100%; z-index: 1; }
+.ftr.pose-still .rig { animation: none; transform: rotateY(-24deg); }
+.ftr.pose-still .f-shadow { display: none; }
+.ftr.wpn-hammer .j-handN { rotate: -38deg; } .ftr.wpn-mace .j-handN { rotate: -22deg; }
+.fx-anchor { position: absolute; width: 0; height: 0; z-index: 45; pointer-events: none; scale: var(--s); }
+.fx-anchor .fx-impact { left: 0; bottom: auto; top: -72px; }
+.fx-impact i { animation-duration: .8s; }
+.fx-flash { width: 96px; height: 96px; margin: -48px; animation-duration: .32s; }
+.fx-impact.big .fx-flash { width: 160px; height: 160px; margin: -80px; }
+.fx-ring { width: 72px; height: 72px; margin: -36px; }

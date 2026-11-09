@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import CardFrame, { levelTier } from './Card.jsx'
-import Fighter, { weaponFor, WEAPON_NAMES, STYLE, FighterDefs } from './Fighter.jsx'
+import Fighter, { weaponFor, loadoutOf, WEAPON_NAMES, OUTFIT_NAMES, STYLE } from './Fighter.jsx'
 import Avatar from './Avatar.jsx'
 import { Btn } from './ui.jsx'
 import { useGame, fmt, useArtUrl } from '../store.jsx'
@@ -24,6 +24,27 @@ const LANE_NAMES = ['BACK', 'MIDDLE', 'FRONT']
 // closer to the centre, like a field seen in perspective
 const ROWS = [{ y: 47, s: 0.66, x: [29, 71] }, { y: 69, s: 0.8, x: [21, 79] }, { y: 95, s: 0.96, x: [13, 87] }]
 const IMPACT = 310 // ms into a swing when the blow lands (matches the CSS)
+const ELC = { ember: '#ffb04a', tide: '#7fe0ff', gale: '#c6ff6a' }
+
+// The burst where a blow lands: a flash, a shock ring, and particles thrown
+// away from the attacker in the attacking fighter's element — sparks and
+// embers for Ember, spray for Tide, cut leaves for Gale, and bright metal
+// sparks off a block.
+function Impact({ seed, el, big, dir }) {
+  let x = Math.floor(seed * 1e9) || 7
+  const rnd = () => { x = (x * 1103515245 + 12345) & 0x7fffffff; return x / 0x7fffffff }
+  const n = big ? 20 : 13
+  return (
+    <div className={`fx-impact fx-${el} ${big ? 'big' : ''}`} style={{ '--dir': dir }} aria-hidden="true">
+      <span className="fx-flash" /><span className="fx-ring" /><span className="fx-cut" />
+      {Array.from({ length: n }, (_, i) => {
+        const a = ((rnd() - 0.5) * 150 - 10) * (Math.PI / 180)
+        const dist = (big ? 46 : 32) + rnd() * (big ? 56 : 38)
+        return <i key={i} style={{ '--dx': `${Math.cos(a) * dist * dir}px`, '--dy': `${Math.sin(a) * dist}px`, '--dl': `${rnd() * 60}ms`, '--sz': `${3 + rnd() * (big ? 6 : 4)}px`, '--rt': `${rnd() * 360}deg` }} />
+      })}
+    </div>
+  )
+}
 
 export default function Table({ initial, onClose, onRematch, engine = null, tutorial = false }) {
   const { call, snap, toast } = useGame()
@@ -44,6 +65,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
   const [hurt, setHurt] = useState(null) // 'you:1' | 'them:leader' …
   const [cam, setCam] = useState(null)
   const [spark, setSpark] = useState(null)
+  const [flash, setFlash] = useState(null)
   const [guide, setGuide] = useState(() => { if (tutorial) return false; try { return !localStorage.getItem('orvel:guideSeen') } catch { return false } })
   // tutorial: which step Pip is on; null when not in the tutorial
   const [tStep, setTStep] = useState(tutorial ? 0 : null)
@@ -109,23 +131,29 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
       setActor({ side: e.side, lane: e.lane, pose: 'run', dash: g.dash })
       await T(430)
     }
-    setActor({ side: e.side, lane: e.lane, pose: 'atk', dash: g.dash, bolt: g.style === 'cast' ? g.bolt : null })
+    setActor({ side: e.side, lane: e.lane, pose: 'atk', dash: g.dash, bolt: g.style === 'cast' ? g.bolt : null, style: g.style, arrow: weaponFor(u) === 'bow' })
     play(g.style === 'cast' ? 'bolt' : 'swing')
     await T(IMPACT + (g.style === 'cast' ? 140 : 0))
     if (!alive.current) return
     // the blow lands: numbers change now, not before
     setDisp({ you: e.snap.you, them: e.snap.them })
     // camera shake, without re-rendering anything mid-swing
-    worldRef.current?.animate?.([{ translate: '0 0' }, { translate: `${e.dmg >= 8 ? -7 : -4}px 3px` }, { translate: `${e.dmg >= 8 ? 6 : 3}px -2px` }, { translate: '-2px 1px' }, { translate: '0 0' }], { duration: 260, easing: 'ease-out' })
+    const heavy = e.dmg >= 8
+    const k = heavy ? 2 : e.dmg ? 1 : 0.6
+    worldRef.current?.animate?.([{ translate: '0 0' }, { translate: `${-5 * k}px ${3 * k}px` }, { translate: `${4 * k}px ${-2 * k}px` }, { translate: `${-2 * k}px ${k}px` }, { translate: '0 0' }], { duration: 220 + 120 * k, easing: 'ease-out' })
+    // hit-stop: everything freezes for a beat so the blow reads as solid
+    worldRef.current?.classList.add('hitstop')
+    setTimeout(() => worldRef.current?.classList.remove('hitstop'), heavy ? 140 : 80)
+    if (heavy) { setFlash(Math.random()); setTimeout(() => alive.current && setFlash(null), 380) }
     const tgt = toLeader ? `${target}:leader` : `${target}:${e.lane}`
     setHurt(tgt)
-    setSpark({ key: Math.random(), side: target, lane: e.lane, leader: toLeader, big: e.dmg >= 8, blocked: !e.dmg })
+    setSpark({ key: Math.random(), side: target, lane: e.lane, leader: toLeader, big: e.dmg >= 8, blocked: !e.dmg, el: u.element, from: e.side })
     if (e.dmg) play('hit', e.dmg >= 8); else play('clang')
     if (toLeader) {
       pop(target, 'leader', `−${e.dmg}`, 'dmg', why(e))
       say(`${whose(e.side)} ${laneWord(e.lane)} fighter ran through the empty lane and hit ${e.side === 'you' ? r.name : 'you'} for ${e.dmg}`)
     } else {
-      pop(target, e.lane, e.dmg ? `−${e.dmg}` : 'BLOCKED', e.dmg ? 'dmg' : 'block', why(e))
+      pop(target, e.lane, e.dmg ? `−${e.dmg}` : 'BLOCKED', e.dmg ? (e.dmg >= 8 ? 'dmg heavy' : 'dmg') : 'block', why(e))
       if (e.through) pop(target, 'leader', `−${e.through}`, 'dmg', 'pierced through')
       say(`${whose(e.side)} ${laneWord(e.lane)} fighter hit ${unitName(dispRef.current[target].board[e.lane])} for ${e.dmg}${e.through ? ` (+${e.through} through)` : ''}${e.back ? `, took ${e.back} back` : ''}`)
     }
@@ -162,6 +190,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
         play('back'); say(`${whose(e.side)} ${laneWord(e.lane)} fighter was knocked out`)
         // keep the fallen fighter on the field while it goes down, then clear it
         setFx({ ...e, ghost: dispRef.current[e.side].board[e.lane] })
+        pop(e.side, e.lane, 'K.O.', 'ko')
         await T(DUR.die)
         setDisp({ you: before.you, them: before.them })
         continue
@@ -245,6 +274,9 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
           <div className={`mover ${moving?.back ? 'back' : ''}`} style={{ translate: `${moving ? moving.dash : 0}px 0` }}>
             {dropping && <div className="summon-card"><CardFrame card={d.card} rarity={d.rarity} frame={d.frame} footRight={d.footRight} size="xs" tilt={false} showCount={false} /></div>}
             <div className={dropping ? 'summon-fighter' : 'fighter-wrap'}><FighterArt d={d} u={u} side={side} pose={pose} /></div>
+            {moving?.pose === 'run' && <span className="dust" aria-hidden="true"><i /><i /><i /></span>}
+            {moving?.pose === 'atk' && moving.style !== 'cast' && <span className={`trail trail-${moving.style} side-${side}`} style={{ '--tc': ELC[u.element] }} aria-hidden="true" />}
+            {dyingHere && <span className="ko-burst" aria-hidden="true" />}
             {dropping && <div className="summon-flash" />}
             {!moving && !dyingHere && (
               <div className="plate">
@@ -259,8 +291,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
             )}
           </div>
         )}
-        {moving?.bolt != null && <span className={`bolt bolt-${u?.element}`} style={{ '--to': `${moving.bolt}px` }} />}
-        {spark && !spark.leader && spark.side === side && spark.lane === lane && <span key={spark.key} className={`impact ${spark.big ? 'big' : ''} ${spark.blocked ? 'blocked' : ''} from-${side === 'you' ? 'right' : 'left'}`} />}
+        {moving?.bolt != null && <span className={`bolt bolt-${u?.element} ${moving.arrow ? 'bolt-arrow' : ''} side-${side}`} style={{ '--to': `${moving.bolt}px` }} />}
         <div className="spot-pops">{pops.filter((p) => p.side === side && p.lane === lane).map((p) => <span key={p.id} className={`pop pop-${p.kind}`}>{p.text}{p.why && <small>{p.why}</small>}</span>)}</div>
       </div>
     )
@@ -288,7 +319,6 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
 
   return (
     <div className={`duel theme-${league}`} role="dialog" aria-modal="true" aria-label={`Duel against ${r.name}`}>
-      <FighterDefs />
       <div className={`hud ${hl('hp')}`}>
         <Hud side="you" />
         <div className="hud-mid mono"><b>VS</b><span>T{b.you.turns}/{TURN_LIMIT}</span></div>
@@ -310,6 +340,11 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
           })}
           {Array.from({ length: LANES }, (_, lane) => [renderSpot('you', lane), renderSpot('them', lane)])}
           {spark?.leader && <span key={spark.key} className={`edge-hit edge-${spark.side}`} />}
+          {flash && <span key={flash} className="screen-flash" aria-hidden="true" />}
+          {spark && (() => { const row = ROWS[spark.lane]; return (
+            <div className="fx-anchor" style={{ left: `${row.x[spark.side === 'you' ? 0 : 1]}%`, top: `${row.y}%`, '--s': row.s }}>
+              <Impact key={spark.key} seed={spark.key} el={spark.blocked ? 'block' : spark.el} big={spark.big} dir={spark.from === 'you' ? 1 : -1} />
+            </div>) })()}
         </div>
         {banner && <div className={`turn-banner b-${banner}`}>{{ start: 'DUEL START', you: 'YOUR TURN', them: `${r.name.toUpperCase()}'S TURN`, youatk: 'YOUR FIGHTERS ATTACK!', themattack: `${r.name.toUpperCase()} ATTACKS!` }[banner]}</div>}
         <div className="side-tag you">YOU</div><div className="side-tag them">{r.name.toUpperCase()}</div>
@@ -362,7 +397,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
             <div className="sheet-card"><CardFrame card={md.card} rarity={md.rarity} frame={md.frame} footRight={md.footRight} size="sm" tilt={false} showCount={false} level={menuUnit.level} /></div>
             <div className="sheet-info">
               <h3>{md.card.name} <span className="cpu-tag">{menu.side === 'you' ? 'YOUR FIGHTER' : `${r.name}'s FIGHTER`} · {LANE_NAMES[menu.lane]} LANE</span></h3>
-              <p className="fine">{menuUnit.level != null ? `Level ${menuUnit.level} · ` : ''}Weapon: {WEAPON_NAMES[weaponFor(menuUnit)]}</p>
+              <p className="fine">{menuUnit.level != null ? `Level ${menuUnit.level} · ` : ''}{OUTFIT_NAMES[loadoutOf(menuUnit).outfit]} · {WEAPON_NAMES[weaponFor(menuUnit)]}</p>
               <StatTiles stats={menuUnit} />
               <Abilities list={menuUnit.abilities} />
               {menuAtk && (
