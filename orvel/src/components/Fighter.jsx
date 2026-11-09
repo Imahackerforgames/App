@@ -43,7 +43,7 @@ function Fighter({ unit, art, rarity, side }) {
   const weapon = weaponFor(unit)
   const shield = hasShield(unit) && weapon !== 'daggers' && weapon !== 'banner'
   return (
-    <div className={`fighter fighter-${side} tier-${tier} wpn-${weapon}`}>
+    <div className={`ftr ftr-${side} ftier-${tier} wpn-${weapon}`}>
       {tier >= 5 && <div className="f-aura" />}
       <svg viewBox="-4 -4 72 92" aria-hidden="true">
         <defs>

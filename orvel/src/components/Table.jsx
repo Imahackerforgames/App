@@ -225,6 +225,7 @@ export default function Table({ initial, onClose, onRematch }) {
           <div className="table-edge" />
         </div>
         {banner && <div className={`turn-banner b-${banner}`}>{{ start: 'DUEL START', you: 'YOUR TURN', them: `${r.name.toUpperCase()}'S TURN`, youatk: 'YOUR FIGHTERS ATTACK!', themattack: `${r.name.toUpperCase()} ATTACKS!` }[banner]}</div>}
+        <div className="feed" aria-live="polite">{feed.slice(0, 1).map((l) => <div key={l}>{l}</div>)}</div>
         <button className="guide-btn" onClick={() => { play('click'); setGuide(true) }} aria-label="How to play">?</button>
         {busy && b.turn !== 'you' && !fx && <div className="thinking mono">{r.name} is thinking…</div>}
       </div>
@@ -263,7 +264,6 @@ export default function Table({ initial, onClose, onRematch }) {
         {!b.you.hand.length && <span className="fine">No cards in hand</span>}
       </div>
 
-      <div className="feed" aria-live="polite">{feed.slice(0, 2).map((l, k) => <div key={k + l}>{l}</div>)}</div>
 
       {menu && menuUnit && md && (
         <div className="sheet-back" onClick={() => setMenu(null)}>

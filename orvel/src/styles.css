@@ -1368,14 +1368,14 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 .theme-master .table-mat { background: radial-gradient(#ffffff55 .6px, transparent 1.2px) 0 0 / 23px 29px, radial-gradient(#ffd6fb44 .6px, transparent 1.2px) 11px 13px / 37px 31px, radial-gradient(90% 70% at 50% 40%, var(--mat), var(--mat2)); }
 
 /* ═════════════ fighters ═════════════ */
-.fighter { position: relative; width: clamp(56px, 16vw, 86px); aspect-ratio: 72 / 92; filter: drop-shadow(0 4px 4px #000a); }
-.fighter svg { width: 100%; height: 100%; display: block; overflow: visible; animation: fbob 1.8s ease-in-out infinite; }
-.fighter-them svg { animation-delay: -.9s; }
+.ftr { position: relative; width: clamp(56px, 16vw, 86px); aspect-ratio: 72 / 92; filter: drop-shadow(0 4px 4px #000a); }
+.ftr svg { width: 100%; height: 100%; display: block; overflow: visible; animation: fbob 1.8s ease-in-out infinite; }
+.ftr-them svg { animation-delay: -.9s; }
 @keyframes fbob { 50% { transform: translateY(-3%); } }
 .f-arm { transform-box: view-box; transform-origin: 45.5px 37px; transform: rotate(8deg); }
-.f-aura { position: absolute; inset: -12% -18%; border-radius: 50%; background: conic-gradient(from var(--spin), #ff3df2, #ffd166, #57ff9a, #3ff0ff, #8b5cff, #ff3df2); filter: blur(12px); opacity: .55; animation: spin 4s linear infinite; z-index: -1; }
-.tier-4 .fighter, .fighter.tier-4 { filter: drop-shadow(0 0 6px #b388ff) drop-shadow(0 4px 4px #000a); }
-.fighter.tier-3 { filter: drop-shadow(0 0 5px #ffd16699) drop-shadow(0 4px 4px #000a); }
+.ftr .f-aura { position: absolute; inset: -12% -18%; border-radius: 50%; background: conic-gradient(from var(--spin), #ff3df2, #ffd166, #57ff9a, #3ff0ff, #8b5cff, #ff3df2); filter: blur(12px); opacity: .55; animation: spin 4s linear infinite; z-index: -1; }
+.ftr.ftier-4, .ftr.ftier-5 { filter: drop-shadow(0 0 6px #b388ff) drop-shadow(0 4px 4px #000a); }
+.ftr.ftier-3 { filter: drop-shadow(0 0 5px #ffd16699) drop-shadow(0 4px 4px #000a); }
 /* swing: wind up, strike, follow through — lands as the charge reaches the target */
 .lunge-you .f-arm, .lunge-them .f-arm { animation: swing .95s cubic-bezier(.4,0,.3,1); }
 @keyframes swing { 0% { transform: rotate(8deg); } 28% { transform: rotate(-75deg); } 42% { transform: rotate(95deg); } 60% { transform: rotate(70deg); } 100% { transform: rotate(8deg); } }
@@ -1385,10 +1385,10 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 .lunge-you .f-legs, .lunge-them .f-legs { animation: run .2s steps(2) 3; }
 @keyframes run { 50% { transform: translateY(-2px); } }
 .unit .unit-stand { display: grid; justify-items: center; }
-.unit.hit .fighter svg { animation: fbob 1.8s ease-in-out infinite, flinch .45s .35s; }
+.unit.hit .ftr svg { animation: fbob 1.8s ease-in-out infinite, flinch .45s .35s; }
 @keyframes flinch { 25% { filter: brightness(2.2) sepia(1) hue-rotate(-40deg) saturate(4); transform: translateX(-6px) rotate(-6deg); } 60% { transform: translateX(4px) rotate(3deg); } }
-.unit.dying .fighter svg { animation: none; }
-.fortified .fighter { filter: drop-shadow(0 0 6px #4fc3ff) drop-shadow(0 0 2px #fff) drop-shadow(0 4px 4px #000a); }
+.unit.dying .ftr svg { animation: none; }
+.fortified .ftr { filter: drop-shadow(0 0 6px #4fc3ff) drop-shadow(0 0 2px #fff) drop-shadow(0 4px 4px #000a); }
 /* card → fighter */
 .summon-card { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 2; animation: cardvanish .62s ease-in forwards; }
 .summon-card .card { --w: clamp(54px, 15.5vw, 86px); }
@@ -1446,3 +1446,12 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 .guide-back { z-index: 130; }
 .guide > .btn { justify-self: stretch; }
 .guide > .btn .btn-in { width: 100%; justify-content: center; }
+
+.ftr { width: clamp(60px, 18vw, 92px); }
+.unit-stats span { display: inline-flex; align-items: center; white-space: nowrap; min-width: 30px; height: 22px; font-size: 16px; padding: 0 5px; }
+.unit-stats i { font-size: 10px; }
+.unit-stats { left: -2px; right: -2px; bottom: -4px; }
+.feed { top: auto; bottom: 4px; width: min(92vw, 520px); }
+.feed div { display: inline-block; padding: 3px 10px; border-radius: 999px; background: #000b; }
+.feed div:nth-child(2) { display: none; }
+.scene .feed { position: absolute; left: 50%; transform: translateX(-50%); }
