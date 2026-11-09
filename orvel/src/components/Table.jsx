@@ -305,7 +305,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
     const pct = Math.max(0, L) / LEADER_HP
     return (
       <div className={`hud-side hud-${side} ${hurt === `${side}:leader` ? 'hit' : ''}`}>
-        <Avatar seed={side === 'you' ? 'player:' + snap.player.name : r.id} size={38} ring={side === 'you' ? 'var(--accent)' : tierColor(r.level)} />
+        <Avatar seed={side === 'you' ? 'player:' + snap.player.name : r.id} size={38} facing={side === 'them' ? 'left' : 'right'} ring={side === 'you' ? 'var(--accent)' : tierColor(r.level)} />
         <div className="hud-main">
           <div className="hud-name">{side === 'you' ? snap.player.name : <>{r.name} <span className="ld-lv"><Crest lvl={r.level} size={12} /> {r.level}</span></>}</div>
           <div className="hud-bar"><i style={{ width: `${pct * 100}%` }} className={pct < 0.35 ? 'low' : ''} /><span className="mono">{Math.max(0, L)}/{LEADER_HP}</span></div>

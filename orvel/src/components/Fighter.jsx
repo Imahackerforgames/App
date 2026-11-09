@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { RIVALS, ELEMENTS } from '../server/battle.js'
 
 // A card on the battlefield becomes a fighter, drawn in side profile like a
 // character in an action RPG.
@@ -45,12 +46,12 @@ const keyOf = (u) => (u.ref ? `${u.ref.kind}:${u.ref.id}` : String(u.id))
 
 // The look of one card's fighter. Everything but the quality comes from the
 // card's id, so it never changes between duels.
-export function loadoutOf(u, tier = 0) {
+export function loadoutOf(u, tier = 0, force = null) {
   const k = keyOf(u)
   const r = (n, salt) => hash(k + ':' + salt) % n
-  const outfit = OUTFITS[r(OUTFITS.length, 'outfit')]
-  const c1 = COLORS[r(COLORS.length, 'c1')]
-  let c2 = COLORS[r(COLORS.length, 'c2')]
+  const outfit = force?.outfit || OUTFITS[r(OUTFITS.length, 'outfit')]
+  const c1 = force?.c1 != null ? COLORS[force.c1 % COLORS.length] : COLORS[r(COLORS.length, 'c1')]
+  let c2 = force?.c2 != null ? COLORS[force.c2 % COLORS.length] : COLORS[r(COLORS.length, 'c2')]
   if (c2 === c1) c2 = COLORS[(COLORS.indexOf(c1) + 3) % COLORS.length]
   const weapon = ARMS[outfit][r(ARMS[outfit].length, 'weapon')]
   const shield = ONE_HANDED.has(weapon) && outfit !== 'robe' && r(3, 'shield') !== 0 ? ['heater', 'round', 'kite'][r(3, 'shape')] : null
@@ -67,6 +68,20 @@ export function loadoutOf(u, tier = 0) {
   }
 }
 export function weaponFor(u) { return loadoutOf(u).weapon }
+
+// The Arena's contestants are fighters too. Their outfits and colours are
+// dealt from a shuffled order rather than by chance, so the line-up looks
+// deliberately mixed: neighbours never share an outfit and every look
+// appears twice at most. Stronger rivals wear finer gear.
+const CONTESTANT_OUTFITS = [3, 0, 4, 2, 5, 1, 4, 0, 2, 5, 3, 1]
+export function contestantLook(id) {
+  const i = RIVALS.findIndex((r) => r.id === id)
+  const level = RIVALS[i]?.level ?? 1
+  const unit = { id, ref: { kind: 'rival', id }, element: ELEMENTS[hash(id) % ELEMENTS.length].id, atk: 5, hp: 5, abilities: [] }
+  if (id === 'trainer-pip') return { unit, tier: 1, look: { outfit: 'leather', c1: 2, c2: 4 } }
+  if (i < 0) return null
+  return { unit, tier: Math.min(5, Math.floor(level / 10)), look: { outfit: OUTFITS[CONTESTANT_OUTFITS[i % CONTESTANT_OUTFITS.length]], c1: (i * 7 + 3) % 10, c2: (i * 3 + 6) % 10 } }
+}
 
 const S = (v) => ({ fill: `var(--${v})` })
 const Shade = ({ d, g = 'cyl' }) => <path d={d} fill={`url(#fd-${g})`} />
@@ -376,9 +391,9 @@ function Shield({ L, tier }) {
   )
 }
 
-function Fighter({ unit, art, rarity, side, pose = 'idle', wpn }) {
+function Fighter({ unit, art, rarity, side, pose = 'idle', wpn, look = null }) {
   const tier = rarity?.tier ?? 0
-  const L = loadoutOf(unit, tier)
+  const L = loadoutOf(unit, tier, look)
   const weapon = wpn || L.weapon
   const style = STYLE[weapon] || 'slash'
   const vars = {

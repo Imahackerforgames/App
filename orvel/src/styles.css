@@ -831,7 +831,7 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 
 /* ───────── avatars, stat bars, forge frames ───────── */
 .avatar { display: inline-block; flex: none; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 2px var(--ring), 0 4px 10px #0008; background: #000; }
-.avatar svg { display: block; width: 100%; height: 100%; }
+.avatar > svg { display: block; width: 100%; height: 100%; }
 .statbar { position: absolute; left: 6%; right: 6%; bottom: 13%; display: flex; gap: 2.5cqw; align-items: center; justify-content: center; flex-wrap: wrap; z-index: 2; pointer-events: none; }
 .statbar > span { font-family: var(--f-mono); font-size: 8.5cqw; line-height: 1; padding: 1.2cqw 2.6cqw; border-radius: 2cqw; background: #000d; border: 1px solid #fff3; color: #fff; }
 .sb-atk::before { content: 'ATK '; font-size: .7em; color: #ff9b7a; }
@@ -1795,3 +1795,13 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 .hand3d { min-height: 92px; padding-top: 6px; }
 .stance.swap { grid-column: 1 / -1; }
 .hcard { width: min(clamp(58px, 17vw, 84px), calc((100vw - 40px) / (var(--n, 4) * .9))); margin: 0 -3px; }
+
+/* contestants shown as their fighters */
+.avatar-ftr { position: relative; background: radial-gradient(90% 80% at 50% 30%, color-mix(in srgb, var(--ring) 45%, #20283a), #090c14 90%); border-radius: 50%; }
+.avatar-ftr::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 10px #000a; pointer-events: none; }
+.avf-box { position: absolute; left: 50%; width: 100px; height: 150px; transform-origin: 50% 0; }
+.avatar-ftr .f-shadow, .avatar-ftr .f-aura { display: none; }
+.contestant-fig { position: relative; display: inline-block; flex: none; }
+.cf-box { position: absolute; left: 0; bottom: 0; width: 100px; height: 150px; transform-origin: 0 100%; }
+.pf-fig { margin-left: auto; align-self: flex-end; filter: drop-shadow(0 8px 10px #000a); }
+@media (max-width: 520px) { .pf-fig { position: absolute; right: 4px; bottom: 0; opacity: .95; } .pf-banner { position: relative; padding-right: 96px; } }
