@@ -12,7 +12,7 @@ function Avatar({ seed, size = 48, ring, facing = 'right' }) {
   if (c) {
     return (
       <span className="avatar avatar-crew" style={{ width: size, height: size, '--ring': ring || 'var(--line2)' }} aria-hidden="true">
-        <img src={CREW_ART[c.crew].bust} alt="" draggable="false" style={facing === 'left' ? { transform: 'scaleX(-1)' } : undefined} />
+        <img src={CREW_ART[c.crew].face} alt="" draggable="false" style={facing === 'left' ? { transform: 'scaleX(-1)' } : undefined} />
       </span>
     )
   }
@@ -25,10 +25,3 @@ function Avatar({ seed, size = 48, ring, facing = 'right' }) {
   )
 }
 export default memo(Avatar)
-
-// A contestant standing at full height, for their profile.
-export function ContestantFigure({ id, scale = 1 }) {
-  const c = useMemo(() => contestantLook(id), [id])
-  if (!c) return null
-  return <img className="contestant-fig" src={CREW_ART[c.crew].body} alt="" draggable="false" style={{ width: 80 * scale, height: 246 * scale }} />
-}

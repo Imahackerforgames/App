@@ -1803,8 +1803,6 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 .avatar-ftr .f-shadow, .avatar-ftr .f-aura { display: none; }
 .contestant-fig { position: relative; display: inline-block; flex: none; }
 .cf-box { position: absolute; left: 0; bottom: 0; width: 100px; height: 150px; transform-origin: 0 100%; }
-.pf-fig { margin-left: auto; align-self: flex-end; filter: drop-shadow(0 8px 10px #000a); }
-@media (max-width: 520px) { .pf-fig { position: absolute; right: 4px; bottom: 0; opacity: .95; } .pf-banner { position: relative; padding-right: 96px; } }
 
 /* ═════════════ the ORVEL crew ═════════════ */
 .avatar-crew { border-radius: 50%; background: #111; }
@@ -1848,3 +1846,4 @@ img.contestant-fig { object-fit: cover; border-radius: 10px; -webkit-mask: linea
 .duel.map-city .world::after { width: 9%; height: 16%; top: 4%; animation: banner 4s ease-in-out infinite alternate; }
 @keyframes banner { to { transform: skewY(3deg) scaleX(.94); } }
 .mt-scene { position: relative; }
+.avatar-crew { box-shadow: 0 0 0 3px var(--ring), 0 0 0 5px #0008, 0 6px 14px #000a; }

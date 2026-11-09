@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CardFrame from '../components/Card.jsx'
-import Avatar, { ContestantFigure } from '../components/Avatar.jsx'
+import Avatar from '../components/Avatar.jsx'
 import { Btn, Cash, Modal, RarityTag, WindowTitle } from '../components/ui.jsx'
 import { useGame, fmt, server } from '../store.jsx'
 import { customDisplay } from '../lib/customCard.js'
@@ -231,8 +231,7 @@ function RivalProfile({ id, onClose, onDuel }) {
       {!p ? <p className="mono blink">LOADING…</p> : (
         <div className="profile-body" style={{ '--lc': tierColor(p.level) }}>
           <div className="pf-banner">
-            <div className="pf-av"><Avatar seed={p.id} size={104} ring={tierColor(p.level)} /></div>
-            <div className="pf-fig"><ContestantFigure id={p.id} scale={1.15} /></div>
+            <div className="pf-av"><Avatar seed={p.id} size={136} ring={tierColor(p.level)} /></div>
             <div className="pf-id">
               <div className="pf-name">{p.name} <span className="cpu-tag" title="Computer-controlled rival">CPU</span></div>
               <div className="pf-league"><Crest lvl={p.level} size={24} /> {leagueOf(p.level).name} · Level {p.level}</div>
