@@ -73,8 +73,8 @@ export const TUT_STEPS = [
 export function TutorialBubble({ step, onNext, onSkip }) {
   if (!step?.text) return null
   return (
-    <div className={`tut-bubble ${step.hl === 'hp' || step.hl?.startsWith('lane-them') ? 'low' : ''}`} role="dialog" aria-live="polite" aria-label="Tutorial">
-      <div className="tut-who"><Avatar seed={TRAINER.id} size={34} ring="var(--gold)" /><b>Pip</b><span className="tut-badge">TUTORIAL</span></div>
+    <div className={`tut-bubble ${['select', 'play', 'tactic'].includes(step.wait) ? 'top' : ''}`} role="dialog" aria-live="polite" aria-label="Tutorial">
+      <div className="tut-who"><Avatar seed={TRAINER.id} size={28} ring="var(--gold)" /><b>Pip</b><span className="tut-badge">TUTORIAL</span></div>
       <p>{step.text}</p>
       <div className="tut-btns">
         <button className="link" onClick={onSkip}>Skip tutorial</button>

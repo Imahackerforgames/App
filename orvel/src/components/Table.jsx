@@ -151,7 +151,9 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
   const canPlaySomething = myTurn && b.you.hand.some((c) => c.unit.cost <= energy) && disp.you.board.some((x) => !x)
   const step = b.status !== 'active' ? null : !myTurn ? 0 : sel != null || shiftFrom != null ? 2 : canPlaySomething ? 1 : 3
 
-  const Slot = ({ side, lane }) => {
+  // a plain function, not a component: a component declared inside render would
+  // remount every render and swallow taps that land mid-update
+  const renderSlot = (side, lane) => {
     const dyingHere = fx?.t === 'die' && fx.side === side && fx.lane === lane && fx.ghost
     const u = dyingHere ? fx.ghost : disp[side].board[lane]
     const d = u && resolve(u.ref)
@@ -162,7 +164,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
     const dying = !!dyingHere
     const nextAtk = u && b.status === 'active' ? attackOf(view, side, lane) : null
     return (
-      <div className={`slot slot-${side} ${canDrop && (!tLocked || tcur.allowLane?.(lane)) ? 'drop' : ''} ${menu?.side === side && menu?.lane === lane ? 'focus' : ''} ${hl(`lane-${side}-${lane}`)} ${hl(`unit-${side}-${lane}`)}`} onClick={() => tapSlot(side, lane)}
+      <div className={`slot slot-${side} ${canDrop && (!tLocked || tcur.allowLane?.(lane)) ? 'drop' : ''} ${menu?.side === side && menu?.lane === lane ? 'focus' : ''} ${tcur?.hl === `lane-${side}-${lane}` || tcur?.hl === `unit-${side}-${lane}` ? 'tut-spot' : ''}`} onClick={() => tapSlot(side, lane)}
         role="button" tabIndex={0} aria-label={u ? `${side === 'you' ? 'Your' : 'Enemy'} ${d?.card.name} in the ${LANE_NAMES[lane].toLowerCase()} lane, ${u.atk} attack, ${u.hp} health` : `${side === 'you' ? 'Your' : 'Enemy'} empty ${LANE_NAMES[lane].toLowerCase()} lane`}>
         <div className="slot-pad" />
         {u && d && (
@@ -233,9 +235,9 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
                 const el = EL[b.terrain[lane]]
                 return (
                   <div key={lane} className="lane" style={{ '--ec': el.color }}>
-                    <Slot side="them" lane={lane} />
+                    {renderSlot("them", lane)}
                     <div className={`terrain ${hl('terrain')}`} title={`${el.name} lane: ${el.name} fighters hit +2 harder here`}><span>{el.glyph}</span><b>{el.name.toUpperCase()} +2</b></div>
-                    <Slot side="you" lane={lane} />
+                    {renderSlot("you", lane)}
                   </div>
                 )
               })}

@@ -1251,7 +1251,7 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 .duel.theme-gold { --wood-a: #5c1f14; --wood-b: #4b170e; --wood-c: #6e2a1b; --trim: #ffd166; --mat: #4a1238; --mat2: #300b24; --room-a: #3a0d14; --room-b: #0c0204; --lamp: #ffd166; }
 .duel.theme-diamond { --wood-a: #0f3a52; --wood-b: #0c2f44; --wood-c: #14506e; --trim: #7ff6ff; --mat: #062033; --mat2: #031522; --room-a: #062844; --room-b: #01060c; --lamp: #7ff6ff; }
 .duel.theme-master { --wood-a: #16121f; --wood-b: #1d1729; --wood-c: #241c33; --trim: #ff5cf0; --mat: #170a2a; --mat2: #0c0418; --room-a: #1d0b33; --room-b: #020006; --lamp: #ff9cf6; }
-.room { position: absolute; inset: 0; z-index: -1; background: radial-gradient(120% 70% at 50% 35%, var(--room-a), var(--room-b) 75%); }
+.room { position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(120% 70% at 50% 35%, var(--room-a), var(--room-b) 75%); }
 .room-lamp { position: absolute; left: 50%; top: -10%; width: 90%; height: 75%; transform: translateX(-50%); background: radial-gradient(closest-side, color-mix(in srgb, var(--lamp) 30%, transparent), transparent); animation: lampflicker 5s ease-in-out infinite; }
 @keyframes lampflicker { 50% { opacity: .82; } 52% { opacity: .95; } }
 .room-glow { position: absolute; inset: 0; background: radial-gradient(60% 30% at 50% 100%, #0008, transparent); }
@@ -1287,13 +1287,13 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 .table-mat { position: absolute; inset: 20px; border-radius: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 10px; transform-style: preserve-3d;
   background: radial-gradient(90% 70% at 50% 40%, var(--mat), var(--mat2)); box-shadow: inset 0 0 0 2px #0005, inset 0 0 30px #000a; }
 .theme-master .table-mat { background: radial-gradient(#fff 1px, transparent 1.4px) 0 0 / 34px 34px, radial-gradient(90% 70% at 50% 40%, var(--mat), var(--mat2)); }
-.lane { position: relative; display: grid; grid-template-rows: 1fr auto 1fr; gap: 6px; border-radius: 12px; transform-style: preserve-3d;
+.lane { position: relative; display: grid; grid-template-rows: 1fr auto 1fr; gap: 6px; border-radius: 12px; transform-style: preserve-3d; pointer-events: none; /* flat lanes share a plane with their slots; let taps land on the slot */
   background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--ec) 14%, transparent) 50%, transparent); border: 1px dashed color-mix(in srgb, var(--ec) 45%, transparent); }
 .terrain { display: grid; justify-items: center; line-height: 1; padding: 4px 0; color: var(--ec); text-shadow: 0 0 8px var(--ec); }
 .terrain span { font-size: 18px; }
 .terrain b { font-family: var(--f-pixel); font-size: 6px; letter-spacing: .1em; opacity: .85; }
-.slot { position: relative; transform-style: preserve-3d; cursor: pointer; outline: none; }
-.slot-pad { position: absolute; inset: 6px 8px; border-radius: 10px; border: 2px dashed #ffffff22; transition: all .2s; }
+.slot { position: relative; transform-style: preserve-3d; cursor: pointer; outline: none; pointer-events: auto; }
+.slot-pad { position: absolute; inset: 6px 8px; border-radius: 10px; border: 2px dashed #ffffff22; transition: all .2s; transform: translateZ(1px); }
 .slot.drop .slot-pad { border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); box-shadow: 0 0 16px var(--accent); animation: pulse 1s infinite; }
 .slot.focus .slot-pad { border-color: #fff; }
 .unit { position: absolute; left: 50%; bottom: 14%; transform: translateX(-50%); transform-style: preserve-3d; }
@@ -1481,15 +1481,16 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 /* ═════════════ tutorial ═════════════ */
 .tut-hl { position: relative; z-index: 8; outline: 3px solid var(--gold) !important; outline-offset: 3px; border-radius: 12px; animation: tutglow 1.1s ease-in-out infinite !important; }
 @keyframes tutglow { 50% { outline-color: #fff; box-shadow: 0 0 22px #ffd166; } }
-.slot.tut-hl .slot-pad { border: 3px solid var(--gold); background: #ffd16622; }
+.slot.tut-spot .slot-pad { border: 3px solid var(--gold); background: #ffd16626; animation: tutglow 1.1s ease-in-out infinite; outline: 2px solid var(--gold); outline-offset: 2px; }
 .hcard.tut-hl { outline: none !important; animation: none !important; }
 .hcard.tut-hl .card { box-shadow: 0 0 0 3px var(--gold), 0 0 24px var(--gold); animation: tutglow 1.1s ease-in-out infinite; }
 .hcard.tut-hl::after { content: '👆'; position: absolute; left: 50%; bottom: -26px; transform: translateX(-50%); font-size: 24px; animation: chipbob .9s ease-in-out infinite; }
-.tut-bubble { position: absolute; left: 50%; top: 66px; transform: translateX(-50%); z-index: 40; width: min(94vw, 460px); padding: 10px 12px; border-radius: 14px;
+/* fixed to the screen edge away from whatever the step asks you to tap */
+.tut-bubble { position: fixed; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom)); top: auto; transform: translateX(-50%); z-index: 40; width: min(94vw, 460px); padding: 10px 12px; border-radius: 14px;
   background: linear-gradient(180deg, #fff8e8, #ffe8b8); color: #2a1a08; border: 3px solid var(--gold); box-shadow: 0 8px 24px #000c; animation: bubblein .3s cubic-bezier(.2,1.4,.4,1); }
-.tut-bubble.low { top: auto; bottom: 230px; }
+.tut-bubble.top { top: calc(8px + env(safe-area-inset-top)); bottom: auto; }
 @keyframes bubblein { 0% { transform: translateX(-50%) scale(.85); opacity: 0; } 60% { transform: translateX(-52%) scale(1.02); } 80% { transform: translateX(-48%); } }
-.tut-bubble p { margin: 6px 0 8px; font-size: 14.5px; line-height: 1.4; font-weight: 600; }
+.tut-bubble p { margin: 4px 0 6px; font-size: 14px; line-height: 1.4; font-weight: 600; }
 .tut-who { display: flex; align-items: center; gap: 8px; }
 .tut-who b { font-size: 16px; }
 .tut-badge { margin-left: auto; font-family: var(--f-pixel); font-size: 7px; padding: 3px 6px; border-radius: 4px; background: #2a1a08; color: var(--gold); }
