@@ -122,6 +122,17 @@ export function FighterDefs() {
         <radialGradient id="fd-skin" cx=".7" cy=".35" r=".8">
           <stop offset="0" stopColor="#fff" stopOpacity=".12" /><stop offset=".6" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".35" />
         </radialGradient>
+        {/* gloss for props: a bright band across a curved surface, and a hot specular spot */}
+        <linearGradient id="fd-gloss" x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0" stopColor="#fff" stopOpacity="0" /><stop offset=".22" stopColor="#fff" stopOpacity="0" /><stop offset=".32" stopColor="#fff" stopOpacity=".75" />
+          <stop offset=".4" stopColor="#fff" stopOpacity=".12" /><stop offset=".78" stopColor="#fff" stopOpacity="0" /><stop offset=".9" stopColor="#fff" stopOpacity=".22" /><stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="fd-glass" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stopColor="#fff" stopOpacity=".55" /><stop offset=".35" stopColor="#fff" stopOpacity="0" /><stop offset=".6" stopColor="#fff" stopOpacity=".3" /><stop offset=".7" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+        <radialGradient id="fd-spec" cx=".5" cy=".5" r=".5">
+          <stop offset="0" stopColor="#fff" stopOpacity=".95" /><stop offset=".4" stopColor="#fff" stopOpacity=".35" /><stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </radialGradient>
         <radialGradient id="fd-lamp" cx=".5" cy=".5" r=".5">
           <stop offset="0" stopColor="#fff8d0" /><stop offset=".4" stopColor="#ffc860" /><stop offset="1" stopColor="#ff8a20" stopOpacity="0" />
         </radialGradient>

@@ -1896,3 +1896,7 @@ img.contestant-fig { object-fit: cover; border-radius: 10px; -webkit-mask: linea
 .dz-card .card { --w: 26px; }
 .dz-card .card-head, .dz-card .card-foot { visibility: hidden; }
 .dz-card i { position: absolute; inset: 0; display: grid; place-items: center; font-style: normal; color: #ff5a5a; font-size: 16px; filter: none; text-shadow: 0 1px 2px #000; }
+/* glints: a star of light that flares now and then on shiny props */
+.prop .glint { transform-box: fill-box; transform-origin: center; opacity: 0; animation: glint 3.2s ease-in-out infinite; animation-delay: var(--gd, 0s); }
+@keyframes glint { 0%, 70%, 100% { opacity: 0; scale: .2; rotate: 0deg; } 80% { opacity: 1; scale: 1.2; rotate: 45deg; } 88% { opacity: 0; scale: .4; rotate: 90deg; } }
+.prop { filter: drop-shadow(0 5px 3px #000b) drop-shadow(0 0 1px #0008); }
