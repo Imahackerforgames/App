@@ -333,8 +333,9 @@ function DuelSetup({ rival, onClose, onStart }) {
         </div>
 
         <section>
-          <div className="ds-head"><span className="label">YOUR DECK · {deck.length}/{DECK_SIZE}</span>
+          <div className="ds-head"><span className="label">CHOOSE YOUR FIGHTERS · {deck.length}/{DECK_SIZE}</span>
             <button className="link" onClick={() => setDeck(options.slice(0, DECK_SIZE).map((o) => key(o.ref)))}>Auto-pick strongest</button></div>
+          <p className="fine">Tap a card to bring it into this fight (tap again to leave it out). Only the cards you pick can be drawn. Higher LV = stronger fighter.</p>
           {recruitsNeeded > 0 && <p className="fine">{recruitsNeeded} empty {recruitsNeeded === 1 ? 'slot is' : 'slots are'} filled with basic Recruits. Open packs or forge cards to replace them.</p>}
           {options.length === 0 ? (
             <p className="warn">You don't own any cards yet — you'll fight with Recruits. Open packs in the shop to build a real deck.</p>

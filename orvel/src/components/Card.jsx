@@ -5,7 +5,8 @@ import { useArtUrl } from '../store.jsx'
 // it sits `contain`-fitted over a soft blurred copy of itself, so any aspect
 // ratio fills the window without distortion. Admins can opt a card into
 // `cover` when they prefer edge-to-edge.
-function CardFrame({ card, rarity, owned = null, count = 0, size = 'md', tilt = true, onClick, showCount = true, revealing = false, serial = null, frame = null, footRight = null, stats = null }) {
+function CardFrame({ card, rarity, owned = null, count = 0, size = 'md', tilt = true, onClick, showCount = true, revealing = false, serial = null, frame = null, footRight = null, stats = null, level = null }) {
+  const lv = level ?? stats?.level ?? null
   const url = useArtUrl(card)
   const ref = useRef(null)
   const effect = rarity?.effect || 'matte'
@@ -55,6 +56,7 @@ function CardFrame({ card, rarity, owned = null, count = 0, size = 'md', tilt = 
         </div>
       </div>
       <div className="card-glare" />
+      {lv != null && <div className={`card-lv lv-t${levelTier(lv)}`} title={`Level ${lv} of ${MAX_LV}`}><small>LV</small>{lv}</div>}
       {stats && <StatBar stats={stats} />}
       {locked && <div className="card-lock"><span>UNCOLLECTED</span></div>}
       {showCount && count > 0 && <div className="card-count">×{count}</div>}
@@ -62,6 +64,10 @@ function CardFrame({ card, rarity, owned = null, count = 0, size = 'md', tilt = 
   )
 }
 export default memo(CardFrame)
+
+const MAX_LV = 77
+// colour steps for the level badge, matching the rarity bands
+export const levelTier = (lv) => (lv >= 70 ? 5 : lv >= 55 ? 4 : lv >= 40 ? 3 : lv >= 25 ? 2 : lv >= 12 ? 1 : 0)
 
 const EL = { ember: ['▲', '#ff7a45'], gale: ['❖', '#b6ff6a'], tide: ['≈', '#4fc3ff'] }
 const AB = { pierce: 'PRC', shield: 'SHD', drain: 'DRN', rally: 'RLY', burn: 'BRN', surge: 'SRG' }

@@ -35,15 +35,32 @@ function hash(text) {
 const unit = (text) => (hash(text) % 10007) / 10006
 
 // Battle stats for a catalog card: rarer and more valuable means stronger.
-export function cardStats(card, tier, valueInRangeUnit = 0.5) {
-  const total = 6 + tier * 3 + Math.round(2 * valueInRangeUnit)
+// Card levels. Every copy pulled from a pack rolls a level inside its
+// rarity's band, weighted toward the bottom so a top roll is rare; LV 77 only
+// exists at the very top of the rarest band. A copy's place in its band adds
+// up to +3 stats, so levels matter without letting a common outfight a legend.
+export const MAX_LEVEL = 77
+export const LEVEL_BANDS = [[1, 12], [10, 24], [20, 36], [32, 50], [46, 64], [60, 77]]
+export const levelBand = (tier) => LEVEL_BANDS[Math.max(0, Math.min(LEVEL_BANDS.length - 1, tier | 0))]
+export function rollLevel(tier, u) {
+  const [a, b] = levelBand(tier)
+  return Math.min(b, a + Math.floor((b - a + 1) * u * u))
+}
+export function levelBonus(tier, level) {
+  if (level == null) return 0
+  const [a, b] = levelBand(tier)
+  return Math.round(3 * Math.max(0, Math.min(1, (level - a) / (b - a))))
+}
+
+export function cardStats(card, tier, valueInRangeUnit = 0.5, level = null) {
+  const total = 6 + tier * 3 + Math.round(2 * valueInRangeUnit) + levelBonus(tier, level)
   const r = 0.35 + 0.3 * unit(card.id + ':split')
   const atk = Math.max(1, Math.round(total * r))
   const def = Math.max(1, total - atk)
   const element = ELEMENTS[hash(card.id + ':el') % 3].id
   const roll = unit(card.id + ':ab')
   const ability = tier >= 3 || (tier === 2 && roll < 0.35) ? ABILITIES[hash(card.id + ':ability') % ABILITIES.length].id : null
-  return { atk, def, element, abilities: ability ? [ability] : [] }
+  return { atk, def, element, abilities: ability ? [ability] : [], level }
 }
 
 // ───────────────────────── forge (custom cards) ─────────────────────────
@@ -130,15 +147,15 @@ export const TACTIC_COST = 1
 // Always-available basic units that top up a deck when a player owns fewer
 // than eight cards. Not collectible, not sellable, never bet.
 export const RECRUITS = [
-  { id: 'rc-ember', name: 'Cinder Recruit', art: 'gen:ember|hills|Cinder Recruit', stats: { atk: 3, def: 3, element: 'ember', abilities: [] } },
-  { id: 'rc-gale', name: 'Gale Recruit', art: 'gen:signal|crystal|Gale Recruit', stats: { atk: 2, def: 4, element: 'gale', abilities: [] } },
-  { id: 'rc-tide', name: 'Tide Recruit', art: 'gen:nocturne|sea|Tide Recruit', stats: { atk: 2, def: 4, element: 'tide', abilities: [] } },
+  { id: 'rc-ember', name: 'Cinder Recruit', art: 'gen:ember|hills|Cinder Recruit', stats: { atk: 3, def: 3, element: 'ember', abilities: [], level: 1 } },
+  { id: 'rc-gale', name: 'Gale Recruit', art: 'gen:signal|crystal|Gale Recruit', stats: { atk: 2, def: 4, element: 'gale', abilities: [], level: 1 } },
+  { id: 'rc-tide', name: 'Tide Recruit', art: 'gen:nocturne|sea|Tide Recruit', stats: { atk: 2, def: 4, element: 'tide', abilities: [], level: 1 } },
 ]
 
 // Card stats → a unit on the table.
 export function unitOf(stats) {
   const cost = Math.max(1, Math.min(5, 1 + Math.floor((stats.atk + stats.def) / 6)))
-  return { atk: stats.atk, hp: stats.def + 3, maxHp: stats.def + 3, cost, element: stats.element, abilities: [...(stats.abilities || [])] }
+  return { atk: stats.atk, hp: stats.def + 3, maxHp: stats.def + 3, cost, element: stats.element, abilities: [...(stats.abilities || [])], level: stats.level ?? null }
 }
 
 const other = (side) => (side === 'you' ? 'them' : 'you')

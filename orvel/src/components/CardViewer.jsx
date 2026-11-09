@@ -67,7 +67,7 @@ export default function CardViewer({ cardId, list, onClose, onNavigate }) {
       <button className="viewer-close" aria-label="Close" onClick={() => { play('back'); onClose() }}>✕</button>
       <div className="viewer-stage">
         <div className="viewer-card">
-          <CardFrame card={card} rarity={rarity} size="xl" count={count} owned={count > 0 ? true : null} showCount={false} />
+          <CardFrame card={card} rarity={rarity} size="xl" count={count} owned={count > 0 ? true : null} showCount={false} level={inv?.levels?.length ? Math.max(...inv.levels) : null} />
           {list && list.length > 1 && <div className="swipe-hint mono">◀ swipe ▶ · {idx + 1}/{list.length}</div>}
           <div className="viewer-card-actions">
             <Btn variant="ghost" size="sm" onClick={() => setZoom(true)}>⌕ Zoom artwork</Btn>
@@ -84,6 +84,7 @@ export default function CardViewer({ cardId, list, onClose, onNavigate }) {
               <div><dt>SELL VALUE</dt><dd><Cash amount={value} /></dd></div>
 
               <div><dt>OWNED</dt><dd className={count ? 'vi-owned' : 'vi-unowned'}>{count ? `${count} ${count === 1 ? 'copy' : 'copies'}` : 'Not collected'}</dd></div>
+              {inv?.levels?.length > 0 && <div><dt>{inv.levels.length > 1 ? 'YOUR LEVELS' : 'LEVEL'}</dt><dd className="mono">{[...inv.levels].sort((a, b) => b - a).map((l) => 'LV ' + l).join(', ')}{inv.levels.length > 1 ? ' — your best copy fights' : ''}</dd></div>}
               {card.limited?.enabled && <div><dt>EDITION</dt><dd className="mono">{fmt(card.limited.minted)} / {fmt(card.limited.editionSize)} minted</dd></div>}
               {inv?.serials?.length > 0 && <div><dt>YOUR SERIALS</dt><dd className="mono">{inv.serials.map((n) => '#' + n).join(', ')}</dd></div>}
             </dl>

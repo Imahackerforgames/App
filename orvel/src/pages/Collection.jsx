@@ -13,6 +13,7 @@ const SORTS = [
   ['rarity-desc', 'Rarity: rarest first'],
   ['rarity', 'Rarity: common first'],
   ['copies', 'Most copies'],
+  ['level', 'Highest level'],
 ]
 
 // Builds the search index once per catalog change, so typing only scans
@@ -24,6 +25,7 @@ function useIndex(cards, rarityById, inventory) {
     name: c.name.toLowerCase(),
     tier: rarityById[c.rarityId]?.tier ?? 0,
     count: inventory[c.id]?.count || 0,
+    level: inventory[c.id]?.levels?.length ? Math.max(...inventory[c.id].levels) : null,
   })), [cards, rarityById, inventory])
 }
 
@@ -52,6 +54,7 @@ export function searchCards(index, { q, rarities, own, theme, sort }) {
     'rarity-desc': (a, b) => b.tier - a.tier || a.card.collectionNumber - b.card.collectionNumber,
     rarity: (a, b) => a.tier - b.tier || a.card.collectionNumber - b.card.collectionNumber,
     copies: (a, b) => b.count - a.count || a.card.collectionNumber - b.card.collectionNumber,
+    level: (a, b) => (b.level ?? -1) - (a.level ?? -1) || a.card.collectionNumber - b.card.collectionNumber,
   }[sort]
   return out.sort(cmp)
 }
@@ -191,8 +194,8 @@ export default function Collection() {
         </div>
       ) : (
         <div className="grid">
-          {results.slice(0, limit).map(({ card, count }) => (
-            <CardFrame key={card.id} card={card} rarity={rarityById[card.rarityId]} owned={count > 0 ? true : false} count={count}
+          {results.slice(0, limit).map(({ card, count, level }) => (
+            <CardFrame key={card.id} card={card} rarity={rarityById[card.rarityId]} owned={count > 0 ? true : false} count={count} level={count > 0 ? level : null}
               onClick={() => { play('click'); setOpen(card.id) }} />
           ))}
         </div>

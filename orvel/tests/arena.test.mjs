@@ -285,3 +285,51 @@ test('the tutorial reward pays once per account', async () => {
   assert.equal(s.player.cash, c0 + 300)
   assert.equal(s.player.tutorialDone, true)
 })
+
+test('every pulled copy gets a level inside its rarity band, at most 77', async () => {
+  const { LEVEL_BANDS, MAX_LEVEL, rollLevel } = await import('../src/server/battle.js')
+  const { g } = await setup()
+  const snap = await g.snapshot()
+  const tierOf = Object.fromEntries(snap.rarities.map((r, i) => [r.id, i]))
+  for (const c of snap.cards) {
+    const inv = snap.player.inventory[c.id]
+    if (!inv?.count) continue
+    assert.equal(inv.levels.length, inv.count)
+    const [a, b] = LEVEL_BANDS[tierOf[c.rarityId]]
+    for (const l of inv.levels) assert.ok(l >= a && l <= b && l <= MAX_LEVEL, `${l} outside ${a}-${b}`)
+  }
+  assert.equal(rollLevel(5, 0.99999), 77)
+  assert.equal(rollLevel(0, 0), 1)
+})
+
+test('selling a duplicate gives up the lowest level and keeps the best', async () => {
+  const { g } = await setup()
+  const snap = await g.snapshot()
+  const [id, inv] = Object.entries(snap.player.inventory).find(([, v]) => v.count >= 2) || []
+  if (!id) return
+  const best = Math.max(...inv.levels)
+  const q = await g.quoteSale(id, 1)
+  await g.sellCard(id, 1, q.unit)
+  const after = (await g.snapshot()).player.inventory[id]
+  assert.equal(Math.max(...after.levels), best)
+  assert.equal(after.levels.length, inv.count - 1)
+})
+
+test('an old save gets a level for every copy it already owns', () => {
+  const s = freshState()
+  s.version = 5
+  s.cards = [{ id: 'c1', rarityId: 'r6', name: 'X' }]
+  s.players.local.inventory = { c1: { count: 3, serials: [] } }
+  migrate(s)
+  const inv = s.players.local.inventory.c1
+  assert.equal(inv.levels.length, 3)
+  for (const l of inv.levels) assert.ok(l >= 60 && l <= 77)
+})
+
+test('a save without levels gets them even when the catalog is already on v6', () => {
+  const s = freshState()
+  s.cards = [{ id: 'c1', rarityId: 'r1', name: 'X' }]
+  s.players.local.inventory = { c1: { count: 2, serials: [] } }
+  migrate(s)
+  assert.equal(s.players.local.inventory.c1.levels.length, 2)
+})

@@ -193,7 +193,7 @@ export default function PackOpening({ opening, pack, onClose, onAgain }) {
                 <div className={`op-flip ${phase === 'shown' || phase === 'leaving' ? 'flipped' : ''}`} key={i}>
                   <div className="op-flip-back"><CardBack size="lg" /></div>
                   <div className="op-flip-front">
-                    <CardFrame card={cur.card} rarity={cur.rarity} size="lg" showCount={false} serial={cur.serial} revealing tilt={false} />
+                    <CardFrame card={cur.card} rarity={cur.rarity} size="lg" showCount={false} serial={cur.serial} level={cur.level} revealing tilt={false} />
                   </div>
                 </div>
               </div>
@@ -232,14 +232,14 @@ export default function PackOpening({ opening, pack, onClose, onAgain }) {
           {best && (
             <div className="op-best" style={{ '--c1': best.rarity.color, '--c2': best.rarity.color2 }}>
               <div className="op-best-label">★ BEST PULL ★</div>
-              <div className="op-best-card"><CardFrame card={best.card} rarity={best.rarity} size="md" showCount={false} serial={best.serial} /></div>
+              <div className="op-best-card"><CardFrame card={best.card} rarity={best.rarity} size="md" showCount={false} serial={best.serial} level={best.level} /></div>
               <div className="op-best-info"><span className="op-best-r">{best.rarity.name}</span><Cash amount={best.value} big /></div>
             </div>
           )}
           <div className="op-sum-grid">
             {cards.slice(0, last).map((c, n) => (
               <div className="op-sum-item" key={n} style={{ '--d': `${n * 70}ms` }}>
-                <CardFrame card={c.card} rarity={c.rarity} size="md" showCount={false} serial={c.serial} />
+                <CardFrame card={c.card} rarity={c.rarity} size="md" showCount={false} serial={c.serial} level={c.level} />
                 {c.isNew && <span className="op-new small">NEW</span>}
                 <span className="op-sum-val"><Cash amount={c.value} /></span>
               </div>
@@ -283,7 +283,7 @@ function Finale({ c, phase }) {
       <div className="fin-card">
         <div className="fin-spin">
           <div className="op-flip-back"><CardBack size="lg" /></div>
-          <div className="op-flip-front"><CardFrame card={c.card} rarity={c.rarity} size="lg" showCount={false} serial={c.serial} tilt={false} /></div>
+          <div className="op-flip-front"><CardFrame card={c.card} rarity={c.rarity} size="lg" showCount={false} serial={c.serial} level={c.level} tilt={false} /></div>
         </div>
       </div>
       <div className="fin-burst" aria-hidden="true">{Array.from({ length: 24 + t * 8 }, (_, n) => <i key={n} style={{ '--n': n }} />)}</div>

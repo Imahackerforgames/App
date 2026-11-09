@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import CardFrame from './Card.jsx'
-import Fighter, { weaponFor, WEAPON_NAMES } from './Fighter.jsx'
+import CardFrame, { levelTier } from './Card.jsx'
+import Fighter, { weaponFor, WEAPON_NAMES, STYLE, FighterDefs } from './Fighter.jsx'
 import Avatar from './Avatar.jsx'
 import { Btn } from './ui.jsx'
 import { useGame, fmt, useArtUrl } from '../store.jsx'
@@ -9,14 +9,21 @@ import { ELEMENTS, LANES, LEADER_HP, MAX_ENERGY, TURN_LIMIT, TACTIC_COST, attack
 import { play } from '../lib/sound.js'
 import { TUT_STEPS, TutorialBubble } from './Tutorial.jsx'
 
-// The duel, played on a 3D table. The server decides everything; this
-// component sends taps ("play card 2 in lane 0", "end turn") and animates the
-// events that come back, one by one.
+// The duel, seen from the side at fighter height: your fighters on the left,
+// the rival's on the right, three lanes running back to front. The server
+// decides everything; this component sends taps ("play card 2 in lane 0",
+// "end turn") and acts out the events that come back, one by one — a fighter
+// runs across its lane, winds up and strikes, and the damage appears on the
+// target at the moment the blow lands, with the sum that produced it.
 
 const EL = Object.fromEntries(ELEMENTS.map((e) => [e.id, e]))
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-const DUR = { turn: 1000, draw: 200, play: 950, attack: 950, die: 520, burn: 520, rally: 420, hex: 420, fortify: 420, shift: 480, nobattle: 600, timeup: 900 }
-const LANE_NAMES = ['LEFT', 'MIDDLE', 'RIGHT']
+const DUR = { turn: 1000, draw: 200, play: 950, die: 760, burn: 520, rally: 420, hex: 420, fortify: 420, shift: 480, nobattle: 600, timeup: 900 }
+const LANE_NAMES = ['BACK', 'MIDDLE', 'FRONT']
+// where each lane stands on screen: further lanes sit higher, smaller and
+// closer to the centre, like a field seen in perspective
+const ROWS = [{ y: 47, s: 0.66, x: [29, 71] }, { y: 69, s: 0.8, x: [21, 79] }, { y: 95, s: 0.96, x: [13, 87] }]
+const IMPACT = 310 // ms into a swing when the blow lands (matches the CSS)
 
 export default function Table({ initial, onClose, onRematch, engine = null, tutorial = false }) {
   const { call, snap, toast } = useGame()
@@ -32,6 +39,11 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
   const [banner, setBanner] = useState('start')
   const [feed, setFeed] = useState([])
   const [showResult, setShowResult] = useState(initial.status !== 'active')
+  // the fight itself: who is moving, who is reeling, where the camera looks
+  const [actor, setActor] = useState(null) // { side, lane, pose, dash, back, bolt }
+  const [hurt, setHurt] = useState(null) // 'you:1' | 'them:leader' …
+  const [cam, setCam] = useState(null)
+  const [spark, setSpark] = useState(null)
   const [guide, setGuide] = useState(() => { if (tutorial) return false; try { return !localStorage.getItem('orvel:guideSeen') } catch { return false } })
   // tutorial: which step Pip is on; null when not in the tutorial
   const [tStep, setTStep] = useState(tutorial ? 0 : null)
@@ -45,70 +57,126 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
   const alive = useRef(true)
   const dispRef = useRef(disp)
   dispRef.current = disp
-  useEffect(() => () => { alive.current = false }, [])
+  const stageRef = useRef(null)
+  const worldRef = useRef(null)
+  const speed = useRef(1)
+  const T = (ms) => sleep(ms * speed.current)
+  useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   useEffect(() => { const p = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = p } }, [])
   useEffect(() => { if (!banner) return; const t = setTimeout(() => setBanner(null), 1400); return () => clearTimeout(t) }, [banner])
 
   const r = b.rival
   const league = leagueOf(r.level).id
   const myTurn = !busy && b.status === 'active' && b.turn === 'you'
-  const name = (side) => (side === 'you' ? 'You' : r.name)
   const unitName = (u) => (u ? resolve(u.ref)?.card.name || 'Unit' : 'Unit')
 
-  function pop(side, lane, text, kind) {
+  function pop(side, lane, text, kind, why) {
     const id = Math.random()
-    setPops((p) => [...p, { id, side, lane, text, kind }])
-    setTimeout(() => alive.current && setPops((p) => p.filter((x) => x.id !== id)), 1300)
+    setPops((p) => [...p, { id, side, lane, text, kind, why }])
+    setTimeout(() => alive.current && setPops((p) => p.filter((x) => x.id !== id)), 1500)
   }
   const say = (line) => setFeed((f) => [line, ...f].slice(0, 6))
+  const whose = (side) => (side === 'you' ? 'Your' : `${r.name}'s`)
+  const laneWord = (lane) => LANE_NAMES[lane].toLowerCase()
+
+  // How far a fighter runs to reach its target, in pixels on this screen.
+  function reach(side, lane, unit, toLeader) {
+    const w = stageRef.current?.getBoundingClientRect().width || 360
+    const row = ROWS[lane]
+    const from = row.x[side === 'you' ? 0 : 1], to = row.x[side === 'you' ? 1 : 0]
+    const dir = side === 'you' ? 1 : -1
+    const style = STYLE[weaponFor(unit)] || 'slash'
+    const span = ((to - from) / 100) * w
+    if (style === 'cast') return { style, dash: 0, bolt: span - dir * 22 * row.s }
+    if (toLeader) return { style, dash: span + dir * 4 * row.s, bolt: 0 }
+    const gap = (style === 'thrust' ? 92 : style === 'smash' ? 60 : 56) * row.s
+    return { style, dash: span - dir * gap, bolt: 0 }
+  }
+  const why = (e) => {
+    const parts = (e.parts || []).map((p) => (p.k === 'base' ? `${p.v} ATK` : `${p.v > 0 ? '+' : ''}${p.v} ${p.label.toLowerCase()}`))
+    if (e.blocked) parts.push(`−${e.blocked} blocked`)
+    return parts.length > 1 ? parts.join(' ') : ''
+  }
+
+  async function strike(e) {
+    const target = e.side === 'you' ? 'them' : 'you'
+    const u = dispRef.current[e.side].board[e.lane]
+    if (!u) { setDisp({ you: e.snap.you, them: e.snap.them }); return }
+    const toLeader = e.target === 'leader'
+    const g = reach(e.side, e.lane, u, toLeader)
+    setCam(e.lane)
+    if (g.style !== 'cast') {
+      setActor({ side: e.side, lane: e.lane, pose: 'run', dash: g.dash })
+      await T(430)
+    }
+    setActor({ side: e.side, lane: e.lane, pose: 'atk', dash: g.dash, bolt: g.style === 'cast' ? g.bolt : null })
+    play(g.style === 'cast' ? 'bolt' : 'swing')
+    await T(IMPACT + (g.style === 'cast' ? 140 : 0))
+    if (!alive.current) return
+    // the blow lands: numbers change now, not before
+    setDisp({ you: e.snap.you, them: e.snap.them })
+    // camera shake, without re-rendering anything mid-swing
+    worldRef.current?.animate?.([{ translate: '0 0' }, { translate: `${e.dmg >= 8 ? -7 : -4}px 3px` }, { translate: `${e.dmg >= 8 ? 6 : 3}px -2px` }, { translate: '-2px 1px' }, { translate: '0 0' }], { duration: 260, easing: 'ease-out' })
+    const tgt = toLeader ? `${target}:leader` : `${target}:${e.lane}`
+    setHurt(tgt)
+    setSpark({ key: Math.random(), side: target, lane: e.lane, leader: toLeader, big: e.dmg >= 8, blocked: !e.dmg })
+    if (e.dmg) play('hit', e.dmg >= 8); else play('clang')
+    if (toLeader) {
+      pop(target, 'leader', `−${e.dmg}`, 'dmg', why(e))
+      say(`${whose(e.side)} ${laneWord(e.lane)} fighter ran through the empty lane and hit ${e.side === 'you' ? r.name : 'you'} for ${e.dmg}`)
+    } else {
+      pop(target, e.lane, e.dmg ? `−${e.dmg}` : 'BLOCKED', e.dmg ? 'dmg' : 'block', why(e))
+      if (e.through) pop(target, 'leader', `−${e.through}`, 'dmg', 'pierced through')
+      say(`${whose(e.side)} ${laneWord(e.lane)} fighter hit ${unitName(dispRef.current[target].board[e.lane])} for ${e.dmg}${e.through ? ` (+${e.through} through)` : ''}${e.back ? `, took ${e.back} back` : ''}`)
+    }
+    if (e.heal) pop(e.side, 'leader', `+${e.heal}`, 'heal', 'drain')
+    await T(300)
+    if (e.back) { setHurt(`${e.side}:${e.lane}`); pop(e.side, e.lane, `−${e.back}`, 'dmg', 'counter'); play('hit'); await T(320) }
+    if (g.style !== 'cast') {
+      setActor({ side: e.side, lane: e.lane, pose: 'run', dash: 0, back: true })
+      await T(400)
+    }
+    setActor(null); setHurt(null); setSpark(null)
+  }
 
   async function animate(events, final) {
     let announced = null
+    speed.current = 1
     for (const e of events) {
       if (!alive.current) return
-      if ((e.t === 'attack' || e.t === 'nobattle') && announced !== e.side && e.t !== 'nobattle') {
+      if (e.t === 'attack' && announced !== e.side) {
         announced = e.side
         setFx(null)
         setBanner(e.side === 'you' ? 'youatk' : 'themattack')
         play('charge', 2)
-        await sleep(900)
+        await T(900)
       }
       setFx(e)
       const before = e.snap
+      if (e.t === 'attack') { await strike(e); continue }
+      setCam(null)
       if (e.t === 'turn') { setBanner(e.side === 'you' ? 'you' : 'them'); play(e.side === 'you' ? 'turn' : 'click') }
-      if (e.t === 'play') { play('flip'); setTimeout(() => play('reveal', 1), 420); say(`${e.side === 'you' ? 'You sent' : `${r.name} sent`} ${resolve(e.card.ref)?.card.name} into the ${LANE_NAMES[e.lane].toLowerCase()} lane`) }
-      if (e.t === 'attack') {
-        const target = e.side === 'you' ? 'them' : 'you'
-        await sleep(380) // the fighter charges, then the hit lands
-        play('hit', e.dmg >= 8)
-        if (e.target === 'leader') { pop(target, 'leader', `−${e.dmg}`, 'dmg'); say(`${e.side === 'you' ? 'Your' : `${r.name}'s`} ${LANE_NAMES[e.lane].toLowerCase()} fighter found an empty lane and hit ${e.side === 'you' ? r.name : 'you'} for ${e.dmg}`) }
-        else {
-          pop(target, e.lane, e.dmg ? `−${e.dmg}` : 'BLOCKED', e.dmg ? 'dmg' : 'block')
-          if (e.blocked) pop(target, e.lane, `⛨ ${e.blocked}`, 'block')
-          if (e.back) pop(e.side, e.lane, `−${e.back}`, 'dmg')
-          if (e.through) pop(target, 'leader', `−${e.through}`, 'dmg')
-          say(`${e.side === 'you' ? 'Your' : `${r.name}'s`} ${LANE_NAMES[e.lane].toLowerCase()} fighter hit the fighter across for ${e.dmg}${e.through ? ` (+${e.through} through)` : ''}${e.back ? `, took ${e.back} back` : ''}`)
-        }
-        if (e.heal) pop(e.side, 'leader', `+${e.heal}`, 'heal')
+      if (e.t === 'play') { play('flip'); setTimeout(() => play('reveal', 1), 420); say(`${e.side === 'you' ? 'You sent' : `${r.name} sent`} ${resolve(e.card.ref)?.card.name} into the ${laneWord(e.lane)} lane`) }
+      if (e.t === 'nobattle') say(`${e.side === 'you' ? 'Your' : `${r.name}'s`} fighters rest on the very first turn — attacks start next turn`)
+      if (e.t === 'die') {
+        play('back'); say(`${whose(e.side)} ${laneWord(e.lane)} fighter was knocked out`)
+        // keep the fallen fighter on the field while it goes down, then clear it
+        setFx({ ...e, ghost: dispRef.current[e.side].board[e.lane] })
+        await T(DUR.die)
+        setDisp({ you: before.you, them: before.them })
+        continue
       }
-      if (e.t === 'die') { play('back'); say(`${e.side === 'you' ? 'Your' : `${r.name}'s`} ${LANE_NAMES[e.lane].toLowerCase()} fighter was knocked out`) }
-      if (e.t === 'burn') { pop(e.side, e.lane, `🔥−${e.dmg}`, 'burn'); play('hit') }
+      if (e.t === 'burn') { pop(e.side, e.lane, `🔥−${e.dmg}`, 'burn', 'burning'); setHurt(`${e.side}:${e.lane}`); play('hit') }
       if (e.t === 'fortify') { pop(e.side, e.lane, '⛨ FORTIFIED', 'guard'); play('guard') }
       if (e.t === 'rally') { pop(e.side, e.lane, 'RALLY +2', 'heal'); play('coin') }
       if (e.t === 'hex') { pop(e.side === 'you' ? 'them' : 'you', e.lane, 'HEX −3', 'hex'); play('error') }
       if (e.t === 'shift') play('swipe')
-      if (e.t === 'nobattle') say(`${e.side === 'you' ? 'Your' : `${r.name}'s`} fighters rest on the very first turn — attacks start next turn`)
-      if (e.t === 'die') {
-        // keep the fallen unit on the table while it topples, then clear it
-        setFx({ ...e, ghost: dispRef.current[e.side].board[e.lane] })
-        await sleep(DUR.die)
-        setDisp({ you: before.you, them: before.them })
-        continue
-      }
+      if (e.t === 'timeup') say('Time! The hero with more HP wins.')
       setDisp({ you: before.you, them: before.them })
-      await sleep(e.t === 'attack' ? DUR.attack - 380 : DUR[e.t] ?? 400)
+      await T(DUR[e.t] ?? 400)
+      setHurt(null)
     }
-    setFx(null)
+    setFx(null); setCam(null); setActor(null)
     setDisp({ you: final.you, them: final.them })
     if (final.status !== 'active') { await sleep(600); setShowResult(true); play(final.status === 'won' ? 'cash' : 'back') }
   }
@@ -134,6 +202,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
   const view = useMemo(() => ({ terrain: b.terrain, turn: b.turn, over: b.status !== 'active', you: { ...b.you, ...disp.you }, them: { ...b.them, ...disp.them, hand: [] } }), [b, disp])
 
   function tapSlot(side, lane) {
+    if (busy) { speed.current = 0.45; return } // tap during the fight to hurry it along
     const u = disp[side].board[lane]
     if (side === 'you' && sel != null && !u && myTurn) {
       if (tLocked && !(tcur.wait === 'play' && tcur.allowLane?.(lane))) return nudgeIt()
@@ -153,63 +222,62 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
 
   // a plain function, not a component: a component declared inside render would
   // remount every render and swallow taps that land mid-update
-  const renderSlot = (side, lane) => {
+  const renderSpot = (side, lane) => {
+    const row = ROWS[lane]
     const dyingHere = fx?.t === 'die' && fx.side === side && fx.lane === lane && fx.ghost
     const u = dyingHere ? fx.ghost : disp[side].board[lane]
     const d = u && resolve(u.ref)
     const canDrop = side === 'you' && myTurn && !u && ((selCard && !canPlay(view, 'you', sel, lane)) || shiftFrom != null)
-    const attacking = fx?.t === 'attack' && fx.side === side && fx.lane === lane
-    const hitHere = fx?.t === 'attack' && fx.side !== side && fx.lane === lane && fx.target === 'unit'
     const dropping = fx?.t === 'play' && fx.side === side && fx.lane === lane
-    const dying = !!dyingHere
+    const moving = actor && actor.side === side && actor.lane === lane ? actor : null
+    const reeling = hurt === `${side}:${lane}`
+    const pose = dyingHere ? 'die' : moving ? moving.pose : reeling ? 'hurt' : 'idle'
     const nextAtk = u && b.status === 'active' ? attackOf(view, side, lane) : null
+    const hpPct = u ? Math.max(0, u.hp) / (u.maxHp || u.hp || 1) : 0
+    const tut = tcur?.hl === `lane-${side}-${lane}` || tcur?.hl === `unit-${side}-${lane}`
     return (
-      <div className={`slot slot-${side} ${canDrop && (!tLocked || tcur.allowLane?.(lane)) ? 'drop' : ''} ${menu?.side === side && menu?.lane === lane ? 'focus' : ''} ${tcur?.hl === `lane-${side}-${lane}` || tcur?.hl === `unit-${side}-${lane}` ? 'tut-spot' : ''}`} onClick={() => tapSlot(side, lane)}
-        role="button" tabIndex={0} aria-label={u ? `${side === 'you' ? 'Your' : 'Enemy'} ${d?.card.name} in the ${LANE_NAMES[lane].toLowerCase()} lane, ${u.atk} attack, ${u.hp} health` : `${side === 'you' ? 'Your' : 'Enemy'} empty ${LANE_NAMES[lane].toLowerCase()} lane`}>
-        <div className="slot-pad" />
+      <div key={side + lane} className={`spot spot-${side} ${canDrop && (!tLocked || tcur.allowLane?.(lane)) ? 'drop' : ''} ${menu?.side === side && menu?.lane === lane ? 'focus' : ''} ${tut ? 'tut-spot' : ''} ${moving ? 'acting' : ''} ${u?.fortify ? 'guarding' : ''} ${dyingHere ? 'fading' : ''}`}
+        style={{ left: `${row.x[side === 'you' ? 0 : 1]}%`, top: `${row.y}%`, '--s': row.s, zIndex: moving ? 20 : 2 + lane * 2 }}
+        onClick={() => tapSlot(side, lane)}
+        role="button" tabIndex={0} aria-label={u ? `${side === 'you' ? 'Your' : 'Enemy'} ${d?.card.name} in the ${laneWord(lane)} lane, ${u.atk} attack, ${u.hp} health` : `${side === 'you' ? 'Your' : 'Enemy'} empty ${laneWord(lane)} lane`}>
+        <div className="spot-ring" />
         {u && d && (
-          <div className={`unit ${attacking ? `lunge-${side}` : ''} ${hitHere ? 'hit' : ''} ${dropping ? 'drop-in' : ''} ${dying ? 'dying' : ''} ${u.fortify ? 'fortified' : ''}`} key={u.id}>
-            <div className="unit-shadow" />
-            <div className="unit-stand">
-              {dropping && <div className="summon-card"><CardFrame card={d.card} rarity={d.rarity} frame={d.frame} footRight={d.footRight} size="xs" tilt={false} showCount={false} /></div>}
-              <div className={dropping ? 'summon-fighter' : 'fighter-wrap'}><FighterArt d={d} u={u} side={side} /></div>
-              {dropping && <div className="summon-flash" />}
-              <div className="unit-stats">
-                <span className={`us-atk ${nextAtk && nextAtk.atk > u.atk ? 'up' : nextAtk && nextAtk.atk < u.atk ? 'down' : ''}`} title={nextAtk ? `Hits for ${nextAtk.atk} next` : 'Damage'}><i>⚔</i>{nextAtk ? nextAtk.atk : u.atk}</span>
-                <span className={`us-hp ${u.hp < u.maxHp ? 'hurt' : ''}`} title="Health"><i>♥</i>{u.hp}</span>
+          <div className={`mover ${moving?.back ? 'back' : ''}`} style={{ translate: `${moving ? moving.dash : 0}px 0` }}>
+            {dropping && <div className="summon-card"><CardFrame card={d.card} rarity={d.rarity} frame={d.frame} footRight={d.footRight} size="xs" tilt={false} showCount={false} /></div>}
+            <div className={dropping ? 'summon-fighter' : 'fighter-wrap'}><FighterArt d={d} u={u} side={side} pose={pose} /></div>
+            {dropping && <div className="summon-flash" />}
+            {!moving && !dyingHere && (
+              <div className="plate">
+                {u.level != null && <b className={`pl-lv lv-t${levelTier(u.level)}`}>LV {u.level}</b>}
+                <span className={`pl-atk ${nextAtk && nextAtk.atk > u.atk ? 'up' : nextAtk && nextAtk.atk < u.atk ? 'down' : ''}`} title="Hits for">⚔{nextAtk ? nextAtk.atk : u.atk}</span>
+                <span className="pl-hp" title="Health"><i style={{ width: `${hpPct * 100}%` }} className={hpPct < 0.35 ? 'low' : ''} /><em>{Math.max(0, u.hp)}</em></span>
+                <span className="pl-flags">{u.fortify && <i title="Fortified">⛨</i>}{u.burn > 0 && <i title="Burning">🔥</i>}{u.hex > 0 && <i title="Hexed">☍</i>}{u.buff > 0 && <i title="Rallied">▲</i>}</span>
               </div>
-              {side === 'you' && myTurn && nextAtk && b.you.turns > 0 && !dropping && (
-                <div className={`atk-chip ${nextAtk.target}`}>{nextAtk.target === 'leader' ? `↑ ${nextAtk.dmg} to ${r.name}` : `↑ ${nextAtk.dmg}`}</div>
-              )}
-              <div className="unit-flags">
-                {u.fortify && <i title="Fortified">⛨</i>}{u.burn > 0 && <i title="Burning">🔥</i>}{u.hex > 0 && <i title="Hexed">☍</i>}{u.buff > 0 && <i title="Rallied">▲</i>}
-              </div>
-            </div>
+            )}
+            {side === 'you' && myTurn && nextAtk && b.you.turns > 0 && !dropping && !moving && (
+              <div className={`atk-chip ${nextAtk.target}`}>{nextAtk.target === 'leader' ? `→ ${nextAtk.dmg} to ${r.name}` : `→ ${nextAtk.dmg}`}</div>
+            )}
           </div>
         )}
-        {hitHere && <span className="slash" key={fx.snap ? JSON.stringify(fx.snap[side].board[lane]?.hp) : 'x'} />}
-        <div className="slot-pops">{pops.filter((p) => p.side === side && p.lane === lane).map((p) => <span key={p.id} className={`pop pop-${p.kind}`}>{p.text}</span>)}</div>
+        {moving?.bolt != null && <span className={`bolt bolt-${u?.element}`} style={{ '--to': `${moving.bolt}px` }} />}
+        {spark && !spark.leader && spark.side === side && spark.lane === lane && <span key={spark.key} className={`impact ${spark.big ? 'big' : ''} ${spark.blocked ? 'blocked' : ''} from-${side === 'you' ? 'right' : 'left'}`} />}
+        <div className="spot-pops">{pops.filter((p) => p.side === side && p.lane === lane).map((p) => <span key={p.id} className={`pop pop-${p.kind}`}>{p.text}{p.why && <small>{p.why}</small>}</span>)}</div>
       </div>
     )
   }
 
-  const leaderHit = (side) => fx?.t === 'attack' && fx.side !== side && (fx.target === 'leader' || fx.through)
-  const Leader = ({ side }) => {
+  const Hud = ({ side }) => {
     const L = disp[side].leader
     const pct = Math.max(0, L) / LEADER_HP
     return (
-      <div className={`leader leader-${side} ${leaderHit(side) ? 'hit' : ''} ${hl('hp')}`}>
-        <Avatar seed={side === 'you' ? 'player:' + snap.player.name : r.id} size={side === 'you' ? 40 : 44} ring={side === 'you' ? 'var(--accent)' : tierColor(r.level)} />
-        <div className="ld-main">
-          <div className="ld-name">{side === 'you' ? snap.player.name : <>{r.name} <span className="ld-lv"><Crest lvl={r.level} size={14} /> LV {r.level}</span></>}</div>
-          <div className="ld-bar"><i style={{ width: `${pct * 100}%` }} /><span className="mono">{Math.max(0, L)}/{LEADER_HP}</span></div>
+      <div className={`hud-side hud-${side} ${hurt === `${side}:leader` ? 'hit' : ''}`}>
+        <Avatar seed={side === 'you' ? 'player:' + snap.player.name : r.id} size={38} ring={side === 'you' ? 'var(--accent)' : tierColor(r.level)} />
+        <div className="hud-main">
+          <div className="hud-name">{side === 'you' ? snap.player.name : <>{r.name} <span className="ld-lv"><Crest lvl={r.level} size={12} /> {r.level}</span></>}</div>
+          <div className="hud-bar"><i style={{ width: `${pct * 100}%` }} className={pct < 0.35 ? 'low' : ''} /><span className="mono">{Math.max(0, L)}/{LEADER_HP}</span></div>
+          <div className="hud-sub mono">{side === 'them' ? `✋${b.them.handCount} · ` : ''}▤{disp[side].deckCount ?? b[side].deckCount}</div>
         </div>
-        <div className="ld-side">
-          {side === 'them' ? <span className="ld-hand" title="Cards in their hand">{Array.from({ length: Math.min(7, b.them.handCount) }, (_, k) => <i key={k} />)}<b className="mono">{b.them.handCount}</b></span> : null}
-          <span className="ld-deck mono" title="Cards left in deck">▤ {disp[side].deckCount ?? b[side].deckCount}</span>
-        </div>
-        {leaderHit(side) && <span className="slash wide" />}
-        <div className="ld-pops">{pops.filter((p) => p.side === side && p.lane === 'leader').map((p) => <span key={p.id} className={`pop pop-${p.kind}`}>{p.text}</span>)}</div>
+        <div className="ld-pops">{pops.filter((p) => p.side === side && p.lane === 'leader').map((p) => <span key={p.id} className={`pop pop-${p.kind}`}>{p.text}{p.why && <small>{p.why}</small>}</span>)}</div>
       </div>
     )
   }
@@ -220,38 +288,37 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
 
   return (
     <div className={`duel theme-${league}`} role="dialog" aria-modal="true" aria-label={`Duel against ${r.name}`}>
-      <div className="room" aria-hidden="true"><div className="room-lamp" /><div className="room-glow" /></div>
-
-      <Leader side="them" />
-
-      <div className="scene">
-        <div className="table3d">
-          <div className="table-top">
-            <div className="table-trim" />
-            <div className="table-mat">
-              <div className="row-label top">{r.name.toUpperCase()}'S SIDE</div>
-              <div className="row-label bottom">YOUR SIDE</div>
-              {Array.from({ length: LANES }, (_, lane) => {
-                const el = EL[b.terrain[lane]]
-                return (
-                  <div key={lane} className="lane" style={{ '--ec': el.color }}>
-                    {renderSlot("them", lane)}
-                    <div className={`terrain ${hl('terrain')}`} title={`${el.name} lane: ${el.name} fighters hit +2 harder here`}><span>{el.glyph}</span><b>{el.name.toUpperCase()} +2</b></div>
-                    {renderSlot("you", lane)}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-          <div className="table-edge" />
-        </div>
-        {banner && <div className={`turn-banner b-${banner}`}>{{ start: 'DUEL START', you: 'YOUR TURN', them: `${r.name.toUpperCase()}'S TURN`, youatk: 'YOUR FIGHTERS ATTACK!', themattack: `${r.name.toUpperCase()} ATTACKS!` }[banner]}</div>}
-        <div className="feed" aria-live="polite">{feed.slice(0, 1).map((l) => <div key={l}>{l}</div>)}</div>
-        <button className="guide-btn" onClick={() => { play('click'); setGuide(true) }} aria-label="How to play">?</button>
-        {busy && b.turn !== 'you' && !fx && <div className="thinking mono">{r.name} is thinking…</div>}
+      <FighterDefs />
+      <div className={`hud ${hl('hp')}`}>
+        <Hud side="you" />
+        <div className="hud-mid mono"><b>VS</b><span>T{b.you.turns}/{TURN_LIMIT}</span></div>
+        <Hud side="them" />
       </div>
 
-      <Leader side="you" />
+      <div className="stage" ref={stageRef} onClick={() => { if (busy) speed.current = 0.45 }}>
+        <div ref={worldRef} className={`world ${cam != null ? `cam cam-${cam}` : ''}`}>
+          <div className="sky" aria-hidden="true"><div className="sun" /><div className="hills far" /><div className="hills near" /></div>
+          <div className="ground" aria-hidden="true"><div className="floor" /></div>
+          {Array.from({ length: LANES }, (_, lane) => {
+            const el = EL[b.terrain[lane]]
+            const row = ROWS[lane]
+            return (
+              <div key={'band' + lane} className="band" style={{ top: `${row.y}%`, '--ec': el.color, '--s': row.s, zIndex: 1 + lane * 2 }} aria-hidden="true">
+                <div className={`terr ${hl('terrain')}`} title={`${el.name} lane: ${el.name} fighters hit +2 harder here`}><span>{el.glyph}</span><b>{el.name.toUpperCase()} +2</b></div>
+              </div>
+            )
+          })}
+          {Array.from({ length: LANES }, (_, lane) => [renderSpot('you', lane), renderSpot('them', lane)])}
+          {spark?.leader && <span key={spark.key} className={`edge-hit edge-${spark.side}`} />}
+        </div>
+        {banner && <div className={`turn-banner b-${banner}`}>{{ start: 'DUEL START', you: 'YOUR TURN', them: `${r.name.toUpperCase()}'S TURN`, youatk: 'YOUR FIGHTERS ATTACK!', themattack: `${r.name.toUpperCase()} ATTACKS!` }[banner]}</div>}
+        <div className="side-tag you">YOU</div><div className="side-tag them">{r.name.toUpperCase()}</div>
+        <button className="guide-btn" onClick={(ev) => { ev.stopPropagation(); play('click'); setGuide(true) }} aria-label="How to play">?</button>
+        {busy && b.turn !== 'you' && !fx && <div className="thinking mono">{r.name} is thinking…</div>}
+        {busy && fx?.t === 'attack' && <div className="speed-hint mono">tap to speed up</div>}
+      </div>
+
+      <div className="feed-line" aria-live="polite">{feed.slice(0, 1).map((l) => <div key={l}>{l}</div>)}</div>
 
       <div className="dock">
         <div className={`energy ${hl('energy')}`} aria-label={`Energy ${energy} of ${disp.you.maxEnergy ?? b.you.maxEnergy}`}>
@@ -259,7 +326,6 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
           <span className="mono">{energy}/{disp.you.maxEnergy ?? b.you.maxEnergy}</span>
         </div>
         <div className="dock-mid mono">
-          <div>TURN {b.you.turns}/{TURN_LIMIT}</div>
           <div className="dock-pot">{b.wager.type === 'coins' && b.wager.amount > 0 ? `POT ${fmt(b.wager.amount * 2)}` : b.wager.type === 'card' ? 'CARD BET' : 'FRIENDLY'}</div>
           {!tutorial && <button className="duel-quit" onClick={forfeit} disabled={b.status !== 'active' || busy}>FORFEIT</button>}
         </div>
@@ -280,30 +346,30 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
                 play('click'); setMenu(null); setShiftFrom(null); setSel(sel === i ? null : i)
                 if (tcur?.wait === 'select') advance()
               }}
-              aria-label={`${d.card.name}: costs ${c.unit.cost}, attack ${c.unit.atk}, health ${c.unit.hp}`}>
-              <CardFrame card={d.card} rarity={d.rarity} frame={d.frame} footRight={d.footRight} size="xs" tilt={false} showCount={false} stats={c.unit} />
+              aria-label={`${d.card.name}: level ${c.unit.level ?? 1}, costs ${c.unit.cost}, attack ${c.unit.atk}, health ${c.unit.hp}`}>
+              <CardFrame card={d.card} rarity={d.rarity} frame={d.frame} footRight={d.footRight} size="xs" tilt={false} showCount={false} stats={c.unit} level={null} />
               <span className="hc-cost">{c.unit.cost}</span>
+              {c.unit.level != null && <span className={`hc-lv lv-t${levelTier(c.unit.level)}`}>LV{c.unit.level}</span>}
             </button>
           )
         })}
         {!b.you.hand.length && <span className="fine">No cards in hand</span>}
       </div>
 
-
       {menu && menuUnit && md && (
         <div className="sheet-back" onClick={() => setMenu(null)}>
           <div className="sheet unit-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`${md.card.name} details`}>
-            <div className="sheet-card"><CardFrame card={md.card} rarity={md.rarity} frame={md.frame} footRight={md.footRight} size="sm" tilt={false} showCount={false} /></div>
+            <div className="sheet-card"><CardFrame card={md.card} rarity={md.rarity} frame={md.frame} footRight={md.footRight} size="sm" tilt={false} showCount={false} level={menuUnit.level} /></div>
             <div className="sheet-info">
               <h3>{md.card.name} <span className="cpu-tag">{menu.side === 'you' ? 'YOUR FIGHTER' : `${r.name}'s FIGHTER`} · {LANE_NAMES[menu.lane]} LANE</span></h3>
-              <p className="fine">Weapon: {WEAPON_NAMES[weaponFor(menuUnit)]}</p>
+              <p className="fine">{menuUnit.level != null ? `Level ${menuUnit.level} · ` : ''}Weapon: {WEAPON_NAMES[weaponFor(menuUnit)]}</p>
               <StatTiles stats={menuUnit} />
               <Abilities list={menuUnit.abilities} />
               {menuAtk && (
                 <div className="atk-preview">
                   <div className="label">WHEN {menu.side === 'you' ? 'YOU END YOUR TURN' : `${r.name.toUpperCase()} ENDS THEIR TURN`}</div>
                   <div className="ap-parts">{menuAtk.parts.map((p) => <span key={p.k} className={`bonus ${p.v < 0 ? 'neg' : ''}`}>{p.label} {p.k === 'base' ? p.v : (p.v > 0 ? '+' : '') + p.v}</span>)}</div>
-                  <p>Charges up its lane and hits {menuAtk.target === 'leader' ? <b>{menu.side === 'you' ? r.name : 'you'} directly (the lane is empty)</b> : <b>{unitName(disp[menu.side === 'you' ? 'them' : 'you'].board[menu.lane])}</b>} for <b>{menuAtk.dmg}</b>{menuAtk.blocked ? ` (${menuAtk.blocked} blocked)` : ''}.</p>
+                  <p>Runs across its lane and hits {menuAtk.target === 'leader' ? <b>{menu.side === 'you' ? r.name : 'you'} directly (the lane is empty)</b> : <b>{unitName(disp[menu.side === 'you' ? 'them' : 'you'].board[menu.lane])}</b>} for <b>{menuAtk.dmg}</b>{menuAtk.blocked ? ` (${menuAtk.blocked} blocked)` : ''}.</p>
                 </div>
               )}
               {menuUnit.fortify && <p className="fine">Fortified: blocks 4 from every hit until its owner's next turn.</p>}
@@ -333,9 +399,9 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
   )
 }
 
-function FighterArt({ d, u, side }) {
+function FighterArt({ d, u, side, pose }) {
   const art = useArtUrl(d.card)
-  return <Fighter unit={u} art={art} rarity={d.rarity} side={side} />
+  return <Fighter unit={u} art={art} rarity={d.rarity} side={side} pose={pose} />
 }
 
 // The three-step helper under the table.
@@ -345,10 +411,10 @@ function Coach({ step, selCard, energy, rivalName, shift, name, over }) {
   let msg
   if (step === 0) msg = `${rivalName}'s turn — watch where they place fighters.`
   else if (step === 1) msg = 'Pick a card from your hand. The blue number is its energy cost.'
-  else if (shift) msg = 'Tap an empty spot on your side to move your fighter there.'
+  else if (shift) msg = 'Tap an empty ring on your side to move your fighter there.'
   else if (selCard && selCard.unit.cost > energy) msg = `${name} costs ${selCard.unit.cost} energy — you have ${energy}. Pick a cheaper card.`
-  else msg = `Tap a glowing spot on YOUR side to send ${name} into that lane.`
-  if (step === 3) msg = 'All set? Tap END TURN — every fighter you have charges up its lane and attacks.'
+  else msg = `Tap a glowing ring on YOUR side (left) to send ${name} into that lane.`
+  if (step === 3) msg = 'All set? Tap END TURN — every fighter you have runs across its lane and attacks.'
   return (
     <div className="coach" aria-live="polite">
       <div className="coach-steps">{steps.map(([n, l], i) => <span key={n} className={`cs ${step === i + 1 ? 'on' : step > i + 1 ? 'done' : ''}`}><b>{n}</b>{l}</span>)}</div>
@@ -360,12 +426,12 @@ function Coach({ step, selCard, energy, rivalName, shift, name, over }) {
 // Step-by-step rules, shown before the first duel and behind the ? button.
 export function HowToFight({ onClose }) {
   const steps = [
-    ['🎯', 'The goal', 'Each side has a hero with 25 HP. You are the bottom bar, your rival is the top bar. Knock their HP to 0 to win. If nobody falls after 10 turns each, the hero with more HP wins.'],
+    ['🎯', 'The goal', 'Each side has a hero with 25 HP. You are on the left, your rival on the right. Knock their HP to 0 to win. If nobody falls after 10 turns each, the hero with more HP wins.'],
     ['⚡', 'Energy', 'At the start of each turn you get energy: 2 on your first turn, 3 on the next, up to 6. Every card shows its cost in a blue circle.'],
-    ['🃏', 'Place fighters', 'Tap a card in your hand, then tap one of the three glowing spots on your side of the table. The card turns into a fighter. ⚔ is how hard it hits. ♥ is its health.'],
-    ['⚔', 'End turn = attack', 'Tap END TURN. Each of your fighters charges straight up its lane. If an enemy fighter stands across from it, it hits that fighter. If the lane is empty, it hits the rival hero directly. (Nobody attacks on the very first turn.)'],
-    ['🔁', 'Their turn', 'Your rival does the same: places fighters, then attacks down the lanes. A fighter whose ♥ reaches 0 is knocked out and leaves the table.'],
-    ['💡', 'How to win', 'Block lanes where their strong fighters are. Attack through empty lanes to hit their hero. Each lane has an element: a fighter of that element hits +2 there. Ember ▲ beats Gale ❖, Gale beats Tide ≈, Tide beats Ember: +3 when you hit a fighter you beat.'],
+    ['🃏', 'Place fighters', 'Tap a card in your hand, then tap one of the three glowing rings on your side (back, middle or front lane). The card turns into a fighter. Over its head: LV is its level, ⚔ is how hard it hits, the bar is its health.'],
+    ['⚔', 'End turn = attack', 'Tap END TURN. Each of your fighters runs across its lane. If an enemy fighter stands across from it, it hits that fighter. If the lane is empty, it hits the rival hero directly. The number that pops up shows how the damage was added up. (Nobody attacks on the very first turn.)'],
+    ['🔁', 'Their turn', 'Your rival does the same: places fighters, then attacks across the lanes. A fighter whose health runs out is knocked out.'],
+    ['💡', 'How to win', 'Pick your strongest, highest-level cards before the duel. Block lanes where their strong fighters are. Attack through empty lanes to hit their hero. Each lane has an element: a fighter of that element hits +2 there. Ember ▲ beats Gale ❖, Gale beats Tide ≈, Tide beats Ember: +3 when you hit a fighter you beat.'],
     ['🛡', 'Tactics', 'Tap one of your fighters to Fortify it (blocks 4 damage from every hit until your next turn) or Shift it to an empty lane. Each costs 1 energy.'],
   ]
   return (

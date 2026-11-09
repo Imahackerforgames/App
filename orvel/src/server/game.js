@@ -19,7 +19,7 @@ import {
 import {
   cardStats, validateCustom, newMatch, playCard as lanePlay, useTactic as laneTactic, endTurn as laneEnd, rivalPlays, outcome,
   RECRUITS, RIVALS, rivalSkill, rivalBetCap, rivalCardCap,
-  rivalBaseRecord, rivalCollection, FORGE, FRAMES, CARD_EFFECTS, MAX_HP, DECK_SIZE,
+  rivalBaseRecord, rivalCollection, FORGE, FRAMES, CARD_EFFECTS, MAX_HP, DECK_SIZE, rollLevel,
 } from './battle.js'
 import { randomInt, weightedPick, uid } from './rng.js'
 
@@ -40,7 +40,7 @@ const today = (now) => new Date(now).toISOString().slice(0, 10)
 function freshPlayer(settings, now) {
   return {
     id: PLAYER, name: 'Collector', cash: settings.startingCash, xp: 0,
-    inventory: {}, // cardId -> { count, serials: [] }
+    inventory: {}, // cardId -> { count, serials: [], levels: [] } (one level per copy)
     stats: { packsOpened: 0, cardsPulled: 0, cardsSold: 0, cashEarned: 0, cashSpent: 0 },
     lastDaily: null, createdAt: now,
     customs: [], cosmetics: { frames: ['basic'], effects: ['matte'] },
@@ -52,7 +52,7 @@ function freshPlayer(settings, now) {
 export function freshState(now = Date.now()) {
   const settings = clone(DEFAULT_SETTINGS)
   return {
-    version: 5,
+    version: 6,
     settings,
     rarities: clone(DEFAULT_RARITIES),
     collections: clone(DEFAULT_COLLECTIONS),
@@ -171,6 +171,21 @@ export function migrate(s) {
     for (const m of s.battles) if (m.status === 'active' && !m.game) refundBattle(s, m)
     s.version = 5
   }
+  if (s.version < 6) s.version = 6
+  // v6: card levels. Every copy owned before levels existed rolls one now, by
+  // the same rule as a fresh pull. This runs on every load rather than once
+  // behind the version number, because on the server the catalog (which
+  // carries the version) and each player's save are stored apart: the first
+  // player to load would bump the version for everyone else.
+  for (const p of Object.values(s.players || {})) {
+    for (const [cardId, inv] of Object.entries(p.inventory || {})) {
+      if (inv.levels?.length === inv.count) continue
+      const card = s.cards.find((c) => c.id === cardId)
+      inv.levels ||= []
+      while (inv.levels.length < inv.count) inv.levels.push(card ? rollCardLevel(s, card) : 1)
+      inv.levels.length = Math.max(0, inv.count)
+    }
+  }
   return s
 }
 
@@ -179,7 +194,7 @@ function refundBattle(s, m) {
   if (p && m.wager?.type === 'coins') p.cash += m.wager.amount || 0
   if (p && m.wager?.type === 'card') {
     const inv = p.inventory[m.wager.cardId] || (p.inventory[m.wager.cardId] = { count: 0, serials: [] })
-    inv.count += 1
+    addCopy(inv, m.wager.level ?? 1)
     if (m.wager.serial != null) inv.serials.push(m.wager.serial)
   }
   m.status = 'cancelled'
@@ -193,6 +208,20 @@ export function cardValue(state, card) {
   if (card.sellValue != null) return card.sellValue
   const r = state.rarities.find((x) => x.id === card.rarityId)
   return r ? r.sellValue : 0
+}
+
+// Levels: one per copy. The best copy is the one you fight with; selling or
+// betting a spare always gives up the lowest.
+export function rollCardLevel(state, card) {
+  return rollLevel(Math.max(0, rarityIndex(state, card.rarityId)), randomInt(1000000) / 1000000)
+}
+export const bestLevel = (inv) => (inv?.levels?.length ? Math.max(...inv.levels) : null)
+function addCopy(inv, level) { inv.count += 1; (inv.levels ||= []).push(level) }
+function takeLowest(inv) {
+  inv.count -= 1
+  if (!inv.levels?.length) return null
+  const i = inv.levels.indexOf(Math.min(...inv.levels))
+  return inv.levels.splice(i, 1)[0]
 }
 
 export function rankFor(ranks, xp) {
@@ -342,14 +371,15 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
       }
       const inv = p.inventory[card.id] || (p.inventory[card.id] = { count: 0, serials: [] })
       const isNew = inv.count === 0 && !results.some((r) => r.cardId === card.id) && !inv.everOwned
-      inv.count += 1
+      const level = rollCardLevel(s, real)
+      addCopy(inv, level)
       inv.everOwned = true
       if (serialNo) inv.serials.push(serialNo)
 
       const r = s.rarities[rarityIndex(s, rarityId)]
       addXp(s, r.xp || 0)
       if (isNew) addXp(s, s.xpRules.perNewCard)
-      results.push({ cardId: card.id, rarityId, serial: serialNo, isNew })
+      results.push({ cardId: card.id, rarityId, serial: serialNo, isNew, level })
     }
 
     addXp(s, s.xpRules.perPack)
@@ -421,7 +451,9 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
     if (!r || !(r.maxValue > r.minValue)) return 0.5
     return Math.max(0, Math.min(1, (cardValue(s, card) - r.minValue) / (r.maxValue - r.minValue)))
   }
-  function statsOfCard(s, card) { return cardStats(card, Math.max(0, rarityIndex(s, card.rarityId)), valueUnit(s, card)) }
+  function statsOfCard(s, card, level = null) { return cardStats(card, Math.max(0, rarityIndex(s, card.rarityId)), valueUnit(s, card), level) }
+  // a rival's copies are levelled by how strong the rival is
+  const rivalLevelOf = (s, r, card) => rollLevel(Math.max(0, rarityIndex(s, card.rarityId)), Math.min(1, 0.15 + (r.level / 60) * 0.6 + 0.25 * seededUnit(r.id + ':' + card.id)))
   const powerOf = (st) => st.atk + st.def + st.abilities.length * 3
 
   function rivalRecord(s, r) {
@@ -437,8 +469,9 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
     return base.map((e) => {
       const card = s.cards.find((c) => c.id === e.cardId)
       if (!card) return null
-      const stats = statsOfCard(s, card)
-      return { ...e, value: cardValue(s, card), rarityId: card.rarityId, stats, power: powerOf(stats) }
+      const level = rivalLevelOf(s, r, card)
+      const stats = statsOfCard(s, card, level)
+      return { ...e, value: cardValue(s, card), rarityId: card.rarityId, level, stats, power: powerOf(stats) }
     }).filter(Boolean)
   }
   function rivalSummary(s, r) {
@@ -484,7 +517,7 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
     let pick = near(theirs)
     if (!pick) pick = near(s.cards.filter((c) => c.published && !c.limited?.enabled).map((c) => ({ cardId: c.id, value: cardValue(s, c) })))
     const card = s.cards.find((c) => c.id === pick.cardId)
-    return { type: 'card', cardId: card.id, cardName: card.name, value: cardValue(s, card), rarityId: card.rarityId }
+    return { type: 'card', cardId: card.id, cardName: card.name, value: cardValue(s, card), rarityId: card.rarityId, level: pick.level ?? rivalLevelOf(s, r, card) }
   }
   function checkDeck(s, p, deck, w) {
     if (!Array.isArray(deck) || deck.length > DECK_SIZE) fail('invalid', `Pick up to ${DECK_SIZE} cards`)
@@ -498,7 +531,7 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
         const have = p.inventory[ref.id]?.count || 0
         const need = 1 + (w.type === 'card' && w.cardId === ref.id ? 1 : 0)
         if (!card || have < need) fail('not_owned', 'Your deck can only use cards you own')
-        return { ref: { kind: 'card', id: card.id }, stats: statsOfCard(s, card) }
+        return { ref: { kind: 'card', id: card.id }, stats: statsOfCard(s, card, bestLevel(p.inventory[ref.id]) ?? 1) }
       }
       if (ref.kind === 'custom') {
         const c = p.customs.find((x) => x.id === ref.id)
@@ -535,10 +568,11 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
     m.game.events = []
     return m
   }
-  function grantCard(s, p, cardId, serialNo) {
+  function grantCard(s, p, cardId, serialNo, level = null) {
     const inv = p.inventory[cardId] || (p.inventory[cardId] = { count: 0, serials: [] })
     const isNew = !inv.everOwned
-    inv.count += 1
+    const card = s.cards.find((c) => c.id === cardId)
+    addCopy(inv, level ?? (card ? rollCardLevel(s, card) : 1))
     inv.everOwned = true
     if (serialNo != null) inv.serials.push(serialNo)
     if (isNew) addXp(s, s.xpRules.perNewCard)
@@ -555,8 +589,8 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
     if (result === 'won') {
       if (w.type === 'coins' && w.amount > 0) { payout.coins = w.amount * 2; p.cash += payout.coins; p.stats.cashEarned += w.amount }
       if (w.type === 'card') {
-        grantCard(s, p, w.cardId, w.serial)
-        const isNew = grantCard(s, p, m.stake.cardId, null)
+        grantCard(s, p, w.cardId, w.serial, w.level)
+        const isNew = grantCard(s, p, m.stake.cardId, null, m.stake.level)
         payout.cards = [{ cardId: w.cardId, returned: true }, { cardId: m.stake.cardId, isNew }]
       }
       addXp(s, w.type === 'card' || w.amount > 0 ? XP_BATTLE.win : XP_BATTLE.friendlyWin)
@@ -564,7 +598,7 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
       rec.losses += 1; rec.streak = 0
     } else if (result === 'draw') {
       if (w.type === 'coins') { p.cash += w.amount; payout.coins = w.amount }
-      if (w.type === 'card') { grantCard(s, p, w.cardId, w.serial); payout.cards = [{ cardId: w.cardId, returned: true }] }
+      if (w.type === 'card') { grantCard(s, p, w.cardId, w.serial, w.level); payout.cards = [{ cardId: w.cardId, returned: true }] }
       p.battle.draws += 1
     } else {
       if (w.type === 'card') rec.taken.push(w.cardId)
@@ -588,7 +622,7 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
         transactions: s.transactions.filter((t) => t.player === PLAYER).slice(-200).reverse(),
         dailyRewards: DAILY_REWARDS,
         activeBattleId: s.battles.find((b) => b.status === 'active' && b.player === PLAYER)?.id || null,
-        cardStats: Object.fromEntries(visible.map((c) => [c.id, statsOfCard(s, c)])),
+        cardStats: Object.fromEntries(visible.map((c) => [c.id, statsOfCard(s, c, bestLevel(p.inventory[c.id]))])),
         adminConfigured: !!s.admin.pinHash,
       }
     }),
@@ -664,7 +698,7 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
       const unit = cardValue(s, card)
       // If the admin changed the price between the quote and the tap, stop and re-quote.
       if (expectedUnit != null && expectedUnit !== unit) fail('price_changed', 'The selling value just changed — please review the new price')
-      inv.count -= qty
+      for (let k = 0; k < qty; k++) takeLowest(inv)
       const burned = inv.serials.splice(Math.max(0, inv.serials.length - qty), qty)
       const total = unit * qty
       p.cash += total
@@ -706,7 +740,7 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
       if (!count) fail('nothing', 'You have no duplicates to sell')
       if (expectedTotal != null && expectedTotal !== total) fail('price_changed', 'Your duplicates or their values changed — please review again')
       for (const l of lines) {
-        l.inv.count -= l.qty
+        for (let k = 0; k < l.qty; k++) takeLowest(l.inv)
         const burned = l.inv.serials.splice(Math.max(0, l.inv.serials.length - l.qty), l.qty)
         log(s, { type: 'sale', cardId: l.cardId, cardName: l.card.name, qty: l.qty, unit: l.unit, amount: l.qty * l.unit, serials: burned, bulk: true })
       }
@@ -794,10 +828,10 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
       const stake = rivalStake(s, r, w)
       // escrow: the stake leaves your balance or inventory now
       if (w.type === 'coins' && w.amount > 0) p.cash -= w.amount
-      let escrowSerial = null
+      let escrowSerial = null, escrowLevel = null
       if (w.type === 'card') {
         const inv = p.inventory[w.cardId]
-        inv.count -= 1
+        escrowLevel = takeLowest(inv)
         escrowSerial = inv.serials.length ? inv.serials.pop() : null
       }
       const pool = rivalCards(s, r).sort((a, b) => b.power - a.power).slice(0, DECK_SIZE + 3)
@@ -807,7 +841,7 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
       const theirDeck = fillRecruits(picks.map((c) => ({ ref: { kind: 'card', id: c.cardId }, stats: c.stats })))
       const m = {
         id: uid('bt_'), rivalId, status: 'active', at: now(), player: PLAYER,
-        wager: { ...w, serial: escrowSerial }, stake,
+        wager: { ...w, serial: escrowSerial, level: escrowLevel }, stake,
         game: newMatch(hand, theirDeck),
       }
       s.battles.push(m)
