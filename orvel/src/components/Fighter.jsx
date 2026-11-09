@@ -4,6 +4,11 @@ import { memo, useId } from 'react'
 // armour colour comes from its element, whose trim comes from its rarity,
 // whose weapon comes from its strongest trait, and who carries the card's
 // own artwork on a chest emblem.
+//
+// The figure is built from separate layers placed at different depths
+// (cape behind, legs, body with thickness, head, shield and weapon arm in
+// front). The rig slowly turns, so the layers move against each other and
+// the fighter reads as a solid 3D figure rather than a flat picture.
 
 const ARMOUR = {
   ember: { a: '#c8452a', b: '#7a2412', t: '#ffb36b' },
@@ -35,6 +40,16 @@ function Weapon({ kind, trim, glow }) {
   }
 }
 
+// One depth layer: the same viewBox for every layer so parts line up.
+// `edge` copies sit just behind a part, darker, to give it thickness.
+function Layer({ z, children, edge = 0, className = '' }) {
+  const copies = []
+  for (let k = edge; k >= 1; k--) {
+    copies.push(<svg key={'e' + k} className="fl fl-edge" viewBox="-4 -4 72 92" style={{ '--z': z - k * 0.9 }} aria-hidden="true">{children}</svg>)
+  }
+  return <>{copies}<svg className={`fl ${className}`} viewBox="-4 -4 72 92" style={{ '--z': z }} aria-hidden="true">{children}</svg></>
+}
+
 function Fighter({ unit, art, rarity, side }) {
   const uid = useId().replace(/:/g, '')
   const c = ARMOUR[unit.element] || ARMOUR.tide
@@ -42,48 +57,55 @@ function Fighter({ unit, art, rarity, side }) {
   const rc = rarity?.color || c.t
   const weapon = weaponFor(unit)
   const shield = hasShield(unit) && weapon !== 'daggers' && weapon !== 'banner'
+  const grad = <defs><linearGradient id={`ar${uid}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={c.a} /><stop offset="1" stopColor={c.b} /></linearGradient><clipPath id={`em${uid}`}><circle cx="32" cy="46" r="7.5" /></clipPath></defs>
+  const armour = `url(#ar${uid})`
   return (
-    <div className={`ftr ftr-${side} ftier-${tier} wpn-${weapon}`}>
-      {tier >= 5 && <div className="f-aura" />}
-      <svg viewBox="-4 -4 72 92" aria-hidden="true">
-        <defs>
-          <clipPath id={`em${uid}`}><circle cx="32" cy="46" r="7.5" /></clipPath>
-          <linearGradient id={`ar${uid}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={c.a} /><stop offset="1" stopColor={c.b} /></linearGradient>
-        </defs>
-        {/* cape */}
-        {tier >= 3 && <path d="M19 35 L45 35 L52 78 L32 72 L12 78 Z" fill={rc} opacity=".85" stroke="#0005" strokeWidth="1" />}
-        {/* legs */}
-        <g className="f-legs">
-          <rect x="23.5" y="62" width="7" height="15" rx="2" fill={c.b} />
-          <rect x="33.5" y="62" width="7" height="15" rx="2" fill={c.b} />
-          <rect x="22" y="75" width="9.5" height="5" rx="2" fill="#2a1a12" />
-          <rect x="32.5" y="75" width="9.5" height="5" rx="2" fill="#2a1a12" />
-        </g>
-        {/* shield arm */}
-        <rect x="14" y="37" width="7" height="18" rx="3" fill={c.b} />
-        {shield && <path d="M6 40 L22 40 L22 52 C22 59 14 64 14 64 C14 64 6 59 6 52 Z" fill={c.t} stroke="#0007" strokeWidth="1.2" />}
-        {shield && <path d="M14 44 L18 50 L14 58 L10 50 Z" fill={rc} opacity=".9" />}
-        {weapon === 'daggers' && <g transform="translate(-30 4)"><path d="M45.5 34 L47.5 52 L43.5 52 Z" fill="#e6eef7" stroke="#9fb2c5" strokeWidth=".8" /><rect x="41.5" y="52" width="8" height="2" fill={c.t} /></g>}
-        {/* body */}
-        <rect x="19" y="33" width="26" height="31" rx="6" fill={`url(#ar${uid})`} stroke="#0007" strokeWidth="1.2" />
-        <rect x="19" y="54" width="26" height="4" fill={c.t} opacity=".9" />
-        <circle cx="32" cy="46" r="9" fill={c.t} stroke="#0007" strokeWidth="1" />
-        {art ? <image href={art} x="24.5" y="38.5" width="15" height="15" preserveAspectRatio="xMidYMid slice" clipPath={`url(#em${uid})`} /> : <circle cx="32" cy="46" r="7.5" fill={c.b} />}
-        {/* head */}
-        <circle cx="32" cy="23" r="10.5" fill="#f1c7a5" stroke="#0006" strokeWidth="1" />
-        <path d="M21 23 C21 11 43 11 43 23 L43 21 L21 21 Z" fill={`url(#ar${uid})`} stroke="#0007" strokeWidth="1" />
-        <rect x="21" y="20" width="22" height="3.5" fill={c.t} />
-        <rect x="27" y="25" width="2.6" height="3" fill="#1a1a2a" />
-        <rect x="34.4" y="25" width="2.6" height="3" fill="#1a1a2a" />
-        {tier >= 2 && <path d="M32 12 C38 4 46 6 48 10 C42 9 37 11 33 15 Z" fill={rc} stroke="#0005" strokeWidth=".8" />}
-        {tier >= 4 && <path d="M23 13 L26 6 L29 11 L32 4 L35 11 L38 6 L41 13 Z" fill="#ffd166" stroke="#7a4a00" strokeWidth=".8" />}
-        {/* weapon arm — this group swings when the fighter attacks */}
-        <g className="f-arm">
-          <rect x="42" y="36" width="7" height="19" rx="3" fill={c.b} />
-          <Weapon kind={weapon} trim={c.t} glow={rc} />
-          <circle cx="45.5" cy="56" r="3.4" fill="#f1c7a5" stroke="#0006" strokeWidth=".8" />
-        </g>
-      </svg>
+    <div className={`ftr ftr-${side} ftier-${tier} wpn-${weapon}`} style={{ '--rc': rc }}>
+      {tier >= 3 && <div className="f-aura" />}
+      <div className="ftr-hit">
+        <div className="ftr-rig">
+          {tier >= 3 && <Layer z={-7}>{grad}<path d="M19 35 L45 35 L52 78 L32 72 L12 78 Z" fill={rc} stroke="#0005" strokeWidth="1" /></Layer>}
+          <Layer z={-2} edge={2}>{grad}
+            <rect x="23.5" y="62" width="7" height="15" rx="2" fill={c.b} className="f-leg l" />
+            <rect x="33.5" y="62" width="7" height="15" rx="2" fill={c.b} className="f-leg r" />
+            <rect x="22" y="75" width="9.5" height="5" rx="2" fill="#2a1a12" />
+            <rect x="32.5" y="75" width="9.5" height="5" rx="2" fill="#2a1a12" />
+          </Layer>
+          {tier >= 2 && <Layer z={-1}>{grad}<path d="M32 12 C38 4 46 6 48 10 C42 9 37 11 33 15 Z" fill={rc} stroke="#0005" strokeWidth=".8" /></Layer>}
+          <Layer z={0} edge={1}>{grad}<rect x="14" y="37" width="7" height="18" rx="3" fill={c.b} /></Layer>
+          <Layer z={2} edge={3}>{grad}
+            <rect x="19" y="33" width="26" height="31" rx="6" fill={armour} stroke="#0007" strokeWidth="1.2" />
+            <rect x="19" y="54" width="26" height="4" fill={c.t} opacity=".9" />
+          </Layer>
+          <Layer z={4.5}>{grad}
+            <circle cx="32" cy="46" r="9" fill={c.t} stroke="#0007" strokeWidth="1" />
+            {art ? <image href={art} x="24.5" y="38.5" width="15" height="15" preserveAspectRatio="xMidYMid slice" clipPath={`url(#em${uid})`} /> : <circle cx="32" cy="46" r="7.5" fill={c.b} />}
+          </Layer>
+          <Layer z={3} edge={3}>{grad}
+            <circle cx="32" cy="23" r="10.5" fill="#f1c7a5" stroke="#0006" strokeWidth="1" />
+          </Layer>
+          <Layer z={5.5}>{grad}
+            <path d="M21 23 C21 11 43 11 43 23 L43 21 L21 21 Z" fill={armour} stroke="#0007" strokeWidth="1" />
+            <rect x="21" y="20" width="22" height="3.5" fill={c.t} />
+            <rect x="27" y="25" width="2.6" height="3" fill="#1a1a2a" />
+            <rect x="34.4" y="25" width="2.6" height="3" fill="#1a1a2a" />
+            {tier >= 4 && <path d="M23 13 L26 6 L29 11 L32 4 L35 11 L38 6 L41 13 Z" fill="#ffd166" stroke="#7a4a00" strokeWidth=".8" />}
+          </Layer>
+          {shield && <Layer z={7} edge={2}>{grad}
+            <path d="M6 40 L22 40 L22 52 C22 59 14 64 14 64 C14 64 6 59 6 52 Z" fill={c.t} stroke="#0007" strokeWidth="1.2" />
+            <path d="M14 44 L18 50 L14 58 L10 50 Z" fill={rc} opacity=".9" />
+          </Layer>}
+          {weapon === 'daggers' && <Layer z={7}>{grad}<g transform="translate(-30 4)"><path d="M45.5 34 L47.5 52 L43.5 52 Z" fill="#e6eef7" stroke="#9fb2c5" strokeWidth=".8" /><rect x="41.5" y="52" width="8" height="2" fill={c.t} /></g></Layer>}
+          {/* weapon arm — this layer swings when the fighter attacks */}
+          <Layer z={9} edge={1} className="fl-arm">{grad}
+            <g className="f-arm">
+              <rect x="42" y="36" width="7" height="19" rx="3" fill={c.b} />
+              <Weapon kind={weapon} trim={c.t} glow={rc} />
+              <circle cx="45.5" cy="56" r="3.4" fill="#f1c7a5" stroke="#0006" strokeWidth=".8" />
+            </g>
+          </Layer>
+        </div>
+      </div>
     </div>
   )
 }

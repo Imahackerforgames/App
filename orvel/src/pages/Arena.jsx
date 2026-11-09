@@ -6,6 +6,7 @@ import { useGame, fmt, server } from '../store.jsx'
 import { customDisplay } from '../lib/customCard.js'
 import { DECK_SIZE, LEADER_HP, MAX_ENERGY, TURN_LIMIT, ABILITIES, ELEMENTS, RECRUITS, unitOf } from '../server/battle.js'
 import Table from '../components/Table.jsx'
+import { makeTutorialDuel, TRAINER } from '../components/Tutorial.jsx'
 import { play } from '../lib/sound.js'
 
 // ───────────────────────── shared bits ─────────────────────────
@@ -60,6 +61,16 @@ export default function Arena() {
   const [setup, setSetup] = useState(null)
   const [battle, setBattle] = useState(null)
   const [rules, setRules] = useState(false)
+  const [tut, setTut] = useState(null) // a running tutorial duel
+  const [offer, setOffer] = useState(null) // rival waiting while we offer the tutorial
+  const startTutorial = () => { play('open'); setOffer(null); setTut(makeTutorialDuel()) }
+  // the first time someone goes to duel, offer the tutorial first
+  const challenge = (r) => {
+    let skipped = false
+    try { skipped = sessionStorage.getItem('orvel:tutSkipped') === '1' } catch {}
+    if (!snap.player.tutorialDone && !skipped) setOffer(r)
+    else setSetup(r)
+  }
 
   const loadRivals = useCallback(() => server.rivals().then(setRivals), [])
   useEffect(() => { loadRivals() }, [loadRivals, snap.player.battle])
@@ -85,7 +96,10 @@ export default function Arena() {
           <div className="ah-kicker">ORVEL</div>
           <h1 className="ah-title">ARENA</h1>
           <p className="ah-sub">Three lanes. One table. Bet it all and win double.</p>
-          <button className="link ah-rules" onClick={() => { play('click'); setRules(true) }}>How duels work</button>
+          <div className="ah-links">
+            <button className="link ah-rules" onClick={() => { play('click'); setRules(true) }}>How duels work</button>
+            <button className="link ah-rules" onClick={startTutorial}>{snap.player.tutorialDone ? 'Replay tutorial' : 'Play the tutorial (+300)'}</button>
+          </div>
         </div>
         <div className="fighter window">
           <div className="fighter-av"><Avatar seed={'player:' + snap.player.name} size={64} ring="var(--accent)" />{b.streak >= 3 && <span className="onfire">ON FIRE</span>}</div>
@@ -113,7 +127,7 @@ export default function Arena() {
               <div className="hl-quote">“{headliner.line}”</div>
               <div className="hl-stats mono">{fmt(headliner.wins)}W · {fmt(headliner.losses)}L{headliner.streak ? ` · ▲${headliner.streak} streak` : ''}</div>
               <div className="hl-btns">
-                <Btn onClick={(e) => { e.stopPropagation(); setSetup(headliner) }}>Challenge</Btn>
+                <Btn onClick={(e) => { e.stopPropagation(); challenge(headliner) }}>Challenge</Btn>
                 <span className="mono muted">bets up to {fmt(headliner.betCap)}</span>
               </div>
             </div>
@@ -139,7 +153,7 @@ export default function Arena() {
                     <div className="ft-name">{r.name}</div>
                     <div className="ft-bar" title={`Win rate ${Math.round(rate * 100)}%`}><i style={{ width: `${rate * 100}%` }} /></div>
                     <div className="ft-meta mono">{Math.round(rate * 100)}% · deck {r.deckPower}</div>
-                    <button className="ft-vs" onClick={(e) => { e.stopPropagation(); play('click'); setSetup(r) }}>VS</button>
+                    <button className="ft-vs" onClick={(e) => { e.stopPropagation(); play('click'); challenge(r) }}>VS</button>
                   </div>
                 )
               })}
@@ -163,7 +177,21 @@ export default function Arena() {
       )}
 
       {rules && <Rules onClose={() => setRules(false)} />}
-      {profile && <RivalProfile id={profile} onClose={() => setProfile(null)} onDuel={(r) => { setProfile(null); setSetup(r) }} />}
+      {offer && (
+        <Modal onClose={() => setOffer(null)} label="First duel">
+          <WindowTitle onClose={() => setOffer(null)}>YOUR FIRST DUEL</WindowTitle>
+          <div className="modal-body tut-offer">
+            <Avatar seed={TRAINER.id} size={72} ring="var(--gold)" />
+            <p><b>New to duels?</b> Play a 2-minute practice duel with Pip, who shows you each step. Nothing is bet, and finishing it pays <b>300 coins</b> the first time.</p>
+            <div className="confirm-btns">
+              <Btn variant="ghost" onClick={() => { try { sessionStorage.setItem('orvel:tutSkipped', '1') } catch {} ; const r = offer; setOffer(null); setSetup(r) }}>Skip, duel {offer.name}</Btn>
+              <Btn onClick={startTutorial}>Play the tutorial</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {tut && <Table initial={tut.view()} engine={tut} tutorial onClose={() => { setTut(null); loadRivals() }} onRematch={() => setTut(null)} />}
+      {profile && <RivalProfile id={profile} onClose={() => setProfile(null)} onDuel={(r) => { setProfile(null); challenge(r) }} />}
       {setup && <DuelSetup rival={setup} onClose={() => setSetup(null)} onStart={(bt) => { setSetup(null); setBattle(bt) }} />}
       {battle && <Battle initial={battle} onClose={() => { setBattle(null); loadRivals() }} onRematch={(r) => { setBattle(null); setSetup(r) }} />}
     </div>

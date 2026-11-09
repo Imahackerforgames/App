@@ -26,6 +26,7 @@ import { randomInt, weightedPick, uid } from './rng.js'
 const STATE_KEY = 'orvel:state:v1'
 const MAX_TX = 5000
 const PLAYER = 'local'
+const TUTORIAL_REWARD = 300
 
 export class GameError extends Error {
   constructor(code, message) { super(message); this.code = code }
@@ -855,6 +856,17 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
       m.game.turn = null
       settle(s, m, RIVALS.find((x) => x.id === m.rivalId), true)
       return battleView(s, m)
+    }),
+
+    // First-time tutorial: pays once per account.
+    completeTutorial: () => serial((s) => {
+      const p = player(s)
+      if (p.tutorialDone) return { reward: 0, cash: p.cash }
+      p.tutorialDone = true
+      p.cash += TUTORIAL_REWARD
+      p.stats.cashEarned += TUTORIAL_REWARD
+      log(s, { type: 'tutorial', amount: TUTORIAL_REWARD })
+      return { reward: TUTORIAL_REWARD, cash: p.cash }
     }),
 
     // ── forge & cosmetics ──

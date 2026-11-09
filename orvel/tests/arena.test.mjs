@@ -273,3 +273,15 @@ test('top rarities are rarer than before', async () => {
   assert.equal(a.rarities.find((r) => r.id === 'r6').weight, 1)
   assert.equal(a.rarities.find((r) => r.id === 'r5').weight, 12)
 })
+
+test('the tutorial reward pays once per account', async () => {
+  const { g } = await setup()
+  const c0 = (await g.snapshot()).player.cash
+  const a = await g.completeTutorial()
+  assert.equal(a.reward, 300)
+  const b = await g.completeTutorial()
+  assert.equal(b.reward, 0)
+  const s = await g.snapshot()
+  assert.equal(s.player.cash, c0 + 300)
+  assert.equal(s.player.tutorialDone, true)
+})

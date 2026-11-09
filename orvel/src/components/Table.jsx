@@ -7,6 +7,7 @@ import { useGame, fmt, useArtUrl } from '../store.jsx'
 import { useResolve, Result, tierColor, leagueOf, Crest, Abilities, StatTiles } from '../pages/Arena.jsx'
 import { ELEMENTS, LANES, LEADER_HP, MAX_ENERGY, TURN_LIMIT, TACTIC_COST, attackOf, canPlay } from '../server/battle.js'
 import { play } from '../lib/sound.js'
+import { TUT_STEPS, TutorialBubble } from './Tutorial.jsx'
 
 // The duel, played on a 3D table. The server decides everything; this
 // component sends taps ("play card 2 in lane 0", "end turn") and animates the
@@ -17,8 +18,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const DUR = { turn: 1000, draw: 200, play: 950, attack: 950, die: 520, burn: 520, rally: 420, hex: 420, fortify: 420, shift: 480, nobattle: 600, timeup: 900 }
 const LANE_NAMES = ['LEFT', 'MIDDLE', 'RIGHT']
 
-export default function Table({ initial, onClose, onRematch }) {
-  const { call, snap } = useGame()
+export default function Table({ initial, onClose, onRematch, engine = null, tutorial = false }) {
+  const { call, snap, toast } = useGame()
   const resolve = useResolve()
   const [b, setB] = useState(initial)
   const [disp, setDisp] = useState(() => ({ you: initial.you, them: initial.them }))
@@ -31,7 +32,15 @@ export default function Table({ initial, onClose, onRematch }) {
   const [banner, setBanner] = useState('start')
   const [feed, setFeed] = useState([])
   const [showResult, setShowResult] = useState(initial.status !== 'active')
-  const [guide, setGuide] = useState(() => { try { return !localStorage.getItem('orvel:guideSeen') } catch { return false } })
+  const [guide, setGuide] = useState(() => { if (tutorial) return false; try { return !localStorage.getItem('orvel:guideSeen') } catch { return false } })
+  // tutorial: which step Pip is on; null when not in the tutorial
+  const [tStep, setTStep] = useState(tutorial ? 0 : null)
+  const [nudge, setNudge] = useState(0)
+  const tcur = tStep != null ? TUT_STEPS[tStep] : null
+  const tLocked = !!tcur && tcur.wait !== 'free'
+  const advance = () => setTStep((n) => (n == null ? n : Math.min(n + 1, TUT_STEPS.length - 1)))
+  const nudgeIt = () => { play('error'); setNudge(Date.now()) }
+  const hl = (key) => (tcur?.hl === key ? 'tut-hl' : '')
   const closeGuide = () => { setGuide(false); try { localStorage.setItem('orvel:guideSeen', '1') } catch {} }
   const alive = useRef(true)
   const dispRef = useRef(disp)
@@ -104,17 +113,21 @@ export default function Table({ initial, onClose, onRematch }) {
     if (final.status !== 'active') { await sleep(600); setShowResult(true); play(final.status === 'won' ? 'cash' : 'back') }
   }
 
-  async function act(fn) {
+  async function act(fn, after) {
     if (busy) return
     setBusy(true); setMenu(null); setSel(null); setShiftFrom(null)
     try {
-      const nb = await call(fn)
+      const nb = engine ? await fn(engine) : await call(fn)
       setB(nb)
       await animate(nb.events || [], nb)
-    } catch { /* toast shown */ } finally { if (alive.current) setBusy(false) }
+      after?.()
+    } catch (e) { if (engine) { play('error'); toast(e.message, 'error') } } finally { if (alive.current) setBusy(false) }
   }
-  const playTo = (lane) => act((s) => s.playCard(b.id, sel, lane))
-  const endTurn = () => { play('click'); act((s) => s.endTurn(b.id)) }
+  const playTo = (lane) => act((s) => s.playCard(b.id, sel, lane), () => { if (tcur?.wait === 'play') advance() })
+  const endTurn = () => {
+    if (tLocked && tcur.wait !== 'end') return nudgeIt()
+    play('click'); act((s) => s.endTurn(b.id), () => { if (tcur?.wait === 'end') advance() })
+  }
   const forfeit = () => act((s) => s.forfeit(b.id))
 
   // A game-shaped object for the shared rule helpers (attack previews etc.)
@@ -122,9 +135,15 @@ export default function Table({ initial, onClose, onRematch }) {
 
   function tapSlot(side, lane) {
     const u = disp[side].board[lane]
-    if (side === 'you' && sel != null && !u && myTurn) { if (!canPlay(view, 'you', sel, lane)) return playTo(lane) }
+    if (side === 'you' && sel != null && !u && myTurn) {
+      if (tLocked && !(tcur.wait === 'play' && tcur.allowLane?.(lane))) return nudgeIt()
+      if (!canPlay(view, 'you', sel, lane)) return playTo(lane)
+    }
     if (side === 'you' && shiftFrom != null && !u && myTurn) return act((s) => s.useTactic(b.id, 'shift', shiftFrom, lane))
-    if (u) { play('click'); setSel(null); setShiftFrom(null); setMenu({ side, lane }) }
+    if (u) {
+      if (tLocked && !tcur.allowUnitTap) return nudgeIt()
+      play('click'); setSel(null); setShiftFrom(null); setMenu({ side, lane })
+    }
   }
 
   const energy = disp.you.energy ?? b.you.energy
@@ -143,7 +162,7 @@ export default function Table({ initial, onClose, onRematch }) {
     const dying = !!dyingHere
     const nextAtk = u && b.status === 'active' ? attackOf(view, side, lane) : null
     return (
-      <div className={`slot slot-${side} ${canDrop ? 'drop' : ''} ${menu?.side === side && menu?.lane === lane ? 'focus' : ''}`} onClick={() => tapSlot(side, lane)}
+      <div className={`slot slot-${side} ${canDrop && (!tLocked || tcur.allowLane?.(lane)) ? 'drop' : ''} ${menu?.side === side && menu?.lane === lane ? 'focus' : ''} ${hl(`lane-${side}-${lane}`)} ${hl(`unit-${side}-${lane}`)}`} onClick={() => tapSlot(side, lane)}
         role="button" tabIndex={0} aria-label={u ? `${side === 'you' ? 'Your' : 'Enemy'} ${d?.card.name} in the ${LANE_NAMES[lane].toLowerCase()} lane, ${u.atk} attack, ${u.hp} health` : `${side === 'you' ? 'Your' : 'Enemy'} empty ${LANE_NAMES[lane].toLowerCase()} lane`}>
         <div className="slot-pad" />
         {u && d && (
@@ -177,7 +196,7 @@ export default function Table({ initial, onClose, onRematch }) {
     const L = disp[side].leader
     const pct = Math.max(0, L) / LEADER_HP
     return (
-      <div className={`leader leader-${side} ${leaderHit(side) ? 'hit' : ''}`}>
+      <div className={`leader leader-${side} ${leaderHit(side) ? 'hit' : ''} ${hl('hp')}`}>
         <Avatar seed={side === 'you' ? 'player:' + snap.player.name : r.id} size={side === 'you' ? 40 : 44} ring={side === 'you' ? 'var(--accent)' : tierColor(r.level)} />
         <div className="ld-main">
           <div className="ld-name">{side === 'you' ? snap.player.name : <>{r.name} <span className="ld-lv"><Crest lvl={r.level} size={14} /> LV {r.level}</span></>}</div>
@@ -215,7 +234,7 @@ export default function Table({ initial, onClose, onRematch }) {
                 return (
                   <div key={lane} className="lane" style={{ '--ec': el.color }}>
                     <Slot side="them" lane={lane} />
-                    <div className="terrain" title={`${el.name} lane: ${el.name} fighters hit +2 harder here`}><span>{el.glyph}</span><b>{el.name.toUpperCase()} +2</b></div>
+                    <div className={`terrain ${hl('terrain')}`} title={`${el.name} lane: ${el.name} fighters hit +2 harder here`}><span>{el.glyph}</span><b>{el.name.toUpperCase()} +2</b></div>
                     <Slot side="you" lane={lane} />
                   </div>
                 )
@@ -233,16 +252,16 @@ export default function Table({ initial, onClose, onRematch }) {
       <Leader side="you" />
 
       <div className="dock">
-        <div className="energy" aria-label={`Energy ${energy} of ${disp.you.maxEnergy ?? b.you.maxEnergy}`}>
+        <div className={`energy ${hl('energy')}`} aria-label={`Energy ${energy} of ${disp.you.maxEnergy ?? b.you.maxEnergy}`}>
           {Array.from({ length: MAX_ENERGY }, (_, k) => <i key={k} className={k < energy ? 'on' : k < (disp.you.maxEnergy ?? b.you.maxEnergy) ? 'spent' : ''} />)}
           <span className="mono">{energy}/{disp.you.maxEnergy ?? b.you.maxEnergy}</span>
         </div>
         <div className="dock-mid mono">
           <div>TURN {b.you.turns}/{TURN_LIMIT}</div>
           <div className="dock-pot">{b.wager.type === 'coins' && b.wager.amount > 0 ? `POT ${fmt(b.wager.amount * 2)}` : b.wager.type === 'card' ? 'CARD BET' : 'FRIENDLY'}</div>
-          <button className="duel-quit" onClick={forfeit} disabled={b.status !== 'active' || busy}>FORFEIT</button>
+          {!tutorial && <button className="duel-quit" onClick={forfeit} disabled={b.status !== 'active' || busy}>FORFEIT</button>}
         </div>
-        <button className={`end-turn ${step === 3 ? 'ready' : ''}`} onClick={endTurn} disabled={!myTurn}>END TURN<small>fighters attack</small></button>
+        <button className={`end-turn ${step === 3 ? 'ready' : ''} ${hl('end')}`} onClick={endTurn} disabled={!myTurn}>END TURN<small>fighters attack</small></button>
       </div>
 
       <Coach step={step} selCard={selCard} energy={energy} rivalName={r.name} shift={shiftFrom != null} name={selCard ? resolve(selCard.ref)?.card.name : ''} over={b.status !== 'active'} />
@@ -253,8 +272,12 @@ export default function Table({ initial, onClose, onRematch }) {
           const n = b.you.hand.length, off = i - (n - 1) / 2
           const affordable = c.unit.cost <= energy
           return d && (
-            <button key={c.id} className={`hcard ${sel === i ? 'sel' : ''} ${affordable && myTurn ? 'ok' : 'no'}`} style={{ '--r': `${off * 5}deg`, '--y': `${Math.abs(off) * 6}px` }}
-              onClick={() => { play('click'); setMenu(null); setShiftFrom(null); setSel(sel === i ? null : i) }}
+            <button key={c.id} className={`hcard ${sel === i ? 'sel' : ''} ${affordable && myTurn ? 'ok' : 'no'} ${tcur?.hl === 'hand0' && i === 0 ? 'tut-hl' : ''}`} style={{ '--r': `${off * 5}deg`, '--y': `${Math.abs(off) * 6}px` }}
+              onClick={() => {
+                if (tLocked && !((tcur.wait === 'select' || tcur.wait === 'play') && tcur.allowSelect?.(i))) return nudgeIt()
+                play('click'); setMenu(null); setShiftFrom(null); setSel(sel === i ? null : i)
+                if (tcur?.wait === 'select') advance()
+              }}
               aria-label={`${d.card.name}: costs ${c.unit.cost}, attack ${c.unit.atk}, health ${c.unit.hp}`}>
               <CardFrame card={d.card} rarity={d.rarity} frame={d.frame} footRight={d.footRight} size="xs" tilt={false} showCount={false} stats={c.unit} />
               <span className="hc-cost">{c.unit.cost}</span>
@@ -287,10 +310,10 @@ export default function Table({ initial, onClose, onRematch }) {
             </div>
             {menu.side === 'you' && myTurn ? (
               <div className="stance-btns">
-                <button className="stance guard" disabled={menuUnit.fortify || energy < TACTIC_COST} onClick={() => act((s) => s.useTactic(b.id, 'fortify', menu.lane))}>
+                <button className="stance guard" disabled={menuUnit.fortify || energy < TACTIC_COST} onClick={() => act((s) => s.useTactic(b.id, 'fortify', menu.lane), () => { if (tcur?.wait === 'tactic') advance() })}>
                   <span className="st-ic">⛨</span><span className="st-main">FORTIFY ⚡{TACTIC_COST}</span><span className="st-sub">{menuUnit.fortify ? 'Already fortified' : 'Blocks 4 from every hit until your next turn'}</span>
                 </button>
-                <button className="stance strike" disabled={menuUnit.shifted || energy < TACTIC_COST || disp.you.board.every((x) => x)} onClick={() => { play('click'); setShiftFrom(menu.lane); setMenu(null) }}>
+                <button className="stance strike" disabled={tLocked || menuUnit.shifted || energy < TACTIC_COST || disp.you.board.every((x) => x)} onClick={() => { play('click'); setShiftFrom(menu.lane); setMenu(null) }}>
                   <span className="st-ic">⇄</span><span className="st-main">SHIFT ⚡{TACTIC_COST}</span><span className="st-sub">{menuUnit.shifted ? 'Already moved this turn' : 'Move it to an empty lane'}</span>
                 </button>
               </div>
@@ -300,8 +323,10 @@ export default function Table({ initial, onClose, onRematch }) {
         </div>
       )}
 
+      {tcur && !showResult && <TutorialBubble key={tStep + ':' + nudge} step={tcur} onNext={advance} onSkip={onClose} />}
       {guide && <HowToFight onClose={closeGuide} />}
-      {showResult && b.status !== 'active' && <Result b={b} onClose={onClose} onRematch={() => onRematch(r)} />}
+      {tutorial && showResult && b.status !== 'active' && <TutorialDone status={b.status} onClose={onClose} />}
+      {!tutorial && showResult && b.status !== 'active' && <Result b={b} onClose={onClose} onRematch={() => onRematch(r)} />}
     </div>
   )
 }
@@ -350,6 +375,23 @@ export function HowToFight({ onClose }) {
         </ol>
         <Btn onClick={onClose}>Got it — let's fight</Btn>
       </div>
+    </div>
+  )
+}
+
+// End of the tutorial: claim the one-time reward from the server.
+function TutorialDone({ status, onClose }) {
+  const { call } = useGame()
+  const [r, setR] = useState(null)
+  useEffect(() => { call((sv) => sv.completeTutorial()).then(setR).catch(() => setR({ reward: 0 })) }, [])
+  return (
+    <div className={`bt-result ${status === 'won' ? 'won' : 'draw'}`}>
+      {status === 'won' && <div className="confetti" aria-hidden="true">{Array.from({ length: 40 }, (_, i) => <i key={i} style={{ '--i': i }} />)}</div>}
+      <div className="br-title">TUTORIAL COMPLETE</div>
+      <p>{status === 'won' ? 'You beat Pip!' : status === 'lost' ? 'Pip won this one — but now you know how it works.' : 'A draw!'}</p>
+      {r == null ? <p className="mono blink">…</p> : r.reward > 0 ? <div className="br-pay">+<span className="mono">{r.reward}</span> coins</div> : <p className="fine">The tutorial reward has already been claimed on this account.</p>}
+      <p className="fine">Real duels work exactly the same way. Bet coins or a card against a rival and a win pays double.</p>
+      <div className="op-sum-btns"><Btn onClick={onClose}>To the Arena</Btn></div>
     </div>
   )
 }
