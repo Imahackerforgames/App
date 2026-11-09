@@ -1862,3 +1862,6 @@ img.contestant-fig { object-fit: cover; border-radius: 10px; -webkit-mask: linea
 .pic-opt:hover { transform: scale(1.06); }
 .pic-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .rank-big:has(.pic-panel) { flex-wrap: wrap; }
+/* drawn portraits have no background of their own: they sit on the
+   current theme's colour fading into black */
+.avatar-pic, .pic-opt { background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--accent) 28%, #0b0d14), #05060a 78%); }
