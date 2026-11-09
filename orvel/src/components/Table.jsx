@@ -57,6 +57,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
   const [sel, setSel] = useState(null) // hand index
   const [menu, setMenu] = useState(null) // { side, lane }
   const [shiftFrom, setShiftFrom] = useState(null)
+  const [swapFrom, setSwapFrom] = useState(null) // lane whose fighter is being swapped out
   const [banner, setBanner] = useState('start')
   const [feed, setFeed] = useState([])
   const [showResult, setShowResult] = useState(initial.status !== 'active')
@@ -200,6 +201,8 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
       if (e.t === 'rally') { pop(e.side, e.lane, 'RALLY +2', 'heal'); play('coin') }
       if (e.t === 'hex') { pop(e.side === 'you' ? 'them' : 'you', e.lane, 'HEX −3', 'hex'); play('error') }
       if (e.t === 'shift') play('swipe')
+      if (e.t === 'swap') { play('swipe'); setTimeout(() => play('reveal', 1), 380); pop(e.side, e.lane, '⇄ SWAP', 'guard'); say(`${e.side === 'you' ? 'You' : r.name} swapped ${resolve(e.card.ref)?.card.name} in for ${resolve(e.out.ref)?.card.name} in the ${laneWord(e.lane)} lane`) }
+      if (e.t === 'swap') { setDisp({ you: before.you, them: before.them }); await T(DUR.play); continue }
       if (e.t === 'timeup') say('Time! The hero with more HP wins.')
       setDisp({ you: before.you, them: before.them })
       await T(DUR[e.t] ?? 400)
@@ -212,7 +215,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
 
   async function act(fn, after) {
     if (busy) return
-    setBusy(true); setMenu(null); setSel(null); setShiftFrom(null)
+    setBusy(true); setMenu(null); setSel(null); setShiftFrom(null); setSwapFrom(null)
     try {
       const nb = engine ? await fn(engine) : await call(fn)
       setB(nb)
@@ -247,7 +250,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
   const energy = disp.you.energy ?? b.you.energy
   const selCard = sel != null ? b.you.hand[sel] : null
   const canPlaySomething = myTurn && b.you.hand.some((c) => c.unit.cost <= energy) && disp.you.board.some((x) => !x)
-  const step = b.status !== 'active' ? null : !myTurn ? 0 : sel != null || shiftFrom != null ? 2 : canPlaySomething ? 1 : 3
+  const step = b.status !== 'active' ? null : !myTurn ? 0 : sel != null || shiftFrom != null || swapFrom != null ? 2 : canPlaySomething ? 1 : 3
 
   // a plain function, not a component: a component declared inside render would
   // remount every render and swallow taps that land mid-update
@@ -257,7 +260,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
     const u = dyingHere ? fx.ghost : disp[side].board[lane]
     const d = u && resolve(u.ref)
     const canDrop = side === 'you' && myTurn && !u && ((selCard && !canPlay(view, 'you', sel, lane)) || shiftFrom != null)
-    const dropping = fx?.t === 'play' && fx.side === side && fx.lane === lane
+    const dropping = (fx?.t === 'play' || fx?.t === 'swap') && fx.side === side && fx.lane === lane
     const moving = actor && actor.side === side && actor.lane === lane ? actor : null
     const reeling = hurt === `${side}:${lane}`
     const pose = dyingHere ? 'die' : moving ? moving.pose : reeling ? 'hurt' : 'idle'
@@ -306,7 +309,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
         <div className="hud-main">
           <div className="hud-name">{side === 'you' ? snap.player.name : <>{r.name} <span className="ld-lv"><Crest lvl={r.level} size={12} /> {r.level}</span></>}</div>
           <div className="hud-bar"><i style={{ width: `${pct * 100}%` }} className={pct < 0.35 ? 'low' : ''} /><span className="mono">{Math.max(0, L)}/{LEADER_HP}</span></div>
-          <div className="hud-sub mono">{side === 'them' ? `✋${b.them.handCount} · ` : ''}▤{disp[side].deckCount ?? b[side].deckCount}</div>
+          <div className="hud-sub mono">{(disp[side].deckCount ?? b[side].deckCount) > 0 ? `${side === 'them' ? `✋${b.them.handCount} · ` : ''}▤${disp[side].deckCount ?? b[side].deckCount}` : `bench ${side === 'them' ? b.them.handCount : b.you.hand.length}`}</div>
         </div>
         <div className="ld-pops">{pops.filter((p) => p.side === side && p.lane === 'leader').map((p) => <span key={p.id} className={`pop pop-${p.kind}`}>{p.text}{p.why && <small>{p.why}</small>}</span>)}</div>
       </div>
@@ -318,7 +321,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
   const md = menuUnit && resolve(menuUnit.ref)
 
   return (
-    <div className={`duel theme-${league}`} role="dialog" aria-modal="true" aria-label={`Duel against ${r.name}`}>
+    <div className={`duel theme-${league} map-${b.map || 'plains'}`} role="dialog" aria-modal="true" aria-label={`Duel against ${r.name}`}>
       <div className={`hud ${hl('hp')}`}>
         <Hud side="you" />
         <div className="hud-mid mono"><b>VS</b><span>T{b.you.turns}/{TURN_LIMIT}</span></div>
@@ -329,6 +332,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
         <div ref={worldRef} className={`world ${cam != null ? `cam cam-${cam}` : ''}`}>
           <div className="sky" aria-hidden="true"><div className="sun" /><div className="hills far" /><div className="hills near" /></div>
           <div className="ground" aria-hidden="true"><div className="floor" /></div>
+          <div className="scenery" aria-hidden="true" />
           {Array.from({ length: LANES }, (_, lane) => {
             const el = EL[b.terrain[lane]]
             const row = ROWS[lane]
@@ -367,9 +371,10 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
         <button className={`end-turn ${step === 3 ? 'ready' : ''} ${hl('end')}`} onClick={endTurn} disabled={!myTurn}>END TURN<small>fighters attack</small></button>
       </div>
 
-      <Coach step={step} selCard={selCard} energy={energy} rivalName={r.name} shift={shiftFrom != null} name={selCard ? resolve(selCard.ref)?.card.name : ''} over={b.status !== 'active'} />
+      <Coach step={step} selCard={selCard} energy={energy} rivalName={r.name} shift={shiftFrom != null} swap={swapFrom != null} name={selCard ? resolve(selCard.ref)?.card.name : ''} over={b.status !== 'active'} />
 
-      <div className="hand3d">
+      {b.you.deckCount === 0 && b.status === 'active' && <div className={`bench-label ${swapFrom != null ? 'swapping' : ''}`}>{swapFrom != null ? <>Pick a bench card to swap into the {laneWord(swapFrom)} lane · <button className="link" onClick={() => setSwapFrom(null)}>cancel</button></> : `BENCH · ${b.you.hand.length}`}</div>}
+      <div className={`hand3d ${swapFrom != null ? 'swapping' : ''}`} style={{ '--n': Math.max(4, b.you.hand.length) }}>
         {b.you.hand.map((c, i) => {
           const d = resolve(c.ref)
           const n = b.you.hand.length, off = i - (n - 1) / 2
@@ -378,6 +383,10 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
             <button key={c.id} className={`hcard ${sel === i ? 'sel' : ''} ${affordable && myTurn ? 'ok' : 'no'} ${tcur?.hl === 'hand0' && i === 0 ? 'tut-hl' : ''}`} style={{ '--r': `${off * 5}deg`, '--y': `${Math.abs(off) * 6}px` }}
               onClick={() => {
                 if (tLocked && !((tcur.wait === 'select' || tcur.wait === 'play') && tcur.allowSelect?.(i))) return nudgeIt()
+                if (swapFrom != null) {
+                  if (c.unit.cost > energy) { play('error'); toast(`${d.card.name} needs ${c.unit.cost} energy to swap in`, 'error'); return }
+                  play('click'); return act((s) => s.useTactic(b.id, 'swap', swapFrom, i))
+                }
                 play('click'); setMenu(null); setShiftFrom(null); setSel(sel === i ? null : i)
                 if (tcur?.wait === 'select') advance()
               }}
@@ -417,7 +426,10 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
                   <span className="st-ic">⛨</span><span className="st-main">FORTIFY ⚡{TACTIC_COST}</span><span className="st-sub">{menuUnit.fortify ? 'Already fortified' : 'Blocks 4 from every hit until your next turn'}</span>
                 </button>
                 <button className="stance strike" disabled={tLocked || menuUnit.shifted || energy < TACTIC_COST || disp.you.board.every((x) => x)} onClick={() => { play('click'); setShiftFrom(menu.lane); setMenu(null) }}>
-                  <span className="st-ic">⇄</span><span className="st-main">SHIFT ⚡{TACTIC_COST}</span><span className="st-sub">{menuUnit.shifted ? 'Already moved this turn' : 'Move it to an empty lane'}</span>
+                  <span className="st-ic">⇢</span><span className="st-main">SHIFT ⚡{TACTIC_COST}</span><span className="st-sub">{menuUnit.shifted ? 'Already moved this turn' : 'Move it to an empty lane'}</span>
+                </button>
+                <button className="stance swap" disabled={tLocked || menuUnit.shifted || !b.you.hand.some((c) => c.unit.cost <= energy)} onClick={() => { play('click'); setSel(null); setSwapFrom(menu.lane); setMenu(null) }}>
+                  <span className="st-ic">⇄</span><span className="st-main">SWAP</span><span className="st-sub">{menuUnit.shifted ? 'Already moved this turn' : 'Bring a bench card in (costs its energy). This one goes to the bench and keeps its damage.'}</span>
                 </button>
               </div>
             ) : null}
@@ -440,13 +452,14 @@ function FighterArt({ d, u, side, pose }) {
 }
 
 // The three-step helper under the table.
-function Coach({ step, selCard, energy, rivalName, shift, name, over }) {
+function Coach({ step, selCard, energy, rivalName, shift, swap, name, over }) {
   if (step == null) return <div className="coach"><div className="coach-msg">{over ? 'The duel is over.' : ''}</div></div>
   const steps = [['1', 'PICK A CARD'], ['2', 'PLACE IT'], ['3', 'END TURN']]
   let msg
   if (step === 0) msg = `${rivalName}'s turn — watch where they place fighters.`
   else if (step === 1) msg = 'Pick a card from your hand. The blue number is its energy cost.'
   else if (shift) msg = 'Tap an empty ring on your side to move your fighter there.'
+  else if (swap) msg = 'Tap a bench card below to swap it in.'
   else if (selCard && selCard.unit.cost > energy) msg = `${name} costs ${selCard.unit.cost} energy — you have ${energy}. Pick a cheaper card.`
   else msg = `Tap a glowing ring on YOUR side (left) to send ${name} into that lane.`
   if (step === 3) msg = 'All set? Tap END TURN — every fighter you have runs across its lane and attacks.'

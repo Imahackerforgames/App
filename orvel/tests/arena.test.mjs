@@ -83,9 +83,9 @@ test('cannot bet or play cards you do not own, and decks must be 5 distinct card
   await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck, wager: { type: 'card', cardId: unowned.id } }), /own/)
   await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck: [...deck.slice(0, 4), { kind: 'card', id: unowned.id }] }), /own/)
   await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck: [...deck.slice(0, 4), deck[0]] }), /once/)
-  await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck: Array.from({ length: 9 }, (_, i) => deck[i % deck.length]) }), /up to/)
+  await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck: Array.from({ length: 10 }, (_, i) => deck[i % deck.length]) }), /up to/)
   const b = await g.startBattle({ rivalId: RIVALS[0].id, deck: deck.slice(0, 2) }) // Recruits fill the rest
-  assert.equal(b.you.hand.length + b.you.deckCount, DECK_SIZE)
+  assert.equal(b.you.board.filter(Boolean).length + b.you.hand.length, 9)
 })
 
 test('a forfeit loses the bet; only one battle at a time', async () => {
@@ -262,9 +262,9 @@ test('forge: stat budget, owned cosmetics, upgrades cost coins', async () => {
   await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck: deckOf(s), wager: { type: 'card', cardId: c.id } }), /own/)
   const deck = [{ kind: 'custom', id: c.id }, ...deckOf(s).slice(0, 4)]
   const b = await g.startBattle({ rivalId: RIVALS[0].id, deck })
-  assert.equal(b.you.hand.length + b.you.deckCount, DECK_SIZE)
-  const mine = b.you.hand.find((h) => h.ref.kind === 'custom')
-  if (mine) assert.equal(mine.unit.atk, 6)
+  // the custom card was listed first, so it starts on the field
+  assert.equal(b.you.board[0].ref.kind, 'custom')
+  assert.equal(b.you.board[0].atk, 6)
 })
 
 test('top rarities are rarer than before', async () => {
@@ -332,4 +332,41 @@ test('a save without levels gets them even when the catalog is already on v6', (
   s.players.local.inventory = { c1: { count: 2, serials: [] } }
   migrate(s)
   assert.equal(s.players.local.inventory.c1.levels.length, 2)
+})
+
+test('a duel starts with your three starters on the field and six on the bench', async () => {
+  const { STARTERS, BENCH } = await import('../src/server/battle.js')
+  const { g } = await setup()
+  const snap = await g.snapshot()
+  const owned = Object.entries(snap.player.inventory).filter(([, v]) => v.count > 0).map(([id]) => ({ kind: 'card', id }))
+  const starters = owned.slice(0, 3), bench = owned.slice(3, 9)
+  const b = await g.startBattle({ rivalId: RIVALS[0].id, starters, bench, wager: { type: 'coins', amount: 0 }, map: 'canyon' })
+  assert.equal(b.map, 'canyon')
+  assert.deepEqual(b.you.board.map((u) => u?.ref.id), starters.map((x) => x.id))
+  assert.equal(b.you.hand.length, BENCH)
+  assert.equal(b.you.deckCount, 0)
+  assert.ok(b.them.board.every(Boolean), 'the rival starts three too')
+  assert.ok(b.terrain.filter((t) => t === 'ember').length >= 2, 'Ember Canyon leans Ember')
+  assert.equal(STARTERS, 3)
+})
+
+test('swapping brings a bench card in for its energy and benches the fighter with its damage', () => {
+  const m = newMatch({ starters: [c(3, 3), c(3, 3), c(3, 3)], bench: [c(2, 2), c(4, 4)] }, { starters: [], bench: [] }, seq(0, 0, 0, 0, 0))
+  m.you.board[1].hp = 2
+  const outId = m.you.board[1].id
+  const inCost = m.you.hand[0].unit.cost
+  const before = m.you.energy
+  useTactic(m, 'you', 'swap', 1, 0)
+  assert.equal(m.you.energy, before - inCost)
+  assert.notEqual(m.you.board[1].id, outId)
+  const back = m.you.hand.find((h) => h.id === outId)
+  assert.equal(back.unit.hp, 2, 'keeps its damage')
+  assert.throws(() => useTactic(m, 'you', 'swap', 1, 0), /moved/)
+})
+
+test('an old client that sends one deck still gets a lineup', async () => {
+  const { g } = await setup()
+  const b = await g.startBattle({ rivalId: RIVALS[0].id, deck: deckOf(await g.snapshot()), wager: { type: 'coins', amount: 0 } })
+  assert.ok(b.you.board.every(Boolean))
+  assert.equal(b.you.hand.length, 6)
 })

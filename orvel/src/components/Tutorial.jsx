@@ -23,7 +23,7 @@ export function makeTutorialDuel() {
   const view = () => {
     const side = (x, mine) => ({ leader: x.leader, energy: x.energy, maxEnergy: x.maxEnergy, turns: x.turns, board: x.board, handCount: x.hand.length, deckCount: x.deck.length, ...(mine ? { hand: x.hand } : {}) })
     return JSON.parse(JSON.stringify({
-      id: 'tutorial', rivalId: TRAINER.id, status, wager: { type: 'coins', amount: 0 }, stake: null, payout: null,
+      id: 'tutorial', rivalId: TRAINER.id, status, map: 'plains', wager: { type: 'coins', amount: 0 }, stake: null, payout: null,
       terrain: m.terrain, turn: m.turn, first: m.first, you: side(m.you, true), them: side(m.them, false), events: m.events, rival: TRAINER, tutorial: true,
     }))
   }

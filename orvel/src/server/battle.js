@@ -169,18 +169,50 @@ function shuffle(list, rand) {
   return a
 }
 
-// decks: [{ ref, stats }]
-export function newMatch(youDeck, themDeck, rand = randomInt) {
-  const side = (deck) => ({
-    leader: LEADER_HP, energy: 0, maxEnergy: 0, turns: 0, board: [null, null, null], hand: [],
-    deck: shuffle(deck.map((c) => ({ id: uidOf(), ref: c.ref, unit: unitOf(c.stats) })), rand),
-  })
-  const m = {
-    engine: 'lanes', turn: 'you', first: 'you', over: false,
-    terrain: Array.from({ length: LANES }, () => ELEMENTS[rand(3)].id),
-    you: side(youDeck), them: side(themDeck), events: [],
+// ───────────────────────── maps and lineups ─────────────────────────
+
+// Where the duel is fought. Most maps lean toward one element: two of the
+// three lanes are that element and the third is random, so a map is worth
+// choosing to suit your fighters.
+export const MAPS = [
+  { id: 'plains', name: 'Sunset Plains', element: null, blurb: 'Open grassland. Lanes are random.' },
+  { id: 'canyon', name: 'Ember Canyon', element: 'ember', blurb: 'Lava rivers. Mostly Ember lanes.' },
+  { id: 'shore', name: 'Tidal Shore', element: 'tide', blurb: 'Breaking waves. Mostly Tide lanes.' },
+  { id: 'forest', name: 'Whispering Wood', element: 'gale', blurb: 'Old trees and wind. Mostly Gale lanes.' },
+  { id: 'frost', name: 'Frost Pass', element: null, blurb: 'Snow in the mountains. Lanes are random.' },
+  { id: 'ruins', name: 'Moonlit Ruins', element: null, blurb: 'Broken pillars under the moon. Lanes are random.' },
+]
+export const mapById = (id) => MAPS.find((x) => x.id === id) || MAPS[0]
+export function terrainFor(mapId, rand = randomInt) {
+  const map = mapById(mapId)
+  const t = Array.from({ length: LANES }, () => ELEMENTS[rand(3)].id)
+  if (map.element) { const odd = rand(LANES); for (let l = 0; l < LANES; l++) if (l !== odd) t[l] = map.element }
+  return t
+}
+
+// A lineup is 3 starters, who begin the duel on the field (back, middle and
+// front lane, in that order), and a bench of 6 who wait in your hand to be
+// sent in or swapped in. Every card is visible from the start: no draws.
+export const STARTERS = 3
+export const BENCH = 6
+
+// sides: an array (a deck, shuffled and drawn from — the tutorial) or
+// { starters: [{ ref, stats }], bench: [{ ref, stats }] }
+export function newMatch(youSide, themSide, rand = randomInt, opts = {}) {
+  const card = (c) => ({ id: uidOf(), ref: c.ref, unit: unitOf(c.stats) })
+  const side = (x) => {
+    const base = { leader: LEADER_HP, energy: 0, maxEnergy: 0, turns: 0, board: [null, null, null], hand: [], deck: [] }
+    if (Array.isArray(x)) return { ...base, deck: shuffle(x.map(card), rand) }
+    const board = [null, null, null]
+    ;(x.starters || []).slice(0, LANES).forEach((c, l) => { const k = card(c); board[l] = { id: k.id, ref: k.ref, ...clone(k.unit), burn: 0, hex: 0, buff: 0, fortify: false, shifted: false } })
+    return { ...base, board, hand: (x.bench || []).map(card), lineup: true }
   }
-  for (let k = 0; k < HAND_START; k++) { draw(m, 'you', true); draw(m, 'them', true) }
+  const m = {
+    engine: 'lanes', turn: 'you', first: 'you', over: false, map: mapById(opts.map).id,
+    terrain: opts.map ? terrainFor(opts.map, rand) : Array.from({ length: LANES }, () => ELEMENTS[rand(3)].id),
+    you: side(youSide), them: side(themSide), events: [],
+  }
+  for (const who of ['you', 'them']) if (!m[who].lineup) for (let k = 0; k < HAND_START; k++) draw(m, who, true)
   startTurn(m, 'you')
   return m
 }
@@ -278,8 +310,17 @@ export function canTactic(m, side, kind, lane, toLane) {
   const u = s.board[lane]
   if (m.over) return 'The duel is over'
   if (m.turn !== side) return "It isn't your turn"
-  if (s.energy < TACTIC_COST) return 'Not enough energy'
   if (!u) return 'Pick one of your units'
+  if (kind === 'swap') {
+    // swap a fighter on the field for one on the bench: the newcomer costs
+    // its usual energy, the fighter coming off keeps its damage
+    const c = s.hand[toLane]
+    if (!Number.isInteger(toLane) || !c) return 'Pick a bench card to bring in'
+    if (u.shifted) return 'That fighter already moved this turn'
+    if (c.unit.cost > s.energy) return `Not enough energy (needs ${c.unit.cost})`
+    return null
+  }
+  if (s.energy < TACTIC_COST) return 'Not enough energy'
   if (kind === 'fortify') return u.fortify ? 'Already fortified' : null
   if (kind === 'shift') {
     if (u.shifted) return 'It already moved this turn'
@@ -293,6 +334,16 @@ export function useTactic(m, side, kind, lane, toLane) {
   const err = canTactic(m, side, kind, lane, toLane)
   if (err) throw new Error(err)
   const s = m[side]
+  if (kind === 'swap') {
+    const out = s.board[lane]
+    const c = s.hand.splice(toLane, 1)[0]
+    s.energy -= c.unit.cost
+    const back = { id: out.id, ref: out.ref, unit: { atk: out.atk, hp: Math.max(1, out.hp), maxHp: out.maxHp, cost: out.cost, element: out.element, abilities: [...(out.abilities || [])], level: out.level ?? null } }
+    s.board[lane] = { id: c.id, ref: c.ref, ...clone(c.unit), burn: 0, hex: 0, buff: 0, fortify: false, shifted: true }
+    s.hand.push(back)
+    ev(m, { t: 'swap', side, lane, card: { id: c.id, ref: c.ref, unit: c.unit }, out: { id: out.id, ref: out.ref } })
+    return
+  }
   s.energy -= TACTIC_COST
   if (kind === 'fortify') { s.board[lane].fortify = true; ev(m, { t: 'fortify', side, lane }) }
   else { const u = s.board[lane]; u.shifted = true; s.board[toLane] = u; s.board[lane] = null; ev(m, { t: 'shift', side, lane, toLane }) }
@@ -381,18 +432,19 @@ export function rivalPlays(m, skill, rand = randomInt) {
     const options = []
     s.hand.forEach((c, i) => { for (let l = 0; l < LANES; l++) if (!canPlay(m, side, i, l)) options.push({ kind: 'play', i, l }) })
     for (let l = 0; l < LANES; l++) if (s.board[l] && !canTactic(m, side, 'fortify', l)) options.push({ kind: 'fortify', l })
+    for (let l = 0; l < LANES; l++) if (s.board[l] && s.board[l].hp * 2 <= s.board[l].maxHp) s.hand.forEach((c, i) => { if (!canTactic(m, side, 'swap', l, i)) options.push({ kind: 'swap', l, i }) })
     if (!options.length) break
     const base = lookahead(m, side)
     const scored = options.map((o) => {
       const t = clone(m); t.events = []
-      if (o.kind === 'play') playCard(t, side, o.i, o.l); else useTactic(t, side, 'fortify', o.l)
+      if (o.kind === 'play') playCard(t, side, o.i, o.l); else if (o.kind === 'swap') useTactic(t, side, 'swap', o.l, o.i); else useTactic(t, side, 'fortify', o.l)
       return { ...o, v: lookahead(t, side) }
     })
     scored.sort((a, b) => b.v - a.v)
     let pickIt = scored[0]
     if (rand(1000) / 1000 > skill) pickIt = scored[rand(scored.length)]
     if (pickIt.v <= base && rand(1000) / 1000 < skill) break // nothing worth doing
-    if (pickIt.kind === 'play') playCard(m, side, pickIt.i, pickIt.l); else useTactic(m, side, 'fortify', pickIt.l)
+    if (pickIt.kind === 'play') playCard(m, side, pickIt.i, pickIt.l); else if (pickIt.kind === 'swap') useTactic(m, side, 'swap', pickIt.l, pickIt.i); else useTactic(m, side, 'fortify', pickIt.l)
   }
 }
 

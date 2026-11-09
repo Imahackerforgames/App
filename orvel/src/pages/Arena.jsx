@@ -4,7 +4,7 @@ import Avatar from '../components/Avatar.jsx'
 import { Btn, Cash, Modal, RarityTag, WindowTitle } from '../components/ui.jsx'
 import { useGame, fmt, server } from '../store.jsx'
 import { customDisplay } from '../lib/customCard.js'
-import { DECK_SIZE, LEADER_HP, MAX_ENERGY, TURN_LIMIT, ABILITIES, ELEMENTS, RECRUITS, unitOf } from '../server/battle.js'
+import { DECK_SIZE, LEADER_HP, MAX_ENERGY, TURN_LIMIT, ABILITIES, ELEMENTS, RECRUITS, unitOf, MAPS, STARTERS, BENCH } from '../server/battle.js'
 import Table from '../components/Table.jsx'
 import { makeTutorialDuel, TRAINER } from '../components/Tutorial.jsx'
 import { play } from '../lib/sound.js'
@@ -267,7 +267,22 @@ function RivalProfile({ id, onClose, onDuel }) {
 
 // ───────────────────────── duel setup ─────────────────────────
 
-const DECK_KEY = 'orvel:lastDeck'
+function LineupSlot({ k, label, resolve, options, onRemove, onMove, moveLabel }) {
+  const o = k && options.find((x) => `${x.ref.kind}:${x.ref.id}` === k)
+  const d = o && resolve(o.ref)
+  if (!d) return <div className="lu-slot empty"><span>{label}</span><i>empty</i></div>
+  return (
+    <div className="lu-slot">
+      <button className="lu-card" onClick={() => onRemove(k)} aria-label={`Remove ${d.card.name}`}><CardFrame card={d.card} rarity={d.rarity} frame={d.frame} footRight={d.footRight} size="xs" tilt={false} showCount={false} stats={unitOf(o.stats)} /></button>
+      <span className="lu-lane">{label}</span>
+      <button className="lu-move" onClick={() => onMove(k)} aria-label={`Move ${d.card.name} ${moveLabel}`}>⇅</button>
+    </div>
+  )
+}
+
+const DECK_KEY = 'orvel:lastLineup'
+const MAP_KEY = 'orvel:lastMap'
+const LANE_LABELS = ['BACK', 'MIDDLE', 'FRONT']
 function DuelSetup({ rival, onClose, onStart }) {
   const { snap, rarityById, call } = useGame()
   const resolve = useResolve()
@@ -280,11 +295,19 @@ function DuelSetup({ rival, onClose, onStart }) {
     return [...customs, ...own].filter((o) => o.stats).sort((a, b) => power(b) - power(a))
   }, [snap])
   const key = (r) => `${r.kind}:${r.id}`
-  const [deck, setDeck] = useState(() => {
-    try { const saved = JSON.parse(localStorage.getItem(DECK_KEY) || '[]'); const ok = saved.filter((k) => options.some((o) => key(o.ref) === k)); if (ok.length === DECK_SIZE) return ok } catch {}
-    return options.slice(0, DECK_SIZE).map((o) => key(o.ref))
+  const has = (k) => options.some((o) => key(o.ref) === k)
+  const strongest = () => ({ starters: options.slice(0, STARTERS).map((o) => key(o.ref)), bench: options.slice(STARTERS, STARTERS + BENCH).map((o) => key(o.ref)) })
+  const [lineup, setLineup] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(DECK_KEY) || 'null')
+      if (saved?.starters) return { starters: saved.starters.filter(has).slice(0, STARTERS), bench: saved.bench.filter(has).slice(0, BENCH) }
+    } catch {}
+    return strongest()
   })
-  const recruitsNeeded = DECK_SIZE - deck.length
+  const [addTo, setAddTo] = useState('starters')
+  const [map, setMap] = useState(() => { try { const m = localStorage.getItem(MAP_KEY); if (MAPS.some((x) => x.id === m)) return m } catch {} return 'plains' })
+  const deck = [...lineup.starters, ...lineup.bench]
+  const recruitsNeeded = STARTERS + BENCH - deck.length
   const [mode, setMode] = useState('coins')
   const [amount, setAmount] = useState(Math.min(rival.betCap, 100, snap.player.cash))
   const [betCard, setBetCard] = useState('')
@@ -307,13 +330,34 @@ function DuelSetup({ rival, onClose, onStart }) {
     return () => { live = false }
   }, [mode, amount, betCard])
 
-  const toggle = (k) => { play('hover'); setDeck((d) => (d.includes(k) ? d.filter((x) => x !== k) : d.length < DECK_SIZE ? [...d, k] : d)) }
+  // tap a card: in → out; out → into starters or bench (whichever you chose, or
+  // whichever still has room)
+  const toggle = (k) => {
+    play('hover')
+    setLineup((L) => {
+      if (L.starters.includes(k)) return { ...L, starters: L.starters.filter((x) => x !== k) }
+      if (L.bench.includes(k)) return { ...L, bench: L.bench.filter((x) => x !== k) }
+      const toStart = (addTo === 'starters' && L.starters.length < STARTERS) || L.bench.length >= BENCH
+      if (toStart && L.starters.length < STARTERS) return { ...L, starters: [...L.starters, k] }
+      if (L.bench.length < BENCH) return { ...L, bench: [...L.bench, k] }
+      return L
+    })
+  }
+  // move a picked card between the field and the bench
+  const flip = (k) => {
+    play('hover')
+    setLineup((L) => {
+      if (L.starters.includes(k) && L.bench.length < BENCH) return { starters: L.starters.filter((x) => x !== k), bench: [...L.bench, k] }
+      if (L.bench.includes(k) && L.starters.length < STARTERS) return { bench: L.bench.filter((x) => x !== k), starters: [...L.starters, k] }
+      return L
+    })
+  }
   async function start() {
     setBusy(true)
     try {
-      const refs = deck.map((k) => { const [kind, ...rest] = k.split(':'); return { kind, id: rest.join(':') } })
-      const bt = await call((s) => s.startBattle({ rivalId: rival.id, deck: refs, wager }))
-      try { localStorage.setItem(DECK_KEY, JSON.stringify(deck)) } catch {}
+      const ref = (k) => { const [kind, ...rest] = k.split(':'); return { kind, id: rest.join(':') } }
+      const bt = await call((s) => s.startBattle({ rivalId: rival.id, starters: lineup.starters.map(ref), bench: lineup.bench.map(ref), wager, map }))
+      try { localStorage.setItem(DECK_KEY, JSON.stringify(lineup)); localStorage.setItem(MAP_KEY, map) } catch {}
       play('open')
       onStart(bt)
     } catch {} finally { setBusy(false) }
@@ -333,22 +377,51 @@ function DuelSetup({ rival, onClose, onStart }) {
         </div>
 
         <section>
-          <div className="ds-head"><span className="label">CHOOSE YOUR FIGHTERS · {deck.length}/{DECK_SIZE}</span>
-            <button className="link" onClick={() => setDeck(options.slice(0, DECK_SIZE).map((o) => key(o.ref)))}>Auto-pick strongest</button></div>
-          <p className="fine">Tap a card to bring it into this fight (tap again to leave it out). Only the cards you pick can be drawn. Higher LV = stronger fighter.</p>
-          {recruitsNeeded > 0 && <p className="fine">{recruitsNeeded} empty {recruitsNeeded === 1 ? 'slot is' : 'slots are'} filled with basic Recruits. Open packs or forge cards to replace them.</p>}
+          <div className="ds-head"><span className="label">CHOOSE A MAP</span><span className="fine">{MAPS.find((x) => x.id === map)?.blurb}</span></div>
+          <div className="map-row" role="radiogroup" aria-label="Map">
+            {MAPS.map((m) => (
+              <button key={m.id} role="radio" aria-checked={map === m.id} className={`map-tile map-${m.id} ${map === m.id ? 'on' : ''}`} onClick={() => { play('hover'); setMap(m.id) }}>
+                <span className="mt-scene" aria-hidden="true"><i className="mt-hills" /><i className="mt-deco scenery" /></span>
+                <b>{m.name}</b>
+                {m.element && <span className="mt-el" style={{ color: ELEMENTS.find((e) => e.id === m.element)?.color }}>{ELEMENTS.find((e) => e.id === m.element)?.glyph} {m.element.toUpperCase()} LANES</span>}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <div className="ds-head"><span className="label">YOUR LINEUP · {deck.length}/{STARTERS + BENCH}</span>
+            <span className="ds-links"><button className="link" onClick={() => { play('click'); setLineup(strongest()) }}>Auto-pick strongest</button> <button className="link" onClick={() => { play('click'); setLineup({ starters: [], bench: [] }) }}>Clear</button></span></div>
+          <div className="lu-zone">
+            <div className="lu-title"><b>STARTERS</b><span className="fine">On the field when the duel begins</span></div>
+            <div className="lu-slots three">
+              {Array.from({ length: STARTERS }, (_, i) => <LineupSlot key={i} k={lineup.starters[i]} label={LANE_LABELS[i]} resolve={resolve} options={options} onRemove={toggle} onMove={flip} moveLabel="to bench" />)}
+            </div>
+          </div>
+          <div className="lu-zone bench">
+            <div className="lu-title"><b>BENCH</b><span className="fine">In your hand: send them into empty lanes, or swap one in for a fighter on the field</span></div>
+            <div className="lu-slots six">
+              {Array.from({ length: BENCH }, (_, i) => <LineupSlot key={i} k={lineup.bench[i]} label={`#${i + 1}`} resolve={resolve} options={options} onRemove={toggle} onMove={flip} moveLabel="to field" />)}
+            </div>
+          </div>
+          {recruitsNeeded > 0 && <p className="fine">{recruitsNeeded} empty {recruitsNeeded === 1 ? 'spot is' : 'spots are'} filled with basic Recruits.</p>}
+          <div className="ds-head lu-pickhead">
+            <span className="label">YOUR CARDS</span>
+            <div className="seg small">{[['starters', 'Add to starters'], ['bench', 'Add to bench']].map(([v, l]) => <button key={v} className={addTo === v ? 'on' : ''} onClick={() => { play('hover'); setAddTo(v) }}>{l}</button>)}</div>
+          </div>
           {options.length === 0 ? (
-            <p className="warn">You don't own any cards yet — you'll fight with Recruits. Open packs in the shop to build a real deck.</p>
+            <p className="warn">You don't own any cards yet — you'll fight with Recruits. Open packs in the shop to build a real lineup.</p>
           ) : (
             <div className="ds-cards">
               {options.map((o) => {
-                const k = key(o.ref), d = resolve(o.ref), on = deck.includes(k)
+                const k = key(o.ref), d = resolve(o.ref)
+                const where = lineup.starters.includes(k) ? 'S' : lineup.bench.includes(k) ? 'B' : null
                 return d && (
-                  <div key={k} className={`ds-card ${on ? 'on' : ''}`}>
-                    <button className="ds-pick" onClick={() => toggle(k)} aria-pressed={on} aria-label={`${on ? 'Remove' : 'Add'} ${d.card.name}`}>
+                  <div key={k} className={`ds-card ${where ? 'on' : ''}`}>
+                    <button className="ds-pick" onClick={() => toggle(k)} aria-pressed={!!where} aria-label={`${where ? 'Remove' : 'Add'} ${d.card.name}`}>
                       <CardFrame card={d.card} rarity={d.rarity} frame={d.frame} footRight={d.footRight} size="sm" tilt={false} showCount={false} stats={unitOf(o.stats)} />
                     </button>
-                    {on && <span className="ds-check">{deck.indexOf(k) + 1}</span>}
+                    {where && <span className={`ds-check ${where === 'S' ? 'st' : 'bn'}`}>{where === 'S' ? 'START' : 'BENCH'}</span>}
                     <button className="ds-info" onClick={() => { play('click'); setInfo({ ...o, d }) }} aria-label={`Details for ${d.card.name}`}>i</button>
                   </div>
                 )

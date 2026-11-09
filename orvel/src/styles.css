@@ -1717,3 +1717,81 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 .fx-flash { width: 96px; height: 96px; margin: -48px; animation-duration: .32s; }
 .fx-impact.big .fx-flash { width: 160px; height: 160px; margin: -80px; }
 .fx-ring { width: 72px; height: 72px; margin: -36px; }
+
+/* ═════════════ duel setup: maps and lineup ═════════════ */
+.map-row { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 10px; scroll-snap-type: x proximity; }
+.map-tile { flex: none; width: 118px; scroll-snap-align: start; display: grid; gap: 3px; padding: 0 0 7px; border-radius: 10px; overflow: hidden; border: 2px solid var(--line); background: var(--panel2); color: var(--ink); cursor: pointer; text-align: center; }
+.map-tile.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent), 0 0 16px color-mix(in srgb, var(--accent) 50%, transparent); }
+.map-tile b { font-size: 12.5px; padding: 0 4px; }
+.mt-el { font-family: var(--f-pixel); font-size: 6px; letter-spacing: .06em; }
+.mt-scene { position: relative; height: 58px; display: block; background: linear-gradient(180deg, var(--sky1) 0%, var(--sky2) 55%, var(--g1) 56%, var(--g2) 100%); }
+.mt-hills { position: absolute; left: 0; right: 0; bottom: 44%; height: 40%; background: var(--hill1); clip-path: polygon(0 100%, 0 50%, 18% 20%, 36% 60%, 55% 10%, 74% 55%, 90% 25%, 100% 50%, 100% 100%); }
+.mt-deco { position: absolute; inset: 0; }
+.lu-zone { display: grid; gap: 6px; padding: 8px; border-radius: 10px; background: var(--bg-deep); border: 1px solid var(--line); margin-bottom: 8px; }
+.lu-zone.bench { border-style: dashed; }
+.lu-title { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.lu-title b { font-family: var(--f-pixel); font-size: 9px; color: var(--accent-2); letter-spacing: .1em; }
+.lu-zone:not(.bench) .lu-title b { color: var(--gold); }
+.lu-slots { display: grid; gap: 6px; }
+.lu-slots.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.lu-slots.six { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+@media (max-width: 520px) { .lu-slots.six { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.lu-slot { position: relative; display: grid; justify-items: center; gap: 2px; min-width: 0; }
+.lu-slot.empty { place-content: center; min-height: 92px; border: 2px dashed var(--line2); border-radius: 8px; color: var(--dim); text-align: center; }
+.lu-slot.empty span { font-family: var(--f-pixel); font-size: 7px; }
+.lu-slot.empty i { font-style: normal; font-size: 11px; }
+.lu-card { border: 0; padding: 0; background: none; cursor: pointer; width: 100%; max-width: 74px; }
+.lu-card .card { --w: 100%; }
+.lu-lane { font-family: var(--f-pixel); font-size: 6.5px; color: var(--muted); }
+.lu-move { position: absolute; top: -6px; right: 0; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line2); background: var(--panel2); color: var(--ink); font-size: 12px; cursor: pointer; line-height: 1; }
+.lu-pickhead { margin-top: 6px; flex-wrap: wrap; gap: 6px; }
+.seg.small button { font-size: 11px; padding: 6px 9px; }
+.ds-check { width: auto; height: auto; padding: 3px 5px; border-radius: 5px; font-size: 7px; }
+.ds-check.st { background: var(--gold); color: #2a1600; }
+.ds-check.bn { background: var(--accent-2); color: var(--bg-deep); }
+.ds-links { display: flex; gap: 10px; }
+
+/* ═════════════ maps ═════════════
+   Each map sets the sky, hills and ground and adds its own scenery. The
+   same variables colour the preview tiles in the duel setup. */
+.duel.duel.map-plains, .map-plains { --sky1: #1d2b4a; --sky2: #c86a3a; --hill1: #2a2f4a; --hill2: #1b2236; --g1: #3d4a2a; --g2: #1c2414; --sun: #ffcf7a; }
+.duel.duel.map-canyon, .map-canyon { --sky1: #1a0806; --sky2: #b8381a; --hill1: #4a1a10; --hill2: #2a0c06; --g1: #4a2414; --g2: #1a0a04; --sun: #ff7a3a; }
+.duel.duel.map-shore, .map-shore { --sky1: #0f3a6a; --sky2: #7ac8e8; --hill1: #2a5a7a; --hill2: #1a3a54; --g1: #c8b48a; --g2: #6a5a3a; --sun: #fff6d0; }
+.duel.duel.map-forest, .map-forest { --sky1: #0c1f18; --sky2: #4a7a4a; --hill1: #13301f; --hill2: #0b1f14; --g1: #2c4a22; --g2: #10200c; --sun: #e8ffc0; }
+.duel.duel.map-frost, .map-frost { --sky1: #1a2a44; --sky2: #9ab8d8; --hill1: #c8d8ea; --hill2: #8aa4c0; --g1: #dfe8f2; --g2: #8fa2b8; --sun: #ffffff; }
+.duel.duel.map-ruins, .map-ruins { --sky1: #060818; --sky2: #2a2a5a; --hill1: #1a1a34; --hill2: #101024; --g1: #2a2a3a; --g2: #101018; --sun: #e8ecff; }
+.duel.map-frost .floor { background: repeating-linear-gradient(90deg, #ffffff30 0 1px, transparent 1px 46px), repeating-linear-gradient(0deg, #6a80a022 0 2px, transparent 2px 40px); }
+.duel.map-shore .floor { background: repeating-linear-gradient(0deg, #ffffff18 0 2px, transparent 2px 36px); }
+.duel.map-ruins .sun { width: 40px; height: 40px; background: radial-gradient(circle at 40% 40%, #fff, #c8d0ff 50%, transparent 72%); left: 70%; top: 18%; }
+.duel.map-canyon .sun { opacity: .6; }
+.scenery { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+/* lava rivers glowing in the canyon */
+.map-canyon .scenery::before { content: ''; position: absolute; left: -10%; right: -10%; top: 41%; height: 5%; background: linear-gradient(90deg, #ff4a1a, #ffb04a, #ff4a1a, #ffb04a); background-size: 200% 100%; filter: blur(1px); box-shadow: 0 0 22px #ff5a1a; border-radius: 50%; animation: lava 6s linear infinite; opacity: .85; }
+@keyframes lava { to { background-position: 200% 0; } }
+.map-canyon .scenery::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(#ffb04a 1px, transparent 1.6px); background-size: 60px 80px; animation: embers 7s linear infinite; opacity: .6; }
+@keyframes embers { from { background-position: 0 100%; } to { background-position: 30px -100%; } }
+/* the sea at the shore */
+.map-shore .scenery::before { content: ''; position: absolute; left: 0; right: 0; top: 36%; height: 6%; background: linear-gradient(180deg, #2a7ab8, #7ad0f0); }
+.map-shore .scenery::after { content: ''; position: absolute; left: -20%; right: -20%; top: 41%; height: 2.4%; background: repeating-radial-gradient(ellipse at 50% 0, #fff 0 2px, transparent 3px 14px); opacity: .7; animation: surf 3s ease-in-out infinite alternate; }
+@keyframes surf { to { translate: 6% 2px; } }
+/* trees in the wood */
+.map-forest .scenery::before { content: ''; position: absolute; left: 0; right: 0; top: 14%; height: 26%;
+  background: radial-gradient(18px 40px at 6% 100%, #0d2414 98%, transparent), radial-gradient(22px 54px at 18% 100%, #0f2a18 98%, transparent), radial-gradient(16px 36px at 30% 100%, #0d2414 98%, transparent), radial-gradient(24px 60px at 74% 100%, #0f2a18 98%, transparent), radial-gradient(18px 44px at 86% 100%, #0d2414 98%, transparent), radial-gradient(20px 50px at 96% 100%, #0f2a18 98%, transparent); }
+.map-forest .scenery::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(#d8ff8a 1px, transparent 1.6px); background-size: 70px 90px; animation: drift 9s linear infinite; opacity: .5; }
+/* falling snow on the pass */
+.map-frost .scenery::after { content: ''; position: absolute; inset: -20% 0 0; background-image: radial-gradient(#fff 1.3px, transparent 2px), radial-gradient(#fff 1px, transparent 1.6px); background-size: 50px 60px, 80px 70px; animation: snow 6s linear infinite; opacity: .9; }
+@keyframes snow { from { background-position: 0 0, 20px 0; } to { background-position: 30px 240px, 50px 300px; } }
+@keyframes drift { from { background-position: 0 0; } to { background-position: 80px 60px; } }
+/* broken pillars and stars at the ruins */
+.map-ruins .scenery::before { content: ''; position: absolute; left: 0; right: 0; top: 16%; height: 24%;
+  background: linear-gradient(#3a3a5a, #22223a) 8% 100% / 16px 70% no-repeat, linear-gradient(#3a3a5a, #22223a) 20% 100% / 14px 46% no-repeat, linear-gradient(#3a3a5a, #22223a) 80% 100% / 16px 84% no-repeat, linear-gradient(#3a3a5a, #22223a) 92% 100% / 14px 40% no-repeat, linear-gradient(#3a3a5a, #22223a) 80% 14% / 46px 8px no-repeat; }
+.map-ruins .scenery::after { content: ''; position: absolute; inset: 0 0 60% 0; background-image: radial-gradient(#fff 1px, transparent 1.4px); background-size: 37px 29px; opacity: .55; animation: twinkle 3s ease-in-out infinite alternate; }
+@keyframes twinkle { to { opacity: .25; } }
+.mt-scene .scenery { transform: scale(1); }
+.bench-label { text-align: center; font-family: var(--f-pixel); font-size: 7px; letter-spacing: .12em; color: var(--muted); margin-top: 4px; }
+.bench-label.swapping { font-family: var(--f-body); font-size: 12px; letter-spacing: 0; color: var(--gold); }
+.hand3d.swapping .hcard.ok .card { box-shadow: 0 0 0 2px var(--gold), 0 0 14px var(--gold); }
+.stance.swap { border-color: var(--gold); }
+.hand3d { min-height: 92px; padding-top: 6px; }
+.stance.swap { grid-column: 1 / -1; }
+.hcard { width: min(clamp(58px, 17vw, 84px), calc((100vw - 40px) / (var(--n, 4) * .9))); margin: 0 -3px; }

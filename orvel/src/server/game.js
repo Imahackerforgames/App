@@ -19,7 +19,7 @@ import {
 import {
   cardStats, validateCustom, newMatch, playCard as lanePlay, useTactic as laneTactic, endTurn as laneEnd, rivalPlays, outcome,
   RECRUITS, RIVALS, rivalSkill, rivalBetCap, rivalCardCap,
-  rivalBaseRecord, rivalCollection, FORGE, FRAMES, CARD_EFFECTS, MAX_HP, DECK_SIZE, rollLevel,
+  rivalBaseRecord, rivalCollection, FORGE, FRAMES, CARD_EFFECTS, MAX_HP, DECK_SIZE, rollLevel, STARTERS, BENCH, MAPS,
 } from './battle.js'
 import { randomInt, weightedPick, uid } from './rng.js'
 
@@ -478,7 +478,7 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
     const rec = s.rivals[r.id] || { ...rivalBaseRecord(r), taken: [] }
     const cards = rivalCards(s, r)
     const fav = cards.slice().sort((a, b) => b.value - a.value)[0] || null
-    const top = cards.slice().sort((a, b) => b.power - a.power).slice(0, DECK_SIZE)
+    const top = cards.slice().sort((a, b) => b.power - a.power).slice(0, STARTERS + BENCH)
     return {
       id: r.id, name: r.name, level: r.level, bio: r.bio, line: r.line, style: r.style,
       wins: rec.wins, losses: rec.losses, streak: rec.streak,
@@ -519,12 +519,25 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
     const card = s.cards.find((c) => c.id === pick.cardId)
     return { type: 'card', cardId: card.id, cardName: card.name, value: cardValue(s, card), rarityId: card.rarityId, level: pick.level ?? rivalLevelOf(s, r, card) }
   }
-  function checkDeck(s, p, deck, w) {
-    if (!Array.isArray(deck) || deck.length > DECK_SIZE) fail('invalid', `Pick up to ${DECK_SIZE} cards`)
+  // Starters and bench. An older client sends one `deck`: its first three
+  // become starters and the rest the bench.
+  function checkLineup(s, p, { starters, bench, deck }, w) {
+    if (!starters && Array.isArray(deck)) { starters = deck.slice(0, STARTERS); bench = deck.slice(STARTERS) }
+    starters ||= []; bench ||= []
+    if (!Array.isArray(starters) || starters.length > STARTERS) fail('invalid', `Pick up to ${STARTERS} starters`)
+    if (!Array.isArray(bench) || bench.length > BENCH) fail('invalid', `Pick up to ${BENCH} cards for the bench`)
+    const all = checkDeck(s, p, [...starters, ...bench], w, STARTERS + BENCH, false)
+    const st = all.slice(0, starters.length), bn = all.slice(starters.length)
+    let k = 0
+    const fill = (list, n) => { const out = [...list]; while (out.length < n) { const rc = RECRUITS[k++ % RECRUITS.length]; out.push({ ref: { kind: 'recruit', id: rc.id }, stats: rc.stats }) } return out }
+    return { starters: fill(st, STARTERS), bench: fill(bn, BENCH) }
+  }
+  function checkDeck(s, p, deck, w, max = DECK_SIZE, fillUp = true) {
+    if (!Array.isArray(deck) || deck.length > max) fail('invalid', `Pick up to ${max} cards`)
     const seen = new Set()
     const picked = deck.map((ref) => {
       const key = `${ref?.kind}:${ref?.id}`
-      if (seen.has(key)) fail('invalid', 'Each card can be in your deck once')
+      if (seen.has(key)) fail('invalid', 'Each card can be in your lineup once')
       seen.add(key)
       if (ref.kind === 'card') {
         const card = s.cards.find((c) => c.id === ref.id)
@@ -540,7 +553,7 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
       }
       fail('invalid', 'Unknown card in deck')
     })
-    return fillRecruits(picked)
+    return fillUp ? fillRecruits(picked) : picked
   }
   function fillRecruits(list) {
     const out = [...list]
@@ -558,7 +571,7 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
     })
     return clone({
       id: m.id, rivalId: m.rivalId, status: m.status, at: m.at, wager: m.wager, stake: m.stake, payout: m.payout,
-      terrain: g.terrain, turn: g.turn, first: g.first, you: side(g.you, true), them: side(g.them, false),
+      terrain: g.terrain, map: g.map || 'plains', turn: g.turn, first: g.first, you: side(g.you, true), them: side(g.them, false),
       events: g.events, rival: rivalSummary(s, r),
     })
   }
@@ -818,13 +831,14 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
       return { stake: rivalStake(s, r, checkWager(s, r, wager, null)) }
     }),
 
-    startBattle: ({ rivalId, deck, wager }) => serial((s) => {
+    startBattle: ({ rivalId, deck, starters, bench, wager, map }) => serial((s) => {
       const p = player(s)
       if (s.battles.some((b) => b.status === 'active')) fail('busy', 'Finish or forfeit your current battle first')
       const r = RIVALS.find((x) => x.id === rivalId)
       if (!r) fail('not_found', 'Unknown rival')
-      const w = checkWager(s, r, wager, deck)
-      const hand = checkDeck(s, p, deck, w)
+      const w = checkWager(s, r, wager, [...(starters || []), ...(bench || []), ...(deck || [])])
+      if (map != null && !MAPS.some((x) => x.id === map)) fail('invalid', 'Unknown map')
+      const mine = checkLineup(s, p, { starters, bench, deck }, w)
       const stake = rivalStake(s, r, w)
       // escrow: the stake leaves your balance or inventory now
       if (w.type === 'coins' && w.amount > 0) p.cash -= w.amount
@@ -834,15 +848,21 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
         escrowLevel = takeLowest(inv)
         escrowSerial = inv.serials.length ? inv.serials.pop() : null
       }
-      const pool = rivalCards(s, r).sort((a, b) => b.power - a.power).slice(0, DECK_SIZE + 3)
+      const pool = rivalCards(s, r).sort((a, b) => b.power - a.power).slice(0, STARTERS + BENCH + 3)
       const picks = []
-      const want = Math.min(DECK_SIZE, pool.length)
+      const want = Math.min(STARTERS + BENCH, pool.length)
       while (picks.length < want) picks.push(pool.splice(randomInt(pool.length), 1)[0])
-      const theirDeck = fillRecruits(picks.map((c) => ({ ref: { kind: 'card', id: c.cardId }, stats: c.stats })))
+      // the rival starts its strongest three and benches the rest
+      picks.sort((a, b) => b.power - a.power)
+      const asCard = (c) => ({ ref: { kind: 'card', id: c.cardId }, stats: c.stats })
+      const rc = (k) => ({ ref: { kind: 'recruit', id: RECRUITS[k % RECRUITS.length].id }, stats: RECRUITS[k % RECRUITS.length].stats })
+      const theirs = { starters: picks.slice(0, STARTERS).map(asCard), bench: picks.slice(STARTERS).map(asCard) }
+      for (let k = 0; theirs.starters.length < STARTERS; k++) theirs.starters.push(rc(k))
+      for (let k = 0; theirs.bench.length < BENCH; k++) theirs.bench.push(rc(k + 1))
       const m = {
         id: uid('bt_'), rivalId, status: 'active', at: now(), player: PLAYER,
         wager: { ...w, serial: escrowSerial, level: escrowLevel }, stake,
-        game: newMatch(hand, theirDeck),
+        game: newMatch(mine, theirs, randomInt, { map: map || 'plains' }),
       }
       s.battles.push(m)
       if (s.battles.length > 60) s.battles.splice(0, s.battles.length - 60)
