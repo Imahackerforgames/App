@@ -122,7 +122,8 @@ export { beats }
 
 // ───────────────────────── lane battles ─────────────────────────
 //
-// Each side has a leader (25 HP), three lanes, a hand and an 8-card deck.
+// Each side has a leader (40 HP) and five lanes. In a duel: five starters on
+// the field and a bench of five in hand (the tutorial still uses an 8-card deck).
 // Turn: refill energy (2 on your first turn, +1 a turn, max 6), draw a card,
 // play cards into empty lanes for their energy cost, use tactics, then End
 // Turn: every unit you have attacks down its lane — the enemy unit there, or
@@ -135,8 +136,8 @@ export { beats }
 //
 // A leader at 0 HP loses. After 10 turns each, the healthier leader wins.
 
-export const LANES = 3
-export const LEADER_HP = 25
+export const LANES = 5
+export const LEADER_HP = 40
 export const HAND_START = 4
 export const MAX_ENERGY = 6
 export const TURN_LIMIT = 10
@@ -171,8 +172,8 @@ function shuffle(list, rand) {
 
 // ───────────────────────── maps and lineups ─────────────────────────
 
-// Where the duel is fought. Most maps lean toward one element: two of the
-// three lanes are that element and the third is random, so a map is worth
+// Where the duel is fought. Most maps lean toward one element: three of the
+// five lanes are that element and the rest are random, so a map is worth
 // choosing to suit your fighters.
 export const MAPS = [
   { id: 'city', name: 'Ashen City', element: null, blurb: 'Burnt-out streets under a red sky. Lanes are random.' },
@@ -187,24 +188,25 @@ export const mapById = (id) => MAPS.find((x) => x.id === id) || MAPS[0]
 export function terrainFor(mapId, rand = randomInt) {
   const map = mapById(mapId)
   const t = Array.from({ length: LANES }, () => ELEMENTS[rand(3)].id)
-  if (map.element) { const odd = rand(LANES); for (let l = 0; l < LANES; l++) if (l !== odd) t[l] = map.element }
+  // most lanes lean to the map's element (3 of 5), the rest stay random
+  if (map.element) { const lanes = shuffle([...Array(LANES).keys()], rand).slice(0, Math.ceil(LANES / 2)); for (const l of lanes) t[l] = map.element }
   return t
 }
 
 // A lineup is 3 starters, who begin the duel on the field (back, middle and
 // front lane, in that order), and a bench of 6 who wait in your hand to be
 // sent in or swapped in. Every card is visible from the start: no draws.
-export const STARTERS = 3
-export const BENCH = 6
+export const STARTERS = 5
+export const BENCH = 5
 
 // sides: an array (a deck, shuffled and drawn from — the tutorial) or
 // { starters: [{ ref, stats }], bench: [{ ref, stats }] }
 export function newMatch(youSide, themSide, rand = randomInt, opts = {}) {
   const card = (c) => ({ id: uidOf(), ref: c.ref, unit: unitOf(c.stats) })
   const side = (x) => {
-    const base = { leader: LEADER_HP, energy: 0, maxEnergy: 0, turns: 0, board: [null, null, null], hand: [], deck: [] }
+    const base = { leader: LEADER_HP, energy: 0, maxEnergy: 0, turns: 0, board: Array(LANES).fill(null), hand: [], deck: [], out: [] }
     if (Array.isArray(x)) return { ...base, deck: shuffle(x.map(card), rand) }
-    const board = [null, null, null]
+    const board = Array(LANES).fill(null)
     ;(x.starters || []).slice(0, LANES).forEach((c, l) => { const k = card(c); board[l] = { id: k.id, ref: k.ref, ...clone(k.unit), burn: 0, hex: 0, buff: 0, fortify: false, shifted: false } })
     return { ...base, board, hand: (x.bench || []).map(card), lineup: true }
   }
@@ -219,8 +221,15 @@ export function newMatch(youSide, themSide, rand = randomInt, opts = {}) {
 }
 
 export function snapOf(m) {
-  const sd = (x) => ({ leader: x.leader, energy: x.energy, maxEnergy: x.maxEnergy, board: x.board.map((u) => (u ? { ...u } : null)), handCount: x.hand.length, deckCount: x.deck.length })
+  const sd = (x) => ({ leader: x.leader, energy: x.energy, maxEnergy: x.maxEnergy, board: x.board.map((u) => (u ? { ...u } : null)), handCount: x.hand.length, deckCount: x.deck.length, outCount: (x.out || []).length })
   return { you: sd(m.you), them: sd(m.them), turn: m.turn }
+}
+// A fighter knocked out is destroyed for the rest of the match: it leaves the
+// field and does not go back to the bench. Next match it is whole again.
+function destroy(s, lane) {
+  const u = s.board[lane]
+  if (u) (s.out ||= []).push({ id: u.id, ref: u.ref, unit: { atk: u.atk, hp: 0, maxHp: u.maxHp, cost: u.cost, element: u.element, abilities: [...(u.abilities || [])], level: u.level ?? null } })
+  s.board[lane] = null
 }
 function ev(m, e) { m.events.push({ ...e, snap: snapOf(m) }) }
 
@@ -248,7 +257,7 @@ export function startTurn(m, side) {
       u.hp -= u.burn
       ev(m, { t: 'burn', side, lane: l, dmg: u.burn })
       u.burn = 0
-      if (u.hp <= 0) { s.board[l] = null; ev(m, { t: 'die', side, lane: l }) }
+      if (u.hp <= 0) { destroy(s, l); ev(m, { t: 'die', side, lane: l }) }
     }
   }
   if (!(side === m.first && s.turns === 1)) draw(m, side)
@@ -313,12 +322,12 @@ export function canTactic(m, side, kind, lane, toLane) {
   if (m.turn !== side) return "It isn't your turn"
   if (!u) return 'Pick one of your units'
   if (kind === 'swap') {
-    // swap a fighter on the field for one on the bench: the newcomer costs
-    // its usual energy, the fighter coming off keeps its damage
+    // swap a fighter on the field for one on the bench, on your turn, for 1
+    // energy: the fighter coming off keeps its damage
     const c = s.hand[toLane]
     if (!Number.isInteger(toLane) || !c) return 'Pick a bench card to bring in'
     if (u.shifted) return 'That fighter already moved this turn'
-    if (c.unit.cost > s.energy) return `Not enough energy (needs ${c.unit.cost})`
+    if (s.energy < TACTIC_COST) return `Not enough energy (a swap costs ${TACTIC_COST})`
     return null
   }
   if (s.energy < TACTIC_COST) return 'Not enough energy'
@@ -338,7 +347,7 @@ export function useTactic(m, side, kind, lane, toLane) {
   if (kind === 'swap') {
     const out = s.board[lane]
     const c = s.hand.splice(toLane, 1)[0]
-    s.energy -= c.unit.cost
+    s.energy -= TACTIC_COST
     const back = { id: out.id, ref: out.ref, unit: { atk: out.atk, hp: Math.max(1, out.hp), maxHp: out.maxHp, cost: out.cost, element: out.element, abilities: [...(out.abilities || [])], level: out.level ?? null } }
     s.board[lane] = { id: c.id, ref: c.ref, ...clone(c.unit), burn: 0, hex: 0, buff: 0, fortify: false, shifted: true }
     s.hand.push(back)
@@ -368,8 +377,8 @@ function battle(m, side) {
       let back = 0
       if (t.hp > 0 && has(t, 'counter')) { back = Math.floor(t.atk / 2); u.hp -= back }
       ev(m, { t: 'attack', side, lane: l, target: 'unit', dmg: a.dmg, blocked: a.blocked, through, heal, back, parts: a.parts, burned: has(u, 'burn') && a.dmg > 0 })
-      if (t.hp <= 0) { foe.board[l] = null; ev(m, { t: 'die', side: other(side), lane: l }) }
-      if (u.hp <= 0) { me.board[l] = null; ev(m, { t: 'die', side, lane: l }) }
+      if (t.hp <= 0) { destroy(foe, l); ev(m, { t: 'die', side: other(side), lane: l }) }
+      if (u.hp <= 0) { destroy(me, l); ev(m, { t: 'die', side, lane: l }) }
     } else {
       foe.leader -= a.dmg
       let heal = 0

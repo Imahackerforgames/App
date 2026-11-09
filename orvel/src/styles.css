@@ -1865,3 +1865,34 @@ img.contestant-fig { object-fit: cover; border-radius: 10px; -webkit-mask: linea
 /* drawn portraits have no background of their own: they sit on the
    current theme's colour fading into black */
 .avatar-pic, .pic-opt { background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--accent) 28%, #0b0d14), #05060a 78%); }
+
+/* five lanes: smaller hit areas so the rows don't overlap */
+.spot { height: 84px; }
+.plate { scale: max(.62, calc(.52 / var(--s))); bottom: 150px; }
+.atk-chip { scale: max(.62, calc(.54 / var(--s))); bottom: 172px; }
+.spot-pops { scale: max(.75, calc(.7 / var(--s))); }
+.sky { inset: 0 0 70% 0; }
+.ground { inset: 30% 0 0 0; }
+.world.cam { transition: transform .5s cubic-bezier(.3,.7,.3,1); }
+.terr span { font-size: 16px; }
+.lu-slots.five { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+.lu-slot.empty { min-height: 78px; }
+
+/* props standing on the field */
+.props { position: absolute; inset: 0; pointer-events: none; }
+.prop { position: absolute; overflow: visible; transform: translate(-50%, -100%) scale(var(--ps)); transform-origin: 50% 100%; filter: drop-shadow(0 4px 3px #000a); }
+.prop-fire { animation: propfire .5s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes propfire { from { scale: 1 .85; opacity: .85; } to { scale: 1.08 1.12; opacity: 1; } }
+.prop-glow { animation: pulse 2.4s ease-in-out infinite; }
+.prop-snow { display: none; }
+.props-frost .prop-snow { display: inline; }
+.props-frost .prop:not(.prop-rock) { filter: drop-shadow(0 4px 3px #000a) brightness(1.1) saturate(.6); }
+.props-ruins .prop, .props-city .prop { filter: drop-shadow(0 4px 3px #000c) brightness(.9); }
+
+/* your destroyed cards: out until the next match */
+.destroyed-row { display: flex; align-items: center; gap: 4px; justify-content: center; margin-top: 4px; flex-wrap: wrap; }
+.destroyed-row .label { font-size: 7px; color: var(--red); margin-right: 4px; }
+.dz-card { position: relative; width: 26px; filter: grayscale(1) brightness(.5); }
+.dz-card .card { --w: 26px; }
+.dz-card .card-head, .dz-card .card-foot { visibility: hidden; }
+.dz-card i { position: absolute; inset: 0; display: grid; place-items: center; font-style: normal; color: #ff5a5a; font-size: 16px; filter: none; text-shadow: 0 1px 2px #000; }

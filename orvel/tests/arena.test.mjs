@@ -83,9 +83,9 @@ test('cannot bet or play cards you do not own, and decks must be 5 distinct card
   await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck, wager: { type: 'card', cardId: unowned.id } }), /own/)
   await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck: [...deck.slice(0, 4), { kind: 'card', id: unowned.id }] }), /own/)
   await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck: [...deck.slice(0, 4), deck[0]] }), /once/)
-  await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck: Array.from({ length: 10 }, (_, i) => deck[i % deck.length]) }), /up to/)
+  await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck: Array.from({ length: 11 }, (_, i) => deck[i % deck.length]) }), /up to/)
   const b = await g.startBattle({ rivalId: RIVALS[0].id, deck: deck.slice(0, 2) }) // Recruits fill the rest
-  assert.equal(b.you.board.filter(Boolean).length + b.you.hand.length, 9)
+  assert.equal(b.you.board.filter(Boolean).length + b.you.hand.length, 10)
 })
 
 test('a forfeit loses the bet; only one battle at a time', async () => {
@@ -334,30 +334,30 @@ test('a save without levels gets them even when the catalog is already on v6', (
   assert.equal(s.players.local.inventory.c1.levels.length, 2)
 })
 
-test('a duel starts with your three starters on the field and six on the bench', async () => {
+test('a duel starts with your five starters on the field and five on the bench', async () => {
   const { STARTERS, BENCH } = await import('../src/server/battle.js')
   const { g } = await setup()
   const snap = await g.snapshot()
   const owned = Object.entries(snap.player.inventory).filter(([, v]) => v.count > 0).map(([id]) => ({ kind: 'card', id }))
-  const starters = owned.slice(0, 3), bench = owned.slice(3, 9)
+  const starters = owned.slice(0, 5), bench = owned.slice(5, 10)
   const b = await g.startBattle({ rivalId: RIVALS[0].id, starters, bench, wager: { type: 'coins', amount: 0 }, map: 'canyon' })
   assert.equal(b.map, 'canyon')
-  assert.deepEqual(b.you.board.map((u) => u?.ref.id), starters.map((x) => x.id))
+  assert.deepEqual(b.you.board.map((u) => u?.ref.id).slice(0, starters.length), starters.map((x) => x.id))
+  assert.equal(b.you.board.length, 5)
   assert.equal(b.you.hand.length, BENCH)
   assert.equal(b.you.deckCount, 0)
   assert.ok(b.them.board.every(Boolean), 'the rival starts three too')
   assert.ok(b.terrain.filter((t) => t === 'ember').length >= 2, 'Ember Canyon leans Ember')
-  assert.equal(STARTERS, 3)
+  assert.equal(STARTERS, 5)
 })
 
-test('swapping brings a bench card in for its energy and benches the fighter with its damage', () => {
+test('swapping brings a bench card in for 1 energy and benches the fighter with its damage', () => {
   const m = newMatch({ starters: [c(3, 3), c(3, 3), c(3, 3)], bench: [c(2, 2), c(4, 4)] }, { starters: [], bench: [] }, seq(0, 0, 0, 0, 0))
   m.you.board[1].hp = 2
   const outId = m.you.board[1].id
-  const inCost = m.you.hand[0].unit.cost
   const before = m.you.energy
   useTactic(m, 'you', 'swap', 1, 0)
-  assert.equal(m.you.energy, before - inCost)
+  assert.equal(m.you.energy, before - 1, 'a swap costs 1 energy')
   assert.notEqual(m.you.board[1].id, outId)
   const back = m.you.hand.find((h) => h.id === outId)
   assert.equal(back.unit.hp, 2, 'keeps its damage')
@@ -368,5 +368,24 @@ test('an old client that sends one deck still gets a lineup', async () => {
   const { g } = await setup()
   const b = await g.startBattle({ rivalId: RIVALS[0].id, deck: deckOf(await g.snapshot()), wager: { type: 'coins', amount: 0 } })
   assert.ok(b.you.board.every(Boolean))
-  assert.equal(b.you.hand.length, 6)
+  assert.equal(b.you.hand.length, 5)
+})
+
+test('a knocked-out fighter is destroyed for the rest of the match', () => {
+  const m = newMatch({ starters: [c(9, 9)], bench: [] }, { starters: [c(1, 1)], bench: [] }, seq(0, 0, 0, 0, 0))
+  endTurn(m, 'you') // first turn: nobody attacks
+  endTurn(m, 'them')
+  endTurn(m, 'you')
+  assert.equal(m.them.board[0], null)
+  assert.equal(m.them.out.length, 1, 'it went to the destroyed pile')
+  assert.equal(m.them.hand.length, 0, 'not back to the bench')
+})
+
+test('a duel left running on the old three-lane field is cancelled and refunded', () => {
+  const s = freshState()
+  s.players.local.cash = 100
+  s.battles = [{ id: 'b1', status: 'active', player: 'local', wager: { type: 'coins', amount: 50 }, game: { you: { board: [null, null, null] } } }]
+  migrate(s)
+  assert.equal(s.battles[0].status, 'cancelled')
+  assert.equal(s.players.local.cash, 150)
 })

@@ -19,7 +19,7 @@ import {
 import {
   cardStats, validateCustom, newMatch, playCard as lanePlay, useTactic as laneTactic, endTurn as laneEnd, rivalPlays, outcome,
   RECRUITS, RIVALS, rivalSkill, rivalBetCap, rivalCardCap,
-  rivalBaseRecord, rivalCollection, FORGE, FRAMES, CARD_EFFECTS, MAX_HP, DECK_SIZE, rollLevel, STARTERS, BENCH, MAPS,
+  rivalBaseRecord, rivalCollection, FORGE, FRAMES, CARD_EFFECTS, MAX_HP, DECK_SIZE, rollLevel, STARTERS, BENCH, MAPS, LANES,
 } from './battle.js'
 import { randomInt, weightedPick, uid } from './rng.js'
 
@@ -172,6 +172,9 @@ export function migrate(s) {
     s.version = 5
   }
   if (s.version < 6) s.version = 6
+  // five lanes: a duel still running on the old three-lane field is
+  // cancelled and its bet returned (checked on every load, like levels below)
+  for (const m of s.battles || []) if (m.status === 'active' && m.game && m.game.you?.board?.length !== LANES) refundBattle(s, m)
   // v6: card levels. Every copy owned before levels existed rolls one now, by
   // the same rule as a fresh pull. This runs on every load rather than once
   // behind the version number, because on the server the catalog (which
@@ -567,7 +570,7 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
     const g = m.game
     const side = (x, mine) => ({
       leader: x.leader, energy: x.energy, maxEnergy: x.maxEnergy, turns: x.turns, board: x.board,
-      handCount: x.hand.length, deckCount: x.deck.length, ...(mine ? { hand: x.hand } : {}),
+      handCount: x.hand.length, deckCount: x.deck.length, out: x.out || [], ...(mine ? { hand: x.hand } : {}),
     })
     return clone({
       id: m.id, rivalId: m.rivalId, status: m.status, at: m.at, wager: m.wager, stake: m.stake, payout: m.payout,
