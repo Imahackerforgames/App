@@ -1,120 +1,129 @@
 import { memo } from 'react'
 import { RIVALS, ELEMENTS } from '../server/battle.js'
 
-// A card on the battlefield becomes a fighter, drawn in side profile like a
-// character in an action RPG.
+// A card on the battlefield becomes a fighter, drawn in side profile.
+//
+// The fighters are the ORVEL crew from the creator's concept sheet: ten
+// war-worn builds, each with an improvised weapon — Frontline (stop sign),
+// Junker (wheel rim), Outcast (chain & lock), Breacher (spiked bat), Hazard
+// (fire extinguisher), Lantern (lantern on a chain), Noise (speaker), Veil
+// (spiked umbrella), Spotter (floodlight) and Wrecker (sledgehammer).
 //
 // The body is a real rig: hips, torso, head, two arms (shoulder, elbow,
 // wrist) and two legs (hip, knee), each joint its own element that turns
 // about its own pivot, with parts at different depths inside a slowly turning
-// 3D space. Animations move joints, so a fighter plants its feet, winds up,
-// swings through and follows through.
+// 3D space, so a fighter plants its feet, winds up, swings and follows through.
 //
-// Every card gets its own fighter, chosen from the card itself so the same
-// card always looks the same: an outfit (knight's plate, scale mail, ranger
-// leathers, mage robes, barbarian furs or banded lamellar), its colours, a
-// helmet, a weapon, maybe a shield with a sigil and a cape. Rarity decides how
-// fine it is: better metal, gold trim, a plume, a glowing aura.
+// Which crew member a card becomes comes from the card itself, so it is the
+// same every duel; two cards with the same build still differ in camo, skin,
+// hair colour and accent. Rarity adds wear-and-gear: armour plates, red
+// armbands, a glow.
 
-export const OUTFITS = ['plate', 'scale', 'leather', 'robe', 'fur', 'lamellar']
-export const OUTFIT_NAMES = { plate: 'Knight plate', scale: 'Scale mail', leather: 'Ranger leathers', robe: 'Battle robes', fur: 'Barbarian furs', lamellar: 'Banded lamellar' }
-const COLORS = [
-  ['#7d1a1a', '#d2453a'], ['#1b3a80', '#4a7ad6'], ['#1a6034', '#4fbf6a'], ['#46207a', '#9a5ad6'], ['#7a5512', '#e0b84a'],
-  ['#1b1b22', '#55556a'], ['#0d5f60', '#3fc4c0'], ['#a9a397', '#f0ece2'], ['#9a4614', '#f08a3a'], ['#58243a', '#b8587e'],
+export const CREW = [
+  { id: 'frontline', name: 'Frontline', role: 'Heavy Assault', weapon: 'stopsign', top: 'jacket', camo: 'desert', hair: 'locs', knee: true },
+  { id: 'junker', name: 'Junker', role: 'Scavenger', weapon: 'wheel', top: 'vest', camo: 'dark', hair: 'twists', goggles: true, phones: true },
+  { id: 'outcast', name: 'Outcast', role: 'Rogue', weapon: 'chain', top: 'poncho', camo: 'black', hair: 'afro', scarf: true },
+  { id: 'breacher', name: 'Breacher', role: 'Demolition', weapon: 'bat', top: 'hoodie', camo: 'redblack', hair: 'hood', mask: true },
+  { id: 'hazard', name: 'Hazard', role: 'Chem Ops', weapon: 'extinguisher', top: 'vest', camo: 'woodland', hair: 'locs', goggles: true, scarf: true },
+  { id: 'lantern', name: 'Lantern', role: 'Scout', weapon: 'lantern', top: 'tank', camo: 'dark', hair: 'braids' },
+  { id: 'noise', name: 'Noise', role: 'Disruptor', weapon: 'speaker', top: 'jacket', camo: 'redblack', hair: 'locs', goggles: true, scarf: true },
+  { id: 'veil', name: 'Veil', role: 'Tactical', weapon: 'umbrella', top: 'crop', camo: 'black', hair: 'braids' },
+  { id: 'spotter', name: 'Spotter', role: 'Intel', weapon: 'floodlight', top: 'hoodie', camo: 'woodland', hair: 'locs', glasses: true },
+  { id: 'wrecker', name: 'Wrecker', role: 'Heavy', weapon: 'sledge', top: 'coat', camo: 'desert', hair: 'hood', goggles: true, glasses: true },
 ]
-const METALS = ['#aab4c2', '#6b7280', '#b27b3b', '#8c96a6']
-const GOLD = '#d9b65c'
-const SKIN = [['#f3cfaa', '#c99a72'], ['#e2ae80', '#b47e55'], ['#c68a5c', '#94603a'], ['#9a6440', '#6b4026'], ['#6f4529', '#472915']]
-const HAIR = ['#24180f', '#5b3a1d', '#a8742e', '#d8c07a', '#16161d', '#7f2716', '#c9ccd4']
-const GLOW = { ember: '#ff8a4a', gale: '#b6ff6a', tide: '#6fd6ff' }
-const HELMS = {
-  plate: ['great', 'sallet', 'crest'], scale: ['nasal', 'horned', 'crest', 'bare'], leather: ['hood', 'feather', 'band', 'bare'],
-  robe: ['wizard', 'hood', 'circlet'], fur: ['horned', 'bare', 'band'], lamellar: ['flared', 'nasal', 'crest'],
-}
-const ARMS = {
-  plate: ['sword', 'greatsword', 'mace', 'hammer', 'spear'], scale: ['sword', 'axe', 'spear', 'sabre'], leather: ['bow', 'daggers', 'sabre', 'spear'],
-  robe: ['staff', 'flame', 'scythe'], fur: ['axe', 'hammer', 'mace', 'greatsword'], lamellar: ['sabre', 'spear', 'bow', 'sword'],
-}
-const ONE_HANDED = new Set(['sword', 'axe', 'mace', 'hammer', 'sabre'])
-export const WEAPON_NAMES = { sword: 'Longsword', greatsword: 'Greatsword', sabre: 'Sabre', axe: 'Battle axe', spear: 'Spear', hammer: 'War hammer', mace: 'Flanged mace', bow: 'Longbow', staff: 'Hex staff', flame: 'Fire staff', scythe: 'Scythe', banner: 'War banner', daggers: 'Twin daggers' }
+export const OUTFIT_NAMES = Object.fromEntries(CREW.map((c) => [c.id, `${c.name} · ${c.role}`]))
+export const WEAPON_NAMES = { stopsign: 'Stop sign', wheel: 'Wheel rim', chain: 'Chain & lock', bat: 'Spiked bat', extinguisher: 'Fire extinguisher', lantern: 'Lantern chain', speaker: 'Speaker', umbrella: 'Spiked umbrella', floodlight: 'Floodlight', sledge: 'Sledgehammer' }
 // how each weapon fights: run in and slash, thrust, smash overhead, or stay
-// back and cast (staffs) or shoot (bows)
-export const STYLE = { sword: 'slash', sabre: 'slash', axe: 'slash', scythe: 'slash', daggers: 'slash', spear: 'thrust', hammer: 'smash', mace: 'smash', greatsword: 'smash', banner: 'smash', staff: 'cast', flame: 'cast', bow: 'cast' }
+// back and use it from range (spray, fire, sound, light)
+export const STYLE = { stopsign: 'smash', wheel: 'smash', chain: 'slash', bat: 'slash', extinguisher: 'cast', lantern: 'cast', speaker: 'cast', umbrella: 'thrust', floodlight: 'cast', sledge: 'smash' }
+const CAMOS = ['desert', 'woodland', 'dark', 'black', 'redblack']
+const SKIN = [['#2e1c12', '#1c100a'], ['#3c2416', '#26160c'], ['#4c2e1c', '#301c10'], ['#5e3a24', '#3c2416'], ['#74482c', '#4a2c18']]
+const HAIR = ['#0a0706', '#120c08', '#18100a', '#1e140c', '#2a1a10']
+const ACCENT = ['#8e1c1c', '#b0281e', '#c8b48a', '#6a6a3a', '#3a3a3a', '#9a4a1a']
+const GLOW = { ember: '#ff8a4a', gale: '#b6ff6a', tide: '#6fd6ff' }
 
 function hash(t) { let h = 2166136261; for (const c of String(t)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0 }
 const keyOf = (u) => (u.ref ? `${u.ref.kind}:${u.ref.id}` : String(u.id))
 
-// The look of one card's fighter. Everything but the quality comes from the
-// card's id, so it never changes between duels.
+// The look of one card's fighter. Everything but the rarity extras comes from
+// the card's id, so it never changes between duels.
 export function loadoutOf(u, tier = 0, force = null) {
   const k = keyOf(u)
   const r = (n, salt) => hash(k + ':' + salt) % n
-  const outfit = force?.outfit || OUTFITS[r(OUTFITS.length, 'outfit')]
-  const c1 = force?.c1 != null ? COLORS[force.c1 % COLORS.length] : COLORS[r(COLORS.length, 'c1')]
-  let c2 = force?.c2 != null ? COLORS[force.c2 % COLORS.length] : COLORS[r(COLORS.length, 'c2')]
-  if (c2 === c1) c2 = COLORS[(COLORS.indexOf(c1) + 3) % COLORS.length]
-  const weapon = ARMS[outfit][r(ARMS[outfit].length, 'weapon')]
-  const shield = ONE_HANDED.has(weapon) && outfit !== 'robe' && r(3, 'shield') !== 0 ? ['heater', 'round', 'kite'][r(3, 'shape')] : null
+  const crew = CREW.find((c) => c.id === force?.crew) || CREW[r(CREW.length, 'crew')]
   return {
-    outfit, weapon, shield, c1, c2,
-    helm: HELMS[outfit][r(HELMS[outfit].length, 'helm')],
-    metal: tier >= 4 && r(2, 'gold') ? GOLD : METALS[r(METALS.length, 'metal')],
-    cape: tier >= 3 || r(3, 'cape') !== 0,
-    beard: r(4, 'beard') === 0,
-    paint: outfit === 'fur' && r(2, 'paint') === 0,
-    sigil: r(6, 'sigil'),
-    skin: SKIN[r(SKIN.length, 'skin')], hair: HAIR[r(HAIR.length, 'hair')], hairStyle: r(3, 'hairstyle'),
+    ...crew, crew: crew.id, outfit: crew.id,
+    camo: force?.camo || (r(3, 'camo') ? crew.camo : CAMOS[r(CAMOS.length, 'camo2')]),
+    accent: ACCENT[r(ACCENT.length, 'accent')],
+    skin: SKIN[r(SKIN.length, 'skin')], hairC: HAIR[r(HAIR.length, 'hair')],
     tempo: 2.2 + (r(9, 'tempo') / 10),
   }
 }
 export function weaponFor(u) { return loadoutOf(u).weapon }
 
-// The Arena's contestants are fighters too. Their outfits and colours are
-// dealt from a shuffled order rather than by chance, so the line-up looks
-// deliberately mixed: neighbours never share an outfit and every look
-// appears twice at most. Stronger rivals wear finer gear.
-const CONTESTANT_OUTFITS = [3, 0, 4, 2, 5, 1, 4, 0, 2, 5, 3, 1]
+// The Arena's contestants are crew members too, dealt in a shuffled order so
+// neighbours never match. Their portraits are the creator's own artwork.
+const CONTESTANT_CREW = [3, 0, 7, 5, 9, 1, 6, 2, 8, 4, 0, 7]
 export function contestantLook(id) {
   const i = RIVALS.findIndex((r) => r.id === id)
-  const level = RIVALS[i]?.level ?? 1
   const unit = { id, ref: { kind: 'rival', id }, element: ELEMENTS[hash(id) % ELEMENTS.length].id, atk: 5, hp: 5, abilities: [] }
-  if (id === 'trainer-pip') return { unit, tier: 1, look: { outfit: 'leather', c1: 2, c2: 4 } }
+  if (id === 'trainer-pip') return { unit, tier: 1, crew: 'lantern', look: { crew: 'lantern' } }
   if (i < 0) return null
-  return { unit, tier: Math.min(5, Math.floor(level / 10)), look: { outfit: OUTFITS[CONTESTANT_OUTFITS[i % CONTESTANT_OUTFITS.length]], c1: (i * 7 + 3) % 10, c2: (i * 3 + 6) % 10 } }
+  const crew = CREW[CONTESTANT_CREW[i % CONTESTANT_CREW.length]].id
+  return { unit, tier: Math.min(5, Math.floor((RIVALS[i].level || 1) / 10)), crew, look: { crew } }
 }
 
 const S = (v) => ({ fill: `var(--${v})` })
 const Shade = ({ d, g = 'cyl' }) => <path d={d} fill={`url(#fd-${g})`} />
+// cloth: a camo pattern, grime on top, then cylinder shading
+const Cloth = ({ d, camo, g = 'cyl' }) => <><path d={d} fill={`url(#camo-${camo})`} /><path d={d} fill="url(#fd-grime)" /><Shade d={d} g={g} /></>
 
-// Shared shading, mounted once per screen. Every part is painted in its own
-// flat colour and then shaded with these, so one set of gradients serves every
-// fighter whatever its palette.
+// Shared patterns and shading, mounted once per screen.
 export function FighterDefs() {
+  const camo = (id, base, a, b, c) => (
+    <pattern id={`camo-${id}`} width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(18)">
+      <rect width="16" height="16" fill={base} />
+      <path d="M1 2 Q5 0 7 3 Q8 6 4 7 Q0 6 1 2 Z M10 9 Q14 7 15 11 Q14 15 10 14 Q8 12 10 9 Z" fill={a} />
+      <path d="M8 1 Q11 0 12 3 Q10 5 8 4 Z M2 10 Q5 9 6 12 Q4 15 1 13 Z" fill={b} />
+      <path d="M12 4 Q15 4 15 6 Q13 8 12 6 Z M5 13 Q7 12 8 14 Q6 16 5 15 Z" fill={c} />
+    </pattern>
+  )
   return (
     <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
       <defs>
+        {camo('desert', '#8a7a5c', '#5e4c34', '#b4a27e', '#2e261c')}
+        {camo('woodland', '#4e4a32', '#2e2a1c', '#6e5a3a', '#1a1a14')}
+        {camo('dark', '#2a2a2c', '#1a1a1c', '#44403a', '#5a5248')}
+        {camo('black', '#1c1a1a', '#2c2826', '#121010', '#3a342e')}
+        {camo('redblack', '#241818', '#6e1a1a', '#121010', '#4a3a36')}
+        <pattern id="fd-grime" width="9" height="11" patternUnits="userSpaceOnUse">
+          <circle cx="2" cy="3" r=".6" fill="#000" opacity=".35" /><circle cx="6" cy="8" r=".8" fill="#c8b48a" opacity=".18" /><circle cx="7" cy="2" r=".4" fill="#000" opacity=".3" />
+        </pattern>
         <linearGradient id="fd-cyl" x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor="#000" stopOpacity=".5" /><stop offset=".28" stopColor="#fff" stopOpacity=".28" />
-          <stop offset=".5" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".55" />
+          <stop offset="0" stopColor="#000" stopOpacity=".55" /><stop offset=".3" stopColor="#fff" stopOpacity=".2" />
+          <stop offset=".5" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".6" />
         </linearGradient>
         <linearGradient id="fd-vert" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#fff" stopOpacity=".32" /><stop offset=".45" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".5" />
+          <stop offset="0" stopColor="#fff" stopOpacity=".25" /><stop offset=".45" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".55" />
         </linearGradient>
         <linearGradient id="fd-metal" x1="0" x2="1" y1="0" y2=".35">
-          <stop offset="0" stopColor="#fff" stopOpacity=".55" /><stop offset=".22" stopColor="#fff" stopOpacity="0" /><stop offset=".48" stopColor="#000" stopOpacity=".35" />
-          <stop offset=".6" stopColor="#fff" stopOpacity=".7" /><stop offset=".72" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".45" />
-        </linearGradient>
-        <linearGradient id="fd-blade" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#ffffff" /><stop offset=".45" stopColor="#c9d3e0" /><stop offset=".55" stopColor="#7d8a9c" /><stop offset="1" stopColor="#dfe7f1" />
+          <stop offset="0" stopColor="#fff" stopOpacity=".5" /><stop offset=".22" stopColor="#fff" stopOpacity="0" /><stop offset=".48" stopColor="#000" stopOpacity=".35" />
+          <stop offset=".6" stopColor="#fff" stopOpacity=".6" /><stop offset=".72" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".45" />
         </linearGradient>
         <linearGradient id="fd-wood" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#9a6435" /><stop offset=".5" stopColor="#6e4222" /><stop offset="1" stopColor="#4a2a14" />
+          <stop offset="0" stopColor="#c09060" /><stop offset=".5" stopColor="#8a6038" /><stop offset="1" stopColor="#5a3a1e" />
+        </linearGradient>
+        <linearGradient id="fd-steel" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="#c8ccd0" /><stop offset=".5" stopColor="#7a7e84" /><stop offset="1" stopColor="#3a3c40" />
+        </linearGradient>
+        <linearGradient id="fd-red" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="#e04a3a" /><stop offset=".5" stopColor="#a8221a" /><stop offset="1" stopColor="#5a0e0a" />
         </linearGradient>
         <radialGradient id="fd-skin" cx=".7" cy=".35" r=".8">
-          <stop offset="0" stopColor="#fff" stopOpacity=".25" /><stop offset=".6" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".35" />
+          <stop offset="0" stopColor="#fff" stopOpacity=".12" /><stop offset=".6" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".35" />
         </radialGradient>
-        <radialGradient id="fd-orb" cx=".35" cy=".35" r=".7">
-          <stop offset="0" stopColor="#fff" /><stop offset=".35" stopColor="var(--glow)" /><stop offset="1" stopColor="#000" stopOpacity=".6" />
+        <radialGradient id="fd-lamp" cx=".5" cy=".5" r=".5">
+          <stop offset="0" stopColor="#fff8d0" /><stop offset=".4" stopColor="#ffc860" /><stop offset="1" stopColor="#ff8a20" stopOpacity="0" />
         </radialGradient>
       </defs>
     </svg>
@@ -123,158 +132,139 @@ export function FighterDefs() {
 
 // ── parts. Each is drawn in its own little box, pivot at the joint. ──
 
-const SIGILS = [
-  'M0 -6 L1.8 -1.8 L6 -1.6 L2.7 1.2 L3.8 5.6 L0 3.1 L-3.8 5.6 L-2.7 1.2 L-6 -1.6 L-1.8 -1.8 Z', // star
-  'M-6 -2 L0 4 L6 -2 L6 1.6 L0 7.6 L-6 1.6 Z M-6 -7 L0 -1 L6 -7 L6 -3.4 L0 2.6 L-6 -3.4 Z', // chevrons
-  'M-1.6 -7 H1.6 V-1.6 H7 V1.6 H1.6 V7 H-1.6 V1.6 H-7 V-1.6 H-1.6 Z', // cross
-  'M0 -3.4 A3.4 3.4 0 1 1 0 3.4 A3.4 3.4 0 1 1 0 -3.4 Z M0 -7.5 L1 -4.6 L-1 -4.6 Z M0 7.5 L1 4.6 L-1 4.6 Z M-7.5 0 L-4.6 1 L-4.6 -1 Z M7.5 0 L4.6 1 L4.6 -1 Z', // sun
-  'M2 -6.5 A6.6 6.6 0 1 0 2 6.5 A5 5 0 1 1 2 -6.5 Z', // crescent
-  'M0 -7 L5.4 0 L0 7 L-5.4 0 Z', // diamond
-]
-
-function Thigh({ L, tier }) {
-  const d = 'M2 3 Q8 -1 15 3 L13 32 Q8.5 35 4 32 Z'
-  const tasset = L.outfit === 'plate' || L.outfit === 'scale' || L.outfit === 'lamellar' || tier >= 3
+function Thigh({ L }) {
+  const d = 'M1.5 3 Q8.5 -1.5 15.5 3 L14 32 Q8.5 35.5 3.5 32 Z'
   return (
     <svg className="fp" style={{ left: -8, top: -5 }} width="17" height="36" viewBox="0 0 17 36">
-      <path d={d} style={S(L.outfit === 'plate' ? 'metal' : L.outfit === 'leather' || L.outfit === 'fur' ? 'leatherD' : 'pants')} /><Shade d={d} g={L.outfit === 'plate' ? 'metal' : 'cyl'} />
-      {L.outfit === 'plate' && <path d="M3 18 Q8.5 15.5 14 18 L13.6 22 Q8.5 20 3.4 22 Z" style={S('metal')} stroke="#0007" strokeWidth=".6" />}
-      {tasset && L.outfit !== 'plate' && <><path d="M1.5 2 Q8.5 -2 15.5 2 L15 13 Q8.5 16 2 13 Z" style={S(L.outfit === 'lamellar' ? 'c1' : 'metal')} stroke="#0006" strokeWidth=".6" /><Shade d="M1.5 2 Q8.5 -2 15.5 2 L15 13 Q8.5 16 2 13 Z" g="metal" />{L.outfit === 'lamellar' && <path d="M2 6 H15 M2 9.5 H15" stroke="var(--metal)" strokeWidth="1" />}</>}
-      {L.outfit === 'fur' && <path d="M2 6 L15 9 M2.4 14 L14.4 17 M3 22 L14 25" stroke="#2a1a0c" strokeWidth="1.2" />}
+      <Cloth d={d} camo={L.camo} />
+      {/* cargo pocket */}
+      <path d="M10 14 L15 14.4 L14.6 23 L10 22.6 Z" fill={`url(#camo-${L.camo})`} stroke="#0008" strokeWidth=".6" />
+      <path d="M10 14 L15 14.4 L15 16 L10 15.6 Z" fill="#0006" />
+      <path d="M2 9 L15 10.4" stroke="#1a1410" strokeWidth="1.4" />
     </svg>
   )
 }
 function Shin({ L }) {
-  const shin = 'M3 1 L14 1 L13 22 L4 22 Z'
-  const boot = 'M2.5 19 L14 19 L14.5 26 Q23 27 24 31 L24 33 L2 33 Z'
-  const greave = L.outfit === 'plate' || L.outfit === 'scale'
+  const shin = 'M2.5 1 L14.5 1 L13.5 22 L3.5 22 Z'
+  const boot = 'M2 14 L14.4 14 L14.6 25 Q23.6 26 24.6 30.4 L24.6 33 L1.6 33 Z'
   return (
     <svg className="fp" style={{ left: -8, top: -3 }} width="26" height="36" viewBox="0 0 26 36">
-      <path d={shin} style={S(L.outfit === 'leather' ? 'leather' : 'pants')} /><Shade d={shin} />
-      {greave && <><path d="M2.5 2 Q8 0 14.5 2 L13.5 20 L3.5 20 Z" style={S('metal')} stroke="#0006" strokeWidth=".6" /><Shade d="M2.5 2 Q8 0 14.5 2 L13.5 20 L3.5 20 Z" g="metal" /></>}
-      {L.outfit === 'leather' && <path d="M2.6 4 Q8 2.6 14.4 4 L14 10 Q8 8.6 2.8 10 Z" style={S('leatherD')} />}
-      {L.outfit === 'fur' && <><path d="M1.5 6 Q8 2 15.5 6 L15 20 L2 20 Z" fill="#7a5a36" /><path d="M2 8 L15 11 M2 13 L15 16 M2 18 L15 20" stroke="#3a2410" strokeWidth="1" /><path d="M1.5 6 Q4 3 6 6 Q8 3 10 6 Q12 3 15.5 6" fill="none" stroke="#cdb894" strokeWidth="1.4" /></>}
-      <path d={boot} style={S(L.outfit === 'plate' ? 'metal' : 'boot')} /><Shade d={boot} g={L.outfit === 'plate' ? 'metal' : 'vert'} />
-      <path d="M2 31.5 L24 31.5 L24 34 L2 34 Z" fill="#120a06" />
-      <path d="M3 20.5 L14 20.5" stroke="var(--trim)" strokeWidth="1.2" opacity=".8" />
+      <Cloth d={shin} camo={L.camo} />
+      {L.knee && <><path d="M1.4 -1 Q8.5 -3.6 15.6 -1 L15 6 Q8.5 8 2 6 Z" fill="#26241f" stroke="#000" strokeWidth=".5" /><Shade d="M1.4 -1 Q8.5 -3.6 15.6 -1 L15 6 Q8.5 8 2 6 Z" g="metal" /></>}
+      {/* tall black combat boots, laced, thick sole */}
+      <path d={boot} fill="#151312" /><Shade d={boot} g="vert" />
+      <path d="M5 16 L12 17 M5 19 L12 20 M5 22 L12 23 M6 25 L13 26" stroke="#5a5650" strokeWidth=".7" />
+      <path d="M1.4 30.6 L24.8 30.6 L24.8 34.4 L1.4 34.4 Z" fill="#050505" />
+      <path d="M2 14 L14.4 14" stroke="#3a3632" strokeWidth="1.4" />
     </svg>
   )
 }
 function Torso({ L, tier }) {
-  const plate = 'M8 7 Q17 2 25 6 Q32 11 31 22 Q30 31 27 38 L8 38 Q4 26 5 16 Q5.5 9 8 7 Z'
-  const skirtLen = L.outfit === 'robe' ? 82 : 54
-  const skirt = `M7 37 L28 37 L${L.outfit === 'robe' ? 33 : 31} ${skirtLen} Q18 ${skirtLen + 2} ${L.outfit === 'robe' ? 2 : 4} ${skirtLen} Z`
-  const body = { plate: 'metal', scale: 'c1', leather: 'leather', robe: 'c1', fur: 'skin', lamellar: 'c1' }[L.outfit]
+  const chest = 'M8 7 Q17 2 25 6 Q32 11 31 22 Q30 31 27 38 L8 38 Q4 26 5 16 Q5.5 9 8 7 Z'
+  const long = L.top === 'coat' || L.top === 'poncho'
+  const H = long ? 86 : 56
+  const hem = long ? 'M4 30 L31 30 L34 80 L30 76 L27 84 L23 77 L19 85 L15 77 L11 84 L7 76 L2 81 Z' : null
   return (
-    <svg className="fp" style={{ left: -18, top: -48 }} width="36" height={skirtLen + 4} viewBox={`0 0 36 ${skirtLen + 4}`}>
-      {/* skirt: tassets, robe, fur kilt or tunic */}
-      <path d={skirt} style={S(L.outfit === 'plate' ? 'metal' : L.outfit === 'fur' ? 'furD' : L.outfit === 'leather' ? 'c1' : 'c1')} /><Shade d={skirt} g={L.outfit === 'plate' ? 'metal' : 'cyl'} />
-      {L.outfit === 'plate' && <path d="M7 42 L29 42 M6 47 L30 47" stroke="#0006" strokeWidth=".8" />}
-      {L.outfit !== 'plate' && <path d={`M12 39 L11 ${skirtLen} M18 39 L18 ${skirtLen + 1} M24 39 L25 ${skirtLen}`} stroke="#0005" strokeWidth=".8" />}
-      {L.outfit === 'robe' && <path d={`M22 37 L25 ${skirtLen}`} stroke="var(--c2)" strokeWidth="2.4" />}
-      {/* body */}
-      <path d={plate} style={S(body)} /><Shade d={plate} g={L.outfit === 'plate' ? 'metal' : L.outfit === 'fur' ? 'cyl' : 'cyl'} />
-      {L.outfit === 'plate' && <><path d="M24 6 Q31 13 28 33" stroke="#fff" strokeOpacity=".55" strokeWidth="1.2" fill="none" /><path d="M8 28 H28 M8 32 H27.5" stroke="#0007" strokeWidth=".9" /></>}
-      {L.outfit === 'plate' && tier >= 1 && <><path d="M14 9 L26 8 Q30 16 27 30 L15 30 Z" style={S('c1')} opacity=".95" /><Shade d="M14 9 L26 8 Q30 16 27 30 L15 30 Z" /><path transform="translate(21 18) scale(.62)" d={SIGILS[L.sigil]} style={S('trim')} /></>}
-      {L.outfit === 'scale' && Array.from({ length: 6 }, (_, row) => <path key={row} d={Array.from({ length: 6 }, (_, k) => `M${7 + k * 4 + (row % 2) * 2} ${10 + row * 4.4} q2 3 4 0`).join(' ')} fill="none" stroke="var(--metal)" strokeWidth="1.1" />)}
-      {L.outfit === 'leather' && <><path d="M9 9 L28 32" stroke="var(--leatherD)" strokeWidth="3" /><rect x="16.5" y="18" width="4" height="4" rx=".6" style={S('trim')} /><path d={plate} fill="none" stroke="#e8d2a8" strokeOpacity=".5" strokeWidth=".6" strokeDasharray="1.2 1.4" /><path d="M8 7 Q17 2 25 6 L23 10 Q16 7 9 11 Z" style={S('c1')} /></>}
-      {L.outfit === 'robe' && <><path d="M23 6 Q28 18 26 37" stroke="var(--c2)" strokeWidth="2.2" fill="none" /><path d="M8 7 Q17 2 25 6 L24 11 Q16 8 9 12 Z" style={S('c2')} /></>}
-      {L.outfit === 'fur' && <><path d="M9 10 L27 34 M26 9 L11 34" stroke="var(--leatherD)" strokeWidth="2.2" /><circle cx="18.5" cy="21.5" r="2.2" style={S('metal')} /><path d="M27 18 Q24 22 27 26" stroke="#0004" fill="none" /></>}
-      {L.outfit === 'lamellar' && [10, 15, 20, 25, 30].map((y) => <g key={y}><path d={`M6 ${y} H30.5`} stroke="var(--metal)" strokeWidth="2.6" /><path d={`M8 ${y} H30`} stroke="var(--c2)" strokeWidth=".7" strokeDasharray=".8 2.6" /></g>)}
-      {/* fur mantle over the shoulders */}
-      {L.outfit === 'fur' && <path d="M5 13 Q4 4 12 3 Q20 1 27 5 Q31 8 30 13 Q27 10 25 13 Q22 9 19 12 Q16 8 13 12 Q10 9 8 13 Q6 10 5 13 Z" style={S('fur')} />}
-      {tier >= 3 && L.outfit !== 'fur' && <path d={plate} fill="none" style={{ stroke: 'var(--trim)' }} strokeWidth="1.1" />}
-      {/* belt */}
-      <path d="M7 34 L29 34 L29 39 L7 39 Z" fill="#2a1a10" />
-      <rect x="21" y="33.5" width="5" height="6" rx="1" style={S('trim')} />
-      {L.outfit === 'leather' && <rect x="9" y="38" width="5" height="6" rx="1" style={S('leatherD')} />}
+    <svg className="fp" style={{ left: -18, top: -48 }} width="36" height={H} viewBox={`0 0 36 ${H}`}>
+      {/* a long coat or poncho hangs to the knees, ragged at the hem */}
+      {hem && <Cloth d={hem} camo={L.top === 'poncho' ? 'black' : L.camo} />}
+      {hem && L.top === 'poncho' && <path d="M8 40 Q10 60 8 78 M22 40 Q24 62 23 80" stroke="#8a7a5c" strokeOpacity=".35" strokeWidth="2.4" fill="none" />}
+      {/* the layer under everything: black tee or bare skin */}
+      <path d={chest} fill={L.top === 'crop' || L.top === 'tank' ? '#141414' : '#1a1a1a'} />
+      {L.top === 'crop' && <><path d="M7 25 L29 25 L28 37 L8 37 Z" style={S('skin')} /><path d="M7 25 L29 25 L28 37 L8 37 Z" fill="url(#fd-skin)" /><path d="M8 8 Q17 3 26 7 L29 25 L7 25 Z" fill="#c8b8a0" /><Shade d="M8 8 Q17 3 26 7 L29 25 L7 25 Z" /></>}
+      {L.top === 'tank' && <><path d="M9 6 L15 5 L14 10 Z M23 5 L28 8 L26 12 Z" style={S('skin')} /><path d="M10 10 L27 33 M27 10 L10 33" stroke="#2a2420" strokeWidth="2" /><circle cx="18.5" cy="21.5" r="1.8" fill="#6a6660" /></>}
+      {(L.top === 'jacket' || L.top === 'hoodie' || L.top === 'coat' || L.top === 'poncho') && <Cloth d={chest} camo={L.top === 'hoodie' ? (L.camo === 'redblack' ? 'redblack' : 'dark') : L.top === 'poncho' ? 'black' : L.camo} />}
+      {L.top === 'hoodie' && <><path d="M14 24 L28 24 L27 32 L15 32 Z" fill="#0006" /><path d="M6 6 Q4 14 7 20" stroke="#000" strokeOpacity=".4" strokeWidth="2" fill="none" /></>}
+      {L.top === 'jacket' && <><path d="M23 6 L27 34" stroke="#0008" strokeWidth="1" /><rect x="17" y="12" width="7" height="6" rx="1" fill={`url(#camo-${L.camo})`} stroke="#000a" strokeWidth=".6" /><path d="M17 12 H24 V14 H17 Z" fill="#0006" /></>}
+      {/* tactical vest with pouches */}
+      {(L.top === 'vest' || L.top === 'jacket' || tier >= 2) && L.top !== 'crop' && L.top !== 'poncho' && <>
+        <path d="M9 9 Q17 6 26 9 L29 33 L9 33 Q7 20 9 9 Z" fill="#23211d" opacity=".95" /><Shade d="M9 9 Q17 6 26 9 L29 33 L9 33 Q7 20 9 9 Z" />
+        <rect x="18" y="20" width="5" height="7" rx="1" fill="#33302a" stroke="#000" strokeWidth=".5" /><rect x="24" y="20" width="4.6" height="7" rx="1" fill="#33302a" stroke="#000" strokeWidth=".5" />
+        <rect x="11" y="13" width="6" height="5" rx="1" fill="#33302a" stroke="#000" strokeWidth=".5" />
+        <path d="M18 20 H23 M24 20 H28.6" stroke="#5a564e" strokeWidth=".8" />
+      </>}
+      {/* chains and straps across the chest for the rough builds */}
+      {(L.crew === 'outcast' || L.crew === 'lantern' || L.crew === 'noise') && <path d="M9 9 Q17 22 28 31" stroke="#8a8a8a" strokeWidth="1.2" strokeDasharray="1.4 1" fill="none" />}
+      {/* accent armband / patches at higher rarity */}
+      {tier >= 3 && <path d="M8 26 L29 25 L29 28 L8 29 Z" style={{ fill: 'var(--accent)' }} opacity=".9" />}
+      {/* belt with buckle and pouches */}
+      <path d="M6.6 34 L29.4 34 L29.4 39 L6.6 39 Z" fill="#141210" />
+      <rect x="20" y="33.6" width="4.6" height="5.8" rx=".8" fill="#9a968e" />
+      <rect x="8" y="37" width="6" height="7" rx="1" fill="#2e2a24" stroke="#000" strokeWidth=".5" />
+      {!long && <path d="M7 38 L29 38 L30 46 L6 46 Z" fill={`url(#camo-${L.camo})`} />}
     </svg>
   )
 }
-function Head({ L, tier }) {
-  const helm = L.helm
-  const hairShown = !['great', 'sallet', 'hood', 'wizard'].includes(helm)
+function Head({ L }) {
   const face = 'M14.5 2 Q25 2 25.5 11 L28 16.5 Q28.3 17.6 26.5 18 L25.8 18.2 Q26 21 24 23.5 Q20 26.5 14.5 25.5 Q8 24 5.6 17 Q3.6 9 8 4.6 Q10.8 2 14.5 2 Z'
+  const hood = L.hair === 'hood'
   return (
     <svg className="fp" style={{ left: -15, top: -45 }} width="34" height="50" viewBox="-2 -14 34 50">
-      {L.hairStyle === 2 && hairShown && <path d="M5 9 Q2 22 6 31 L12 28 Q9 20 11 12 Z" style={S('hair')} />}
-      {helm === 'hood' && <path d="M2 18 Q-1 2 14 -1 Q27 -1 27.4 9 L26 26 L10 33 Q3 28 2 18 Z" style={S('c1')} />}
-      <path d="M10 22 L18 22 L19 33 L9 33 Z" style={S('skin')} /><path d="M10 22 L18 22 L19 33 L9 33 Z" fill="#000" opacity=".22" />
+      {/* hair that falls behind: braids and long locs */}
+      {L.hair === 'braids' && <g stroke="var(--hairC)" strokeWidth="2.2" strokeLinecap="round" fill="none"><path d="M7 8 Q2 20 4 34" /><path d="M9 8 Q5 22 7 35" /><path d="M11 8 Q8 22 10 33" /></g>}
+      {hood && <path d="M1.6 19 Q-1.6 1 14 -2 Q27.6 -2 28 10 L26 27 L9 34 Q2 29 1.6 19 Z" fill={`url(#camo-${L.crew === 'breacher' ? 'black' : L.camo})`} />}
+      {hood && <Shade d="M1.6 19 Q-1.6 1 14 -2 Q27.6 -2 28 10 L26 27 L9 34 Q2 29 1.6 19 Z" />}
+      {/* neck, face in profile */}
+      <path d="M10 22 L18 22 L19 33 L9 33 Z" style={S('skin')} /><path d="M10 22 L18 22 L19 33 L9 33 Z" fill="#000" opacity=".25" />
       <path d={face} style={S('skin')} /><path d={face} fill="url(#fd-skin)" />
       <path d="M11.6 11 Q9 11 9.2 14.5 Q9.4 17.5 12 17.6 Q12.8 14 11.6 11 Z" style={S('skinD')} />
-      <path d="M20.2 11.2 Q22.6 10.2 24.4 11.6 Q22.5 13 20.2 11.2 Z" fill="#f4f1ea" />
-      <circle cx="22.7" cy="11.6" r="1" fill="#1b1410" />
-      <path d="M19.6 9.4 Q22.4 8 25.2 9.6" stroke="var(--hair)" strokeWidth="1.3" fill="none" strokeLinecap="round" />
-      <path d="M22.6 20.6 Q24.4 20.9 25.4 20.2" stroke="#6b3a28" strokeWidth=".8" fill="none" strokeLinecap="round" />
-      {L.paint && <path d="M17 9 L27 12.6 L26.6 14.4 L17 11.6 Z" style={S('c2')} opacity=".9" />}
-      {L.beard && <path d="M13 19 Q14 27 20 27.6 Q25 26.6 25.8 21 Q24 23.6 21 23 Q17 22.6 15 19 Z" style={S('hair')} />}
-      {hairShown && (L.hairStyle === 1
-        ? <path d="M6 13 Q3 3 13 1.2 Q22 0.4 25.5 7 Q22 4.6 18.5 6.4 Q16 4.8 14 7.2 Q12 9 11.4 12.6 Q8 13 6 13 Z" style={S('hair')} />
-        : <path d="M5.4 15 Q3.4 4 13 1.4 Q21.5 0 25.2 6.8 Q20 5.4 16.5 7 Q13 8.6 12 12.4 Q8 12.4 7.4 16 Z" style={S('hair')} />)}
-      {helm === 'band' && <path d="M5 9.4 Q15 4.6 25.4 7.4 L25.4 9.6 Q15 7 5.4 11.8 Z" style={S('c2')} />}
-      {helm === 'circlet' && <><path d="M5 9 Q15 5 25.4 7.2" stroke={GOLD} strokeWidth="1.4" fill="none" /><circle cx="24.4" cy="7.4" r="1.4" style={S('glow')} /></>}
-      {helm === 'feather' && <><path d="M4 11 Q4 0 15 -0.6 Q25 0 26.6 7.6 L4 11 Z" style={S('c1')} /><path d="M2 10.6 L28 7" stroke="var(--c2)" strokeWidth="1.6" /><path d="M6 4 Q-6 -10 -1 -12 Q4 -4 8 4 Z" style={S('c2')} /></>}
-      {helm === 'hood' && <path d="M4 16 Q2 1 14 0 Q26 0 27 10 Q22 4 16 5 Q9 7 8 16 Z" style={S('c1')} />}
-      {helm === 'hood' && <Shade d="M2 18 Q-1 2 14 -1 Q27 -1 27.4 9 Q22 4 16 5 Q9 7 8 16 Z" />}
-      {helm === 'wizard' && <><path d="M1 8 Q14 2 30 6 L28 9 Q14 6 3 11 Z" style={S('c1')} /><path d="M6 7.4 Q8 -4 18 -8 Q15 -12 24 -14 Q20 -8 22 5.6 Z" style={S('c1')} /><Shade d="M6 7.4 Q8 -4 18 -8 Q15 -12 24 -14 Q20 -8 22 5.6 Z" /><path d="M5.6 6.4 Q14 3.4 22.6 5" stroke="var(--c2)" strokeWidth="1.8" fill="none" /></>}
-      {(helm === 'nasal' || helm === 'horned' || helm === 'crest' || helm === 'flared') && <>
-        <path d="M4.6 13 Q3.6 0.4 15 0.2 Q26 0.4 26 9.4 L23.4 9.6 L23.6 15.4 L22 15.6 L21.6 9.8 Q14 9 6.2 13.6 Z" style={S('metal')} />
-        <Shade d="M4.6 13 Q3.6 0.4 15 0.2 Q26 0.4 26 9.4 L23.4 9.6 L23.6 15.4 L22 15.6 L21.6 9.8 Q14 9 6.2 13.6 Z" g="metal" />
-        <path d="M5 12.6 Q14 8.4 26 9.4" style={{ stroke: 'var(--trim)' }} strokeWidth="1.1" fill="none" />
+      <path d="M20.2 11.2 Q22.6 10.2 24.4 11.6 Q22.5 13 20.2 11.2 Z" fill="#ece6dc" />
+      <circle cx="22.7" cy="11.6" r="1" fill="#120a06" />
+      <path d="M19.4 9.2 Q22.4 7.6 25.4 9.4" stroke="#120a06" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+      <path d="M22.6 20.6 Q24.4 20.9 25.4 20.2" stroke="#3a1e14" strokeWidth=".8" fill="none" strokeLinecap="round" />
+      <path d="M25.8 18.2 Q24.5 18.8 23.6 18" stroke="var(--skinD)" strokeWidth=".7" fill="none" />
+      {L.mask && <path d="M14 15 Q20 14 28.4 16 Q28.6 22 24.6 25.4 Q19 27.6 14.6 25 Z" fill="#141414" />}
+      {L.glasses && <><rect x="19" y="9.6" width="6.6" height="4.2" rx="1.4" fill="#ffffff22" stroke="#0a0a0a" strokeWidth="1" /><path d="M19 11.4 L12 11" stroke="#0a0a0a" strokeWidth=".9" /></>}
+      {/* hair */}
+      {L.hair === 'afro' && <path d="M3 13 Q-1 2 8 -2 Q15 -6 22 -2 Q28 1 26.4 8 Q22 5 17 6 Q12 7.6 11.4 13 Q7 12.6 3 13 Z" style={S('hairC')} />}
+      {L.hair === 'afro' && <path d="M3 13 Q-1 2 8 -2 Q15 -6 22 -2 Q28 1 26.4 8" fill="none" stroke="#000" strokeOpacity=".4" strokeWidth="1" strokeDasharray="1 1.4" />}
+      {(L.hair === 'locs' || L.hair === 'twists') && <>
+        <path d="M5 14 Q2 3 12 0.6 Q22 -1 25.6 6.6 Q21 4.6 16.6 6 Q12.6 8 11.6 12 Q8 12 5 14 Z" style={S('hairC')} />
+        <g stroke="var(--hairC)" strokeWidth={L.hair === 'locs' ? 1.8 : 1.4} strokeLinecap="round" fill="none">
+          {[[6, 2, 1, 14], [9, 0, 4, 12], [13, -1, 8, 9], [17, -1, 14, 7], [21, 0, 21, 6], [24, 2, 26, 7], [4, 6, 2, 17], [8, 3, 5, 18]].map(([x1, y1, x2, y2], i) => <path key={i} d={`M${x1} ${y1} Q${(x1 + x2) / 2 + 2} ${(y1 + y2) / 2} ${x2} ${y2 + (L.hair === 'locs' ? 3 : 0)}`} />)}
+        </g>
       </>}
-      {helm === 'flared' && <path d="M1 12 Q3 21 9 23 L10 15 Q6 15 4.8 11 Z" style={S('metal')} stroke="#0006" strokeWidth=".6" />}
-      {helm === 'horned' && <><path d="M8 4 Q0 2 -1 -8 Q4 -2 11 1.6 Z" fill="#efe6d2" stroke="#8a7a5a" strokeWidth=".6" /><path d="M20 1 Q25 -6 21 -12 Q29 -6 24 2.4 Z" fill="#efe6d2" stroke="#8a7a5a" strokeWidth=".6" /></>}
-      {helm === 'crest' && <path d="M6 2 Q14 -9 25 1 Q20 -2 15 -1 Q10 0 6 4 Z" style={S('c2')} />}
-      {(helm === 'great' || helm === 'sallet') && <>
-        <path d={helm === 'great' ? 'M4 16 Q3 -0.6 15 -0.6 Q27.6 0 27.6 12 L28.6 17.8 Q27 23 21.6 25.6 L9 25.6 Q4.6 22 4 16 Z' : 'M2 15 Q2 -1 15 -0.8 Q27.4 0 28 12 L29 16 L22 16.6 L21.6 13 L6 15 L5 19 Q3 19 2 15 Z'} style={S('metal')} />
-        <Shade d={helm === 'great' ? 'M4 16 Q3 -0.6 15 -0.6 Q27.6 0 27.6 12 L28.6 17.8 Q27 23 21.6 25.6 L9 25.6 Q4.6 22 4 16 Z' : 'M2 15 Q2 -1 15 -0.8 Q27.4 0 28 12 L29 16 L22 16.6 L21.6 13 L6 15 L5 19 Q3 19 2 15 Z'} g="metal" />
-        <path d="M18.4 10.6 L28 10.2 L28 12.6 L18.6 12.8 Z" fill="#06070a" />
-        {helm === 'great' && <path d="M21 16 L27.4 15.8 M21 18.4 L27 18.2 M16.4 25.6 L16.4 -0.4" stroke="#06070a" strokeWidth=".9" />}
-        <path d="M4.6 14 Q14 7.8 27.8 10" style={{ stroke: 'var(--trim)' }} strokeWidth="1.2" fill="none" />
-      </>}
-      {tier >= 4 && ['great', 'sallet', 'nasal', 'crest', 'flared'].includes(helm) && <path d="M14 0 Q10 -12 -1 -9 Q6 -7 4 -3 Q9 -5 8 1 Q11 -2 14 0 Z" style={S('c2')} />}
+      {L.hair === 'braids' && <><path d="M5 13 Q3 2 13 1 Q22 0 25.4 6.6 Q20 4.6 15 6.4 Q11 8 10.6 12.4 Q7.6 11.6 5 13 Z" style={S('hairC')} /><path d="M6 4 Q14 1 24 5 M6 7 Q12 4.6 20 5.4" stroke="#000" strokeOpacity=".45" strokeWidth=".7" fill="none" /></>}
+      {hood && <path d="M3 17 Q2 2 14 0 Q26 0 27.4 10 Q22 4 16 5 Q8 7 7.4 17 Z" fill={`url(#camo-${L.crew === 'breacher' ? 'black' : L.camo})`} />}
+      {/* goggles pushed up on the forehead */}
+      {L.goggles && <><path d="M4 7 Q14 1 27 4" stroke="#1a1a1a" strokeWidth="2" fill="none" /><ellipse cx="21" cy="3.6" rx="3.6" ry="3" fill="#2a2a2a" stroke="#6a6a6a" strokeWidth="1" /><ellipse cx="21.4" cy="3.4" rx="2.2" ry="1.8" fill="#7ab0c8" opacity=".75" /><ellipse cx="14.6" cy="3.2" rx="3" ry="2.6" fill="#2a2a2a" stroke="#5a5a5a" strokeWidth=".8" /></>}
+      {L.phones && <><path d="M8 4 Q8 -3 15 -3" stroke="#1a1a1a" strokeWidth="1.6" fill="none" /><rect x="7.6" y="22" width="6" height="7" rx="2" fill="#1a1a1a" /></>}
+      {/* a scarf wrapped thick around the neck */}
+      {L.scarf && <path d="M6 24 Q14 20 23 23.6 L24 31 Q14 34 6 30.6 Z" fill="#a8977a" />}
+      {L.scarf && <path d="M6 24 Q14 20 23 23.6 L24 31 Q14 34 6 30.6 Z M7 27 Q15 25 23.4 27.4" fill="url(#fd-grime)" stroke="#6a5a42" strokeWidth=".7" />}
     </svg>
   )
 }
-function UpperArm({ L, tier }) {
-  const arm = 'M3 5 Q8.5 1 14 5 L12.5 28 Q8.5 31 4.5 28 Z'
-  const sleeve = { plate: 'metal', scale: 'c1', leather: 'c1', robe: 'c1', fur: 'skin', lamellar: 'c1' }[L.outfit]
+function UpperArm({ L }) {
+  const arm = 'M2.6 5 Q8.5 1 14.4 5 L13 28 Q8.5 31 4 28 Z'
+  const bare = L.top === 'tank' || L.top === 'vest'
   return (
     <svg className="fp" style={{ left: -8, top: -7 }} width="17" height="32" viewBox="0 0 17 32">
-      {L.outfit === 'robe' ? <path d="M2 4 Q8.5 0 15 4 L16 28 Q8.5 32 1 28 Z" style={S('c1')} /> : <path d={arm} style={S(sleeve)} />}
-      <Shade d={arm} g={L.outfit === 'plate' ? 'metal' : 'cyl'} />
-      {L.outfit === 'fur' && <path d="M3 18 L14 20 M3.4 21 L13.6 23" stroke="var(--leatherD)" strokeWidth="1.4" />}
-      {L.outfit === 'robe' && <path d="M1 26 Q8.5 30 16 26" stroke="var(--c2)" strokeWidth="1.6" fill="none" />}
-      {L.outfit === 'fur'
-        ? <path d="M0 10 Q-1 1 8.5 0 Q17 1 17 10 Q14 7 12 10 Q10 6 8 10 Q6 6 4 10 Q2 7 0 10 Z" style={S('fur')} />
-        : L.outfit === 'lamellar'
-          ? <>{[2, 6, 10].map((y) => <path key={y} d={`M0.6 ${y} Q8.5 ${y - 3} 16.4 ${y} L16.4 ${y + 3.6} Q8.5 ${y + 0.6} 0.6 ${y + 3.6} Z`} style={S('metal')} stroke="#0007" strokeWidth=".5" />)}</>
-          : L.outfit !== 'robe' && <><path d="M0.6 9 Q0 0.6 8.5 0.4 Q16.6 0.6 16.4 9 Q12 7 8.5 7.6 Q4.6 7 0.6 9 Z" style={S(L.outfit === 'leather' ? 'leatherD' : 'metal')} /><Shade d="M0.6 9 Q0 0.6 8.5 0.4 Q16.6 0.6 16.4 9 Q12 7 8.5 7.6 Q4.6 7 0.6 9 Z" g="metal" />
-            {L.outfit === 'plate' && L.sigil % 2 === 0 && <path d="M8.5 0.6 L10 -4 L11 1" style={S('metal')} />}</>}
-      {tier >= 3 && L.outfit !== 'fur' && L.outfit !== 'robe' && <path d="M0.8 8.6 Q4.6 6.6 8.5 7.2 Q12 6.6 16.2 8.6" style={{ stroke: 'var(--trim)' }} strokeWidth="1" fill="none" />}
+      {bare ? <><path d={arm} style={S('skin')} /><Shade d={arm} /></> : <Cloth d={arm} camo={L.top === 'hoodie' || L.top === 'crop' ? 'dark' : L.top === 'poncho' ? 'black' : L.camo} />}
+      {L.crew === 'frontline' && <><path d="M0.6 9 Q0 0.6 8.5 0.4 Q16.6 0.6 16.4 9 Q12 7 8.5 7.6 Q4.6 7 0.6 9 Z" fill="#2c2a26" /><Shade d="M0.6 9 Q0 0.6 8.5 0.4 Q16.6 0.6 16.4 9 Q12 7 8.5 7.6 Q4.6 7 0.6 9 Z" g="metal" /></>}
+      {L.top === 'vest' && <path d="M1 3 Q8.5 -1 16 3 L15.6 8 Q8.5 5 1.4 8 Z" fill="#23211d" />}
+      <path d="M3 16 L14 17.4" style={{ stroke: 'var(--accent)' }} strokeWidth="2.6" opacity=".85" />
     </svg>
   )
 }
 function Forearm({ L }) {
   const d = 'M2.5 1 L12.5 1 L11 21 L4 21 Z'
-  const bracer = 'M2 6 L13 6 L11.8 21 L3.2 21 Z'
+  const sleeve = !(L.top === 'tank' || L.top === 'vest')
   return (
     <svg className="fp" style={{ left: -7, top: -3 }} width="15" height="28" viewBox="0 0 15 28">
-      <path d={d} style={S(L.outfit === 'fur' || L.outfit === 'robe' ? 'skin' : L.outfit === 'plate' ? 'metal' : 'c1')} /><Shade d={d} />
-      {L.outfit === 'robe'
-        ? <path d="M0 0 L15 0 L15.5 10 Q7.5 13 -0.5 10 Z" style={S('c1')} />
-        : <><path d={bracer} style={S(L.outfit === 'plate' || L.outfit === 'scale' || L.outfit === 'lamellar' ? 'metal' : 'leatherD')} /><Shade d={bracer} g={L.outfit === 'leather' || L.outfit === 'fur' ? 'cyl' : 'metal'} /></>}
-      {L.outfit === 'fur' && <path d="M2.4 9 L12.6 11 M2.6 13 L12.4 15 M2.8 17 L12 19" stroke="#2a1a0c" strokeWidth="1" />}
-      {L.outfit !== 'robe' && <path d="M2.4 7.4 L12.6 7.4" style={{ stroke: 'var(--trim)' }} strokeWidth="1" opacity=".8" />}
+      {sleeve ? <Cloth d={d} camo={L.top === 'hoodie' || L.top === 'crop' ? 'dark' : L.top === 'poncho' ? 'black' : L.camo} /> : <><path d={d} style={S('skin')} /><Shade d={d} /></>}
+      {/* black wraps / arm guard */}
+      <path d="M2.4 11 L12.6 11 L11.4 21 L3.6 21 Z" fill="#141414" /><Shade d="M2.4 11 L12.6 11 L11.4 21 L3.6 21 Z" />
+      <path d="M2.6 13 L12.4 14 M2.8 16 L12.2 17 M3 19 L12 20" stroke="#3a3a3a" strokeWidth=".7" />
     </svg>
   )
 }
-function Fist({ L }) {
+function Fist() {
   const d = 'M1.4 2.6 Q5.5 -0.4 9.6 2.6 L9.8 7.6 Q5.5 10.6 1.2 7.6 Z'
   return (
     <svg className="fp" style={{ left: -5.5, top: -5 }} width="11" height="11" viewBox="0 0 11 11">
-      <path d={d} style={S(L.outfit === 'plate' ? 'metal' : L.outfit === 'robe' || L.outfit === 'fur' ? 'skin' : 'glove')} /><Shade d={d} />
-      <path d="M2.6 4.2 L8.6 4.2 M2.6 6.2 L8.6 6.2" stroke="#0005" strokeWidth=".6" />
+      <path d={d} fill="#161616" /><Shade d={d} />
+      <path d="M3 3.6 L3 6.6 M5.5 3.2 L5.5 6.8 M8 3.6 L8 6.6" style={{ stroke: 'var(--skin)' }} strokeWidth="1" />
     </svg>
   )
 }
@@ -282,155 +272,116 @@ function Fist({ L }) {
 // Weapons are drawn with the grip at (G, 20) and the business end along +x.
 const G = 18
 function Weapon({ kind }) {
-  const box = { sword: [70, 40], greatsword: [96, 40], sabre: [66, 40], axe: [62, 40], spear: [96, 40], hammer: [62, 40], mace: [60, 40], bow: [44, 72], staff: [80, 40], flame: [80, 40], scythe: [84, 50], banner: [84, 56], daggers: [42, 40] }[kind] || [70, 40]
+  const box = { stopsign: [96, 40], wheel: [60, 44], chain: [74, 40], bat: [72, 40], extinguisher: [64, 40], lantern: [48, 60], speaker: [52, 44], umbrella: [92, 40], floodlight: [64, 44], sledge: [76, 40] }[kind] || [70, 40]
   let body
   switch (kind) {
-    case 'axe': body = <>
-      <rect x="4" y="18.4" width="50" height="3.4" rx="1.4" fill="url(#fd-wood)" />
-      <path d="M40 19 Q42 6 54 4 Q60 14 58 20 Q60 27 54 36 Q42 34 40 21 Z" fill="url(#fd-blade)" stroke="#5c6878" strokeWidth=".8" />
-      <path d="M54 4 Q60 14 58 20 Q60 27 54 36" fill="none" stroke="#fff" strokeWidth="1.2" />
-      <rect x="38" y="17" width="5" height="6" fill="var(--trim)" />
+    case 'stopsign': body = <>
+      <rect x="2" y="18.6" width="66" height="2.8" rx="1" fill="url(#fd-steel)" />
+      <path d="M2 18 L6 18 M2 22 L6 22" stroke="#1a1a1a" strokeWidth="1.6" />
+      <path d="M72 4 L84 4 L92 12 L92 28 L84 36 L72 36 L64 28 L64 12 Z" fill="url(#fd-red)" stroke="#e8e0d8" strokeWidth="1.6" />
+      <text x="78" y="23" textAnchor="middle" fontSize="7" fontWeight="900" fill="#f4ece4" fontFamily="Arial, sans-serif">STOP</text>
+      <path d="M66 12 L74 6 M86 32 L90 26" stroke="#3a1a10" strokeWidth="1.4" opacity=".6" />
     </>; break
-    case 'spear': body = <>
-      <rect x="0" y="18.8" width="80" height="2.6" rx="1.2" fill="url(#fd-wood)" />
-      <path d="M78 16.6 L94 20 L78 23.4 L80 20 Z" fill="url(#fd-blade)" stroke="#5c6878" strokeWidth=".6" />
-      <rect x="75" y="17.4" width="4" height="5.2" fill="var(--trim)" />
-      <path d="M74 20 Q70 27 72 32" style={{ stroke: 'var(--c2)' }} strokeWidth="1.6" fill="none" />
+    case 'wheel': body = <>
+      <circle cx="34" cy="22" r="19" fill="#2a2826" stroke="#5a5650" strokeWidth="2" />
+      <circle cx="34" cy="22" r="13" fill="#3a3834" stroke="#7a766e" strokeWidth="1.4" />
+      {[0, 60, 120, 180, 240, 300].map((a) => <rect key={a} x="32.6" y="10" width="2.8" height="12" fill="#6a665e" transform={`rotate(${a} 34 22)`} />)}
+      <circle cx="34" cy="22" r="4" fill="#8a8680" stroke="#2a2826" />
+      <circle cx="34" cy="22" r="19" fill="url(#fd-metal)" opacity=".5" />
     </>; break
-    case 'hammer': body = <>
-      <rect x="4" y="18.4" width="44" height="3.6" rx="1.4" fill="url(#fd-wood)" />
-      <rect x="42" y="6" width="16" height="28" rx="2" style={S('metal')} stroke="#3e4652" strokeWidth=".8" />
-      <rect x="42" y="6" width="16" height="28" rx="2" fill="url(#fd-metal)" />
-      <rect x="42" y="18" width="16" height="4" fill="var(--trim)" />
+    case 'chain': body = <>
+      {Array.from({ length: 9 }, (_, i) => <ellipse key={i} cx={20 + i * 4.6} cy="20" rx="3" ry={i % 2 ? 1.2 : 2} fill="none" stroke="#9a9a9a" strokeWidth="1.3" />)}
+      <rect x="60" y="14" width="12" height="13" rx="2" fill="url(#fd-steel)" stroke="#2a2a2a" strokeWidth=".8" />
+      <path d="M62 14 Q62 7 66 7 Q70 7 70 14" fill="none" stroke="#8a8a8a" strokeWidth="2" />
+      <circle cx="66" cy="20" r="1.4" fill="#1a1a1a" />
     </>; break
-    case 'mace': body = <>
-      <rect x="6" y="18.4" width="40" height="3.4" rx="1.4" fill="#3a2a20" />
-      <path d="M44 20 L48 10 L52 20 L48 30 Z M44 20 L56 16 L60 20 L56 24 Z M46 13 L56 12 L52 20 Z M46 27 L56 28 L52 20 Z" style={S('metal')} stroke="#2e3440" strokeWidth=".6" />
-      <circle cx="51" cy="20" r="5.4" style={S('metal')} /><circle cx="51" cy="20" r="5.4" fill="url(#fd-orb)" opacity=".35" />
-      <rect x="10" y="17.6" width="6" height="5" fill="var(--trim)" />
+    case 'bat': body = <>
+      <path d="M6 18.6 L30 17.6 Q60 15 68 16.6 Q70 20 68 23.4 Q60 25 30 22.4 L6 21.4 Z" fill="url(#fd-wood)" stroke="#3a2412" strokeWidth=".6" />
+      <path d="M6 18 L20 17.6 L20 22.4 L6 22 Z" fill="#1a1a1a" />
+      {[44, 50, 56, 62].map((x, i) => <g key={x} stroke="#c8ccd0" strokeWidth="1"><path d={`M${x} ${15.4 - (i % 2)} L${x + 1} ${11 - (i % 2)}`} /><path d={`M${x + 2} ${24.6} L${x + 3} ${29}`} /></g>)}
     </>; break
-    case 'greatsword': body = <>
-      <rect x="2" y="18" width="16" height="4" rx="1.4" fill="#2a1a10" />
-      <circle cx="2" cy="20" r="2.6" fill="var(--trim)" />
-      <rect x="18" y="11" width="4" height="18" rx="1" fill="var(--trim)" />
-      <path d="M22 16.6 L86 17.6 L95 20 L86 22.4 L22 23.4 Z" fill="url(#fd-blade)" stroke="#5c6878" strokeWidth=".6" />
-      <path d="M23 20 L86 20" stroke="#7d8a9c" strokeWidth=".8" />
+    case 'extinguisher': body = <>
+      <rect x="18" y="12" width="36" height="16" rx="7" fill="url(#fd-red)" stroke="#3a0a08" strokeWidth=".8" />
+      <rect x="28" y="15" width="12" height="10" fill="#f0e8dc" opacity=".85" />
+      <path d="M30 18 L38 18 M30 21 L36 21" stroke="#a8221a" strokeWidth="1.2" />
+      <rect x="54" y="16" width="5" height="8" fill="#1a1a1a" />
+      <path d="M59 20 L64 18 L64 22 Z" fill="#1a1a1a" />
+      <path d="M14 14 L20 14 L20 26 L14 26 Z" fill="#2a2a2a" />
     </>; break
-    case 'sabre': body = <>
-      <rect x="9" y="18.2" width="10" height="3.6" rx="1" fill="#2a1a10" />
-      <path d="M8 17 Q4 20 8 23 L19 23" fill="none" stroke="var(--trim)" strokeWidth="1.4" />
-      <rect x="18.6" y="15" width="2.8" height="10" rx="1" fill="var(--trim)" />
-      <path d="M21 18 Q44 17 64 10 Q50 20 21 22.4 Z" fill="url(#fd-blade)" stroke="#5c6878" strokeWidth=".6" />
+    case 'lantern': body = <>
+      {Array.from({ length: 4 }, (_, i) => <ellipse key={i} cx={20 + i * 3.4} cy={20 + i * 3} rx="1.4" ry="2" fill="none" stroke="#8a8a8a" strokeWidth="1" />)}
+      <path d="M28 32 L40 32 L42 36 L42 50 L40 54 L28 54 L26 50 L26 36 Z" fill="#1e1c1a" stroke="#5a5650" strokeWidth=".8" />
+      <rect x="28.6" y="36" width="10.8" height="14" rx="2" fill="url(#fd-lamp)" />
+      <circle cx="34" cy="43" r="9" fill="#ffc860" opacity=".35" className="w-glow" />
+      <path d="M30 32 Q34 26 38 32" fill="none" stroke="#5a5650" strokeWidth="1.2" />
     </>; break
-    case 'bow': body = <>
-      <path d="M8 2 Q27 36 8 70" fill="none" stroke="#5a3418" strokeWidth="3.4" strokeLinecap="round" />
-      <path d="M8 2 Q27 36 8 70" fill="none" stroke="#b07a40" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M8 2 L8 70" stroke="#ece6d4" strokeWidth=".7" />
-      <rect x="14.5" y="32" width="5" height="8" rx="1.2" style={S('c2')} />
+    case 'speaker': body = <>
+      <rect x="16" y="4" width="32" height="34" rx="3" fill="#1c1b1a" stroke="#4a4844" strokeWidth="1" />
+      <circle cx="32" cy="24" r="9" fill="#0c0c0c" stroke="#5a5650" strokeWidth="1.4" />
+      <circle cx="32" cy="24" r="3.6" fill="#3a3834" />
+      <circle cx="32" cy="10" r="3" fill="#0c0c0c" stroke="#5a5650" strokeWidth=".8" />
+      <rect x="16" y="4" width="32" height="34" rx="3" fill="url(#fd-cyl)" />
     </>; break
-    case 'staff': body = <>
-      <rect x="0" y="18.6" width="66" height="2.8" rx="1.2" fill="#3f2558" />
-      <path d="M62 14 Q70 12 72 20 Q70 28 62 26" fill="none" stroke="var(--trim)" strokeWidth="1.4" />
-      <circle cx="71" cy="20" r="5.6" fill="url(#fd-orb)" />
-      <circle cx="71" cy="20" r="9" fill="var(--glow)" opacity=".28" className="w-glow" />
+    case 'umbrella': body = <>
+      <rect x="6" y="19" width="80" height="2" fill="#2a2a2a" />
+      <path d="M6 16 Q2 20 6 24" fill="none" stroke="#2a2a2a" strokeWidth="2.4" />
+      <path d="M26 20 Q40 12 78 18 L86 20 L78 22 Q40 28 26 20 Z" fill="#4a1414" stroke="#1a0606" strokeWidth=".7" />
+      <path d="M30 20 L80 20 M34 17 L76 19 M34 23 L76 21" stroke="#000" strokeOpacity=".4" strokeWidth=".6" />
+      {[34, 44, 54, 64].map((x) => <g key={x} stroke="#c8ccd0" strokeWidth=".9"><path d={`M${x} ${16.6 - (x - 30) / 12} L${x + 2} ${12}`} /><path d={`M${x} ${23.4 + (x - 30) / 12} L${x + 2} ${28}`} /></g>)}
+      <path d="M86 20 L92 20" stroke="#c8ccd0" strokeWidth="1.4" />
     </>; break
-    case 'flame': body = <>
-      <rect x="0" y="18.6" width="64" height="2.8" rx="1.2" fill="url(#fd-wood)" />
-      <rect x="60" y="16.6" width="5" height="6.8" fill="var(--trim)" />
-      <path d="M64 20 Q70 8 79 13 Q74 15 76 20 Q74 25 79 27 Q70 32 64 20 Z" fill="#ff6a2a" className="w-glow" />
-      <path d="M65 20 Q70 14 74 17 Q71 20 74 23 Q70 26 65 20 Z" fill="#ffd56a" />
+    case 'floodlight': body = <>
+      <rect x="10" y="18.4" width="20" height="3.4" fill="#1a1a1a" />
+      <rect x="28" y="6" width="28" height="32" rx="2" fill="#2a2826" stroke="#5a5650" strokeWidth="1" />
+      <rect x="54" y="8" width="5" height="28" fill="#fff8e0" className="w-glow" />
+      {[12, 18, 24, 30].map((y) => <path key={y} d={`M30 ${y} L54 ${y}`} stroke="#4a4844" strokeWidth=".8" />)}
+      <rect x="57" y="4" width="10" height="36" fill="#fff4c0" opacity=".3" className="w-glow" />
     </>; break
-    case 'scythe': body = <>
-      <rect x="0" y="23.6" width="76" height="2.8" rx="1.2" fill="#3a2620" />
-      <path d="M72 24 Q78 6 60 2 Q46 0 38 8 Q52 5 62 12 Q68 17 70 25 Z" fill="url(#fd-blade)" stroke="#5c6878" strokeWidth=".7" />
-      <path d="M38 8 Q52 5 62 12 Q68 17 70 25" fill="none" stroke="#fff" strokeWidth="1" />
+    case 'sledge': body = <>
+      <rect x="2" y="18.4" width="60" height="3.6" rx="1.2" fill="url(#fd-wood)" />
+      <path d="M2 18 L14 18 L14 22.4 L2 22.4 Z" fill="#1a1a1a" />
+      <rect x="54" y="6" width="20" height="28" rx="2" fill="url(#fd-steel)" stroke="#2a2a2a" strokeWidth=".8" />
+      <path d="M54 12 L74 12 M54 28 L74 28" stroke="#2a2a2a" strokeWidth=".8" />
     </>; break
-    case 'banner': body = <>
-      <rect x="0" y="26.6" width="80" height="2.8" rx="1.2" fill="url(#fd-wood)" />
-      <circle cx="80" cy="28" r="2.6" fill="var(--trim)" />
-      <path d="M76 29 L76 54 L64 50 L52 54 L52 29 Z" style={S('c2')} stroke="#0006" strokeWidth=".7" />
-      <path d="M76 29 L76 54 L64 50 L52 54 L52 29 Z" fill="url(#fd-cyl)" />
-    </>; break
-    case 'daggers': body = <>
-      <rect x="10" y="18.4" width="10" height="3.4" rx="1" fill="#2a1a10" />
-      <rect x="19" y="15.6" width="2.6" height="9" fill="var(--trim)" />
-      <path d="M21.4 17.6 L38 20 L21.4 22.6 Z" fill="url(#fd-blade)" stroke="#5c6878" strokeWidth=".6" />
-    </>; break
-    default: body = <>
-      <rect x="9" y="18.2" width="11" height="3.6" rx="1" fill="#2a1a10" />
-      <circle cx="8.6" cy="20" r="2.4" fill="var(--trim)" />
-      <rect x="20" y="13" width="3.2" height="14" rx="1" fill="var(--trim)" />
-      <path d="M23 17.6 L62 18.6 L68 20 L62 21.4 L23 22.4 Z" fill="url(#fd-blade)" stroke="#5c6878" strokeWidth=".6" />
-      <path d="M24 20 L62 20" stroke="#8592a3" strokeWidth=".7" />
-    </>
+    default: body = null
   }
-  const top = kind === 'bow' ? -36 : -20
+  const top = kind === 'lantern' ? -20 : -20
   return (
     <svg className={`fp weapon wpn-${kind}`} style={{ left: -G, top }} width={box[0]} height={box[1]} viewBox={`0 0 ${box[0]} ${box[1]}`}>
       {body}
     </svg>
   )
 }
-// shields are held edge-on in front of the chest, painted with the sigil
-function Shield({ L, tier }) {
-  const shape = {
-    heater: 'M2 3 Q9 -0.6 16 3 L16 22 Q16 34 9 41 Q2 34 2 22 Z',
-    round: 'M9 0 Q18 0 18 20.5 Q18 41 9 41 Q0 41 0 20.5 Q0 0 9 0 Z',
-    kite: 'M2 4 Q9 -1 16 4 L15 18 Q13 32 9 45 Q5 32 3 18 Z',
-  }[L.shield]
-  return (
-    <div className="f-shield" aria-hidden="true">
-      <svg className="fp" style={{ left: -9, top: -21 }} width="18" height="46" viewBox="0 0 18 46">
-        <path d={shape} style={S(tier >= 2 ? 'metal' : 'leatherD')} stroke="#0008" strokeWidth=".8" />
-        <path d={shape} style={S('c1')} transform="translate(9 21) scale(.84) translate(-9 -21)" /><Shade d={shape} />
-        <path transform="translate(9 19) scale(.62 .9)" d={SIGILS[L.sigil]} style={S('c2')} />
-        {L.shield === 'round' && <circle cx="9" cy="20.5" r="2.6" style={S('metal')} />}
-        <path d={shape} fill="none" style={{ stroke: 'var(--trim)' }} strokeWidth="1.2" />
-      </svg>
-    </div>
-  )
-}
 
-function Fighter({ unit, art, rarity, side, pose = 'idle', wpn, look = null }) {
+function Fighter({ unit, rarity, side, pose = 'idle', wpn, look = null }) {
   const tier = rarity?.tier ?? 0
   const L = loadoutOf(unit, tier, look)
   const weapon = wpn || L.weapon
   const style = STYLE[weapon] || 'slash'
   const vars = {
-    '--c1': L.c1[0], '--c2': L.c2[1], '--glow': GLOW[unit.element] || '#ffd166',
-    '--skin': L.skin[0], '--skinD': L.skin[1], '--hair': L.hair, '--metal': L.metal,
-    '--trim': tier >= 3 ? GOLD : tier >= 2 ? '#d7dde6' : '#9a7a52',
-    '--leather': '#6a4527', '--leatherD': '#3f2614', '--pants': '#2e2a2a', '--boot': '#3b2616', '--glove': '#4a3020', '--fur': '#8a6a46', '--furD': '#5a4028',
+    '--glow': GLOW[unit.element] || '#ffd166', '--accent': L.accent,
+    '--skin': L.skin[0], '--skinD': L.skin[1], '--hairC': L.hairC, '--hair': L.hairC,
     '--tempo': `${L.tempo}s`,
   }
   return (
-    <div className={`ftr ftr-${side} ftier-${tier} out-${L.outfit} wpn-${weapon} sty-${style} pose-${pose}`} style={vars} aria-hidden="true">
+    <div className={`ftr crew ftr-${side} ftier-${tier} out-${L.crew} wpn-${weapon} sty-${style} pose-${pose}`} style={vars} aria-hidden="true">
       {tier >= 4 && <div className="f-aura" />}
       <div className="f-shadow" />
       <div className="rig">
         <div className="j j-root">
-          <div className="j j-legF far"><Thigh L={L} tier={tier} /><div className="j j-shinF"><Shin L={L} /></div></div>
-          <div className="j j-legN"><Thigh L={L} tier={tier} /><div className="j j-shinN"><Shin L={L} /></div></div>
+          <div className="j j-legF far"><Thigh L={L} /><div className="j j-shinF"><Shin L={L} /></div></div>
+          <div className="j j-legN"><Thigh L={L} /><div className="j j-shinN"><Shin L={L} /></div></div>
           <div className="j j-torso">
-            {L.cape && <div className="j j-cape">
-              <svg className="fp" style={{ left: -6, top: 0 }} width="18" height="56" viewBox="0 0 18 56">
-                <path d="M10 0 Q16 2 14 12 Q12 32 17 54 L1 52 Q-1 30 4 10 Q6 2 10 0 Z" style={S('c2')} />
-                <path d="M10 0 Q16 2 14 12 Q12 32 17 54 L1 52 Q-1 30 4 10 Q6 2 10 0 Z" fill="url(#fd-cyl)" />
-                <path d="M1 52 L17 54" style={{ stroke: 'var(--trim)' }} strokeWidth="1.4" />
-              </svg>
-            </div>}
             <div className="j j-armF far">
-              <UpperArm L={L} tier={tier} />
-              <div className="j j-foreF"><Forearm L={L} />
-                <div className="j j-handF">{L.shield ? <Shield L={L} tier={tier} /> : weapon === 'daggers' ? <Weapon kind="daggers" /> : null}<Fist L={L} /></div>
-              </div>
+              <UpperArm L={L} />
+              <div className="j j-foreF"><Forearm L={L} /><div className="j j-handF"><Fist /></div></div>
             </div>
             <div className="j j-body"><Torso L={L} tier={tier} /></div>
-            <div className="j j-head"><Head L={L} tier={tier} /></div>
+            <div className="j j-head"><Head L={L} /></div>
             <div className="j j-armN">
-              <UpperArm L={L} tier={tier} />
+              <UpperArm L={L} />
               <div className="j j-foreN"><Forearm L={L} />
-                <div className="j j-handN"><Weapon kind={weapon} /><Fist L={L} /></div>
+                <div className="j j-handN"><Weapon kind={weapon} /><Fist /></div>
               </div>
             </div>
           </div>

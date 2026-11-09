@@ -175,6 +175,7 @@ function shuffle(list, rand) {
 // three lanes are that element and the third is random, so a map is worth
 // choosing to suit your fighters.
 export const MAPS = [
+  { id: 'city', name: 'Ashen City', element: null, blurb: 'Burnt-out streets under a red sky. Lanes are random.' },
   { id: 'plains', name: 'Sunset Plains', element: null, blurb: 'Open grassland. Lanes are random.' },
   { id: 'canyon', name: 'Ember Canyon', element: 'ember', blurb: 'Lava rivers. Mostly Ember lanes.' },
   { id: 'shore', name: 'Tidal Shore', element: 'tide', blurb: 'Breaking waves. Mostly Tide lanes.' },

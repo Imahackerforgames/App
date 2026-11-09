@@ -1805,3 +1805,46 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 .cf-box { position: absolute; left: 0; bottom: 0; width: 100px; height: 150px; transform-origin: 0 100%; }
 .pf-fig { margin-left: auto; align-self: flex-end; filter: drop-shadow(0 8px 10px #000a); }
 @media (max-width: 520px) { .pf-fig { position: absolute; right: 4px; bottom: 0; opacity: .95; } .pf-banner { position: relative; padding-right: 96px; } }
+
+/* ═════════════ the ORVEL crew ═════════════ */
+.avatar-crew { border-radius: 50%; background: #111; }
+.avatar-crew img { display: block; width: 100%; height: 100%; object-fit: cover; }
+img.contestant-fig { object-fit: cover; border-radius: 10px; -webkit-mask: linear-gradient(180deg, #000 85%, transparent); mask: linear-gradient(180deg, #000 85%, transparent); }
+/* how each crew member carries their weapon at rest */
+.ftr.wpn-stopsign .j-handN, .ftr.wpn-sledge .j-handN, .ftr.wpn-bat .j-handN { rotate: -40deg; }
+.ftr.wpn-wheel .j-armN { rotate: -20deg; } .ftr.wpn-wheel .j-foreN { rotate: -70deg; } .ftr.wpn-wheel .j-handN { rotate: 90deg; }
+.ftr.wpn-chain .j-armN { rotate: 8deg; } .ftr.wpn-chain .j-foreN { rotate: -12deg; } .ftr.wpn-chain .j-handN { rotate: 92deg; }
+.ftr.wpn-extinguisher .j-armN { rotate: 6deg; } .ftr.wpn-extinguisher .j-foreN { rotate: -14deg; } .ftr.wpn-extinguisher .j-handN { rotate: 96deg; }
+.ftr.wpn-lantern .j-armN { rotate: -14deg; } .ftr.wpn-lantern .j-foreN { rotate: -20deg; } .ftr.wpn-lantern .j-handN { rotate: 20deg; }
+.ftr.wpn-speaker .j-armN { rotate: -30deg; } .ftr.wpn-speaker .j-foreN { rotate: -70deg; } .ftr.wpn-speaker .j-handN { rotate: 100deg; }
+.ftr.wpn-floodlight .j-armN { rotate: -36deg; } .ftr.wpn-floodlight .j-foreN { rotate: -64deg; } .ftr.wpn-floodlight .j-handN { rotate: 100deg; }
+.ftr.wpn-umbrella .j-foreN { rotate: -48deg; } .ftr.wpn-umbrella .j-handN { rotate: 88deg; }
+.pose-idle.wpn-chain .j-armN, .pose-idle.wpn-extinguisher .j-armN, .pose-idle.wpn-lantern .j-armN, .pose-idle.wpn-speaker .j-armN, .pose-idle.wpn-floodlight .j-armN, .pose-idle.wpn-wheel .j-armN { animation: none; }
+/* ranged crew: raise the item and point it at the target */
+.sty-cast.pose-atk .j-handN { animation-name: cw-hand; }
+@keyframes cw-hand { 0% { rotate: 96deg; } 42% { rotate: 70deg; } 56%, 80% { rotate: 96deg; } 100% { rotate: 96deg; } }
+.sty-cast.wpn-lantern.pose-atk .j-handN { animation-name: lt-hand; }
+@keyframes lt-hand { 0% { rotate: 20deg; } 42% { rotate: -40deg; } 56% { rotate: 60deg; } 80% { rotate: 40deg; } 100% { rotate: 20deg; } }
+/* the chain whips round in a slash */
+.sty-slash.wpn-chain.pose-atk .j-handN { animation-name: ch-hand; }
+@keyframes ch-hand { 0% { rotate: 92deg; } 40% { rotate: -60deg; } 55% { rotate: 20deg; } 72% { rotate: 60deg; } 100% { rotate: 92deg; } }
+/* what the ranged crew throw across the lane */
+.bolt-extinguisher { width: 30px; height: 30px; margin-left: -15px; background: radial-gradient(circle, #fff, #e8eef4cc 40%, transparent 72%); box-shadow: 0 0 20px #fff; filter: blur(1px); animation-name: spray; }
+@keyframes spray { 0% { translate: 0 0; scale: .3; opacity: 0; } 15% { opacity: 1; } 100% { translate: var(--to) 0; scale: 2.4; opacity: .9; } }
+.bolt-lantern { background: radial-gradient(circle, #fff6c0, #ffb040 40%, #ff5a1a00 72%); box-shadow: 0 0 24px #ff7a2a; width: 26px; height: 26px; margin-left: -13px; }
+.bolt-speaker { width: 40px; height: 40px; margin-left: -20px; background: none; box-shadow: none; border-radius: 50%; border: 3px solid #e8e2ff; outline: 3px solid #b8a8ff88; outline-offset: 5px; animation-name: sound; }
+@keyframes sound { 0% { translate: 0 0; scale: .3; opacity: 0; } 15% { opacity: 1; } 100% { translate: var(--to) 0; scale: 1.8; opacity: .4; } }
+.bolt-floodlight { width: 70px; height: 26px; margin-left: -35px; border-radius: 50%; background: radial-gradient(closest-side, #fff, #fff4c0cc 50%, transparent); box-shadow: 0 0 34px #fff4c0; animation-duration: .2s; }
+/* Ashen City: the crew's home turf — smoke, a burning red sky, ruined
+   towers, a torn banner and wet, reflective ground */
+.duel.duel.map-city, .map-city { --sky1: #0e0c10; --sky2: #5a1e14; --hill1: #1a1618; --hill2: #121012; --g1: #26221f; --g2: #0c0a0a; --sun: #ff6a3a; }
+.duel.map-city .sun { opacity: .45; filter: blur(8px); width: 80px; height: 50px; top: 18%; }
+.map-city .hills.far { clip-path: polygon(0 100%, 0 40%, 5% 40%, 5% 18%, 9% 18%, 9% 46%, 14% 46%, 14% 8%, 17% 4%, 20% 10%, 20% 52%, 27% 52%, 27% 30%, 33% 30%, 33% 60%, 40% 60%, 40% 22%, 44% 22%, 45% 14%, 47% 22%, 47% 58%, 56% 58%, 56% 36%, 62% 36%, 62% 12%, 66% 12%, 66% 48%, 74% 48%, 74% 20%, 77% 16%, 80% 24%, 80% 56%, 88% 56%, 88% 28%, 93% 28%, 93% 44%, 100% 44%, 100% 100%); opacity: .95; height: 60%; }
+.map-city .hills.near { clip-path: polygon(0 100%, 0 60%, 10% 64%, 22% 50%, 30% 66%, 45% 58%, 58% 70%, 70% 54%, 84% 66%, 100% 56%, 100% 100%); }
+.map-city .scenery::before { content: ''; position: absolute; left: -10%; right: -10%; top: 0; height: 42%; background: radial-gradient(40% 50% at 70% 30%, #ff5a2a44, transparent 70%), radial-gradient(50% 40% at 20% 20%, #00000088, transparent), radial-gradient(60% 40% at 50% 10%, #2a2226cc, transparent); animation: smoke 14s ease-in-out infinite alternate; }
+@keyframes smoke { to { translate: 6% 4px; } }
+.map-city .scenery::after { content: ''; position: absolute; inset: 0; background: radial-gradient(18% 4% at 30% 70%, #ffffff10, transparent), radial-gradient(14% 3% at 72% 86%, #ffffff12, transparent), radial-gradient(#ff8a4a 1px, transparent 1.6px) 0 0 / 66px 84px; animation: embers 8s linear infinite; opacity: .8; }
+.map-city .mt-scene::after, .duel.map-city .world::after { content: ''; position: absolute; right: 6%; top: 6%; width: 12%; height: 22%; background: linear-gradient(#6a1414, #3a0a0a); clip-path: polygon(0 0, 100% 0, 100% 100%, 70% 86%, 50% 100%, 30% 84%, 0 100%); opacity: .8; pointer-events: none; }
+.duel.map-city .world::after { width: 9%; height: 16%; top: 4%; animation: banner 4s ease-in-out infinite alternate; }
+@keyframes banner { to { transform: skewY(3deg) scaleX(.94); } }
+.mt-scene { position: relative; }

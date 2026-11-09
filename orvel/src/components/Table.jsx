@@ -132,7 +132,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
       setActor({ side: e.side, lane: e.lane, pose: 'run', dash: g.dash })
       await T(430)
     }
-    setActor({ side: e.side, lane: e.lane, pose: 'atk', dash: g.dash, bolt: g.style === 'cast' ? g.bolt : null, style: g.style, arrow: weaponFor(u) === 'bow' })
+    setActor({ side: e.side, lane: e.lane, pose: 'atk', dash: g.dash, bolt: g.style === 'cast' ? g.bolt : null, style: g.style, weapon: weaponFor(u) })
     play(g.style === 'cast' ? 'bolt' : 'swing')
     await T(IMPACT + (g.style === 'cast' ? 140 : 0))
     if (!alive.current) return
@@ -294,7 +294,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
             )}
           </div>
         )}
-        {moving?.bolt != null && <span className={`bolt bolt-${u?.element} ${moving.arrow ? 'bolt-arrow' : ''} side-${side}`} style={{ '--to': `${moving.bolt}px` }} />}
+        {moving?.bolt != null && <span className={`bolt bolt-${u?.element} bolt-${moving.weapon} side-${side}`} style={{ '--to': `${moving.bolt}px` }} />}
         <div className="spot-pops">{pops.filter((p) => p.side === side && p.lane === lane).map((p) => <span key={p.id} className={`pop pop-${p.kind}`}>{p.text}{p.why && <small>{p.why}</small>}</span>)}</div>
       </div>
     )

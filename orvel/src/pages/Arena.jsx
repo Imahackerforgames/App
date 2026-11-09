@@ -306,7 +306,7 @@ function DuelSetup({ rival, onClose, onStart }) {
     return strongest()
   })
   const [addTo, setAddTo] = useState('starters')
-  const [map, setMap] = useState(() => { try { const m = localStorage.getItem(MAP_KEY); if (MAPS.some((x) => x.id === m)) return m } catch {} return 'plains' })
+  const [map, setMap] = useState(() => { try { const m = localStorage.getItem(MAP_KEY); if (MAPS.some((x) => x.id === m)) return m } catch {} return 'city' })
   const deck = [...lineup.starters, ...lineup.bench]
   const recruitsNeeded = STARTERS + BENCH - deck.length
   const [mode, setMode] = useState('coins')
