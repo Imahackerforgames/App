@@ -6,6 +6,7 @@ import { useGame, fmt, server } from '../store.jsx'
 import { customDisplay } from '../lib/customCard.js'
 import { DECK_SIZE, LEADER_HP, MAX_ENERGY, TURN_LIMIT, ABILITIES, ELEMENTS, RECRUITS, unitOf, MAPS, STARTERS, BENCH } from '../server/battle.js'
 import Table from '../components/Table.jsx'
+import { MAP_ART } from '../lib/mapArt.js'
 import { makeTutorialDuel, TRAINER } from '../components/Tutorial.jsx'
 import { play } from '../lib/sound.js'
 
@@ -305,7 +306,7 @@ function DuelSetup({ rival, onClose, onStart }) {
     return strongest()
   })
   const [addTo, setAddTo] = useState('starters')
-  const [map, setMap] = useState(() => { try { const m = localStorage.getItem(MAP_KEY); if (MAPS.some((x) => x.id === m)) return m } catch {} return 'city' })
+  const [map, setMap] = useState(() => { try { const m = localStorage.getItem(MAP_KEY); if (MAPS.some((x) => x.id === m)) return m } catch {} return 'neon' })
   const deck = [...lineup.starters, ...lineup.bench]
   const recruitsNeeded = STARTERS + BENCH - deck.length
   const [mode, setMode] = useState('coins')
@@ -381,7 +382,7 @@ function DuelSetup({ rival, onClose, onStart }) {
           <div className="map-row" role="radiogroup" aria-label="Map">
             {MAPS.map((m) => (
               <button key={m.id} role="radio" aria-checked={map === m.id} className={`map-tile map-${m.id} ${map === m.id ? 'on' : ''}`} onClick={() => { play('hover'); setMap(m.id) }}>
-                <span className="mt-scene" aria-hidden="true"><i className="mt-hills" /><i className="mt-deco scenery" /></span>
+                <span className="mt-scene" aria-hidden="true" style={{ backgroundImage: `url("${MAP_ART[m.id]}")` }} />
                 <b>{m.name}</b>
                 {m.element && <span className="mt-el" style={{ color: ELEMENTS.find((e) => e.id === m.element)?.color }}>{ELEMENTS.find((e) => e.id === m.element)?.glyph} {m.element.toUpperCase()} LANES</span>}
               </button>

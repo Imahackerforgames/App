@@ -9,6 +9,8 @@ import { ELEMENTS, LANES, LEADER_HP, MAX_ENERGY, TURN_LIMIT, TACTIC_COST, attack
 import { play } from '../lib/sound.js'
 import { TUT_STEPS, TutorialBubble } from './Tutorial.jsx'
 import Props from './Props.jsx'
+import MapBackdrop from './MapBackdrop.jsx'
+import { MAP_ART } from '../lib/mapArt.js'
 
 // The duel, seen from the side at fighter height: your fighters on the left,
 // the rival's on the right, five lanes running back to front. The server
@@ -23,7 +25,7 @@ const DUR = { turn: 1000, draw: 200, play: 950, die: 760, burn: 520, rally: 420,
 const LANE_NAMES = ['FAR', 'BACK', 'MIDDLE', 'FRONT', 'NEAR']
 // where each lane stands on screen: further lanes sit higher, smaller and
 // closer to the centre, like a field seen in perspective
-const ROWS = [{ y: 38, s: 0.5, x: [31, 69] }, { y: 51, s: 0.6, x: [27, 73] }, { y: 65, s: 0.71, x: [23, 77] }, { y: 80, s: 0.83, x: [18, 82] }, { y: 96, s: 0.96, x: [13, 87] }]
+const ROWS = [{ y: 56, s: 0.52, x: [30, 70] }, { y: 66, s: 0.62, x: [26, 74] }, { y: 76, s: 0.73, x: [21, 79] }, { y: 86, s: 0.84, x: [17, 83] }, { y: 97, s: 0.96, x: [12, 88] }]
 const IMPACT = 310 // ms into a swing when the blow lands (matches the CSS)
 const ELC = { ember: '#ffb04a', tide: '#7fe0ff', gale: '#c6ff6a' }
 
@@ -328,7 +330,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
   const md = menuUnit && resolve(menuUnit.ref)
 
   return (
-    <div className={`duel theme-${league} map-${b.map || 'plains'}`} role="dialog" aria-modal="true" aria-label={`Duel against ${r.name}`}>
+    <div className={`duel theme-${league} map-${b.map || 'plains'} ${MAP_ART[b.map] ? 'painted' : ''}`} role="dialog" aria-modal="true" aria-label={`Duel against ${r.name}`}>
       <div className={`hud ${hl('hp')}`}>
         <Hud side="you" />
         <div className="hud-mid mono"><b>VS</b><span>T{b.you.turns}/{TURN_LIMIT}</span></div>
@@ -340,7 +342,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
           <div className="sky" aria-hidden="true"><div className="sun" /><div className="hills far" /><div className="hills near" /></div>
           <div className="ground" aria-hidden="true"><div className="floor" /></div>
           <div className="scenery" aria-hidden="true" />
-          <Props map={b.map || 'plains'} />
+          {MAP_ART[b.map] ? <MapBackdrop map={b.map} /> : <Props map={b.map || 'plains'} />}
           {Array.from({ length: LANES }, (_, lane) => {
             const el = EL[b.terrain[lane]]
             const row = ROWS[lane]

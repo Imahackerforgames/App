@@ -176,13 +176,11 @@ function shuffle(list, rand) {
 // five lanes are that element and the rest are random, so a map is worth
 // choosing to suit your fighters.
 export const MAPS = [
-  { id: 'city', name: 'Ashen City', element: null, blurb: 'Burnt-out streets under a red sky. Lanes are random.' },
-  { id: 'plains', name: 'Sunset Plains', element: null, blurb: 'Open grassland. Lanes are random.' },
-  { id: 'canyon', name: 'Ember Canyon', element: 'ember', blurb: 'Lava rivers. Mostly Ember lanes.' },
-  { id: 'shore', name: 'Tidal Shore', element: 'tide', blurb: 'Breaking waves. Mostly Tide lanes.' },
-  { id: 'forest', name: 'Whispering Wood', element: 'gale', blurb: 'Old trees and wind. Mostly Gale lanes.' },
-  { id: 'frost', name: 'Frost Pass', element: null, blurb: 'Snow in the mountains. Lanes are random.' },
-  { id: 'ruins', name: 'Moonlit Ruins', element: null, blurb: 'Broken pillars under the moon. Lanes are random.' },
+  { id: 'neon', name: 'Neon Alley', element: null, blurb: 'Rain-soaked rooftop under neon signs. Lanes are random.' },
+  { id: 'west', name: 'Dust Town', element: 'ember', blurb: 'A frontier street at sunset. Mostly Ember lanes.' },
+  { id: 'cove', name: 'Pirate Cove', element: 'tide', blurb: 'A dock by the open sea. Mostly Tide lanes.' },
+  { id: 'garden', name: 'Sakura Garden', element: 'gale', blurb: 'Cherry blossoms on the wind. Mostly Gale lanes.' },
+  { id: 'temple', name: 'Sun Temple', element: null, blurb: 'A pharaoh\'s hall above the pyramids. Lanes are random.' },
 ]
 export const mapById = (id) => MAPS.find((x) => x.id === id) || MAPS[0]
 export function terrainFor(mapId, rand = randomInt) {

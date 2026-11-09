@@ -574,7 +574,7 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
     })
     return clone({
       id: m.id, rivalId: m.rivalId, status: m.status, at: m.at, wager: m.wager, stake: m.stake, payout: m.payout,
-      terrain: g.terrain, map: g.map || 'plains', turn: g.turn, first: g.first, you: side(g.you, true), them: side(g.them, false),
+      terrain: g.terrain, map: g.map || MAPS[0].id, turn: g.turn, first: g.first, you: side(g.you, true), them: side(g.them, false),
       events: g.events, rival: rivalSummary(s, r),
     })
   }
@@ -877,7 +877,7 @@ export function createGameServer(storage, { now = () => Date.now(), adminCheck =
       const m = {
         id: uid('bt_'), rivalId, status: 'active', at: now(), player: PLAYER,
         wager: { ...w, serial: escrowSerial, level: escrowLevel }, stake,
-        game: newMatch(mine, theirs, randomInt, { map: map || 'plains' }),
+        game: newMatch(mine, theirs, randomInt, { map: map || MAPS[0].id }),
       }
       s.battles.push(m)
       if (s.battles.length > 60) s.battles.splice(0, s.battles.length - 60)

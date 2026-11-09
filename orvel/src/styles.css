@@ -1900,3 +1900,31 @@ img.contestant-fig { object-fit: cover; border-radius: 10px; -webkit-mask: linea
 .prop .glint { transform-box: fill-box; transform-origin: center; opacity: 0; animation: glint 3.2s ease-in-out infinite; animation-delay: var(--gd, 0s); }
 @keyframes glint { 0%, 70%, 100% { opacity: 0; scale: .2; rotate: 0deg; } 80% { opacity: 1; scale: 1.2; rotate: 45deg; } 88% { opacity: 0; scale: .4; rotate: 90deg; } }
 .prop { filter: drop-shadow(0 5px 3px #000b) drop-shadow(0 0 1px #0008); }
+
+/* ═════════════ painted battle backgrounds ═════════════ */
+.backdrop { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+/* sized so the painting's floor fills the lower half where the lanes run */
+.bd-art { position: absolute; left: 50%; bottom: -4%; height: 128%; aspect-ratio: 2 / 1; transform: translateX(-50%); }
+.bd-art img { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.bd-art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, #0004 100%); }
+.duel.painted .sky, .duel.painted .ground, .duel.painted .scenery, .duel.painted .world::after { display: none; }
+.duel.painted .band::before { opacity: .55; }
+.mt-scene { background: center / cover no-repeat; image-rendering: pixelated; }
+.mt-scene::after { display: none; }
+/* light effects on the painting */
+.bdfx { position: absolute; width: var(--sz); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; mix-blend-mode: screen; animation-delay: var(--fd) !important; }
+.bdfx-lamp, .bdfx-window { background: radial-gradient(closest-side, #ffe2a0, #ffb44a99 35%, transparent); animation: bdflicker 2.2s ease-in-out infinite; }
+.bdfx-window { opacity: .6; border-radius: 20%; }
+.bdfx-torch { background: radial-gradient(closest-side, #fff2b0, #ff8a2acc 35%, transparent); animation: bdflicker .9s ease-in-out infinite; }
+@keyframes bdflicker { 0%, 100% { opacity: .55; scale: 1; } 30% { opacity: .9; scale: 1.12; } 55% { opacity: .65; } 70% { opacity: 1; scale: 1.05; } }
+.bdfx-neon { background: radial-gradient(closest-side, color-mix(in srgb, var(--fc) 70%, #fff), color-mix(in srgb, var(--fc) 45%, transparent) 40%, transparent); animation: bdneon 3s steps(1) infinite, bdpulse 1.6s ease-in-out infinite; }
+@keyframes bdneon { 0%, 46%, 50%, 100% { filter: none; } 47%, 49% { filter: brightness(.3); } }
+@keyframes bdpulse { 50% { scale: 1.12; } }
+.bdfx-sun, .bdfx-moon { background: radial-gradient(closest-side, #fff6d088, #ffb45a44 45%, transparent); animation: bdpulse 4s ease-in-out infinite; }
+.bdfx-moon { background: radial-gradient(closest-side, #ffd0f088, #ff5aa844 45%, transparent); }
+.bdfx-glint { width: 2.2%; border-radius: 0; background: radial-gradient(closest-side, #fff, transparent 70%); clip-path: polygon(50% 0, 58% 42%, 100% 50%, 58% 58%, 50% 100%, 42% 58%, 0 50%, 42% 42%); animation: bdglint 3.6s ease-in-out infinite; opacity: 0; }
+@keyframes bdglint { 0%, 74%, 100% { opacity: 0; scale: .2; rotate: 0deg; } 84% { opacity: 1; scale: 1.3; rotate: 45deg; } 92% { opacity: 0; scale: .3; rotate: 90deg; } }
+.bdfx-shimmer { aspect-ratio: 6 / 1; border-radius: 50%; background: repeating-linear-gradient(90deg, transparent 0 8%, #ffffff55 9% 11%, transparent 12% 20%); background-size: 200% 100%; animation: bdshimmer 3s linear infinite; -webkit-mask: radial-gradient(closest-side, #000, transparent); mask: radial-gradient(closest-side, #000, transparent); }
+@keyframes bdshimmer { to { background-position: -200% 0; } }
+.bdfx-fall { aspect-ratio: 1 / 3; border-radius: 30%; background: repeating-linear-gradient(180deg, transparent 0 10%, #ffffff66 12% 16%, transparent 18% 30%); background-size: 100% 200%; animation: bdfall .8s linear infinite; -webkit-mask: radial-gradient(closest-side, #000 40%, transparent); mask: radial-gradient(closest-side, #000 40%, transparent); }
+@keyframes bdfall { to { background-position: 0 200%; } }
