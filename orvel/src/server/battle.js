@@ -191,9 +191,9 @@ export function terrainFor(mapId, rand = randomInt) {
   return t
 }
 
-// A lineup is 3 starters, who begin the duel on the field (back, middle and
-// front lane, in that order), and a bench of 6 who wait in your hand to be
-// sent in or swapped in. Every card is visible from the start: no draws.
+// A lineup is 3 starters and a bench. The field starts empty; every card is
+// in your hand from the start (starters first, no draws), and each turns into
+// a fighter when you place it in a lane or swap it in.
 export const STARTERS = 3
 export const BENCH = 5
 
@@ -205,8 +205,9 @@ export function newMatch(youSide, themSide, rand = randomInt, opts = {}) {
     const base = { leader: LEADER_HP, energy: 0, maxEnergy: 0, turns: 0, board: Array(LANES).fill(null), hand: [], deck: [], out: [] }
     if (Array.isArray(x)) return { ...base, deck: shuffle(x.map(card), rand) }
     const board = Array(LANES).fill(null)
-    ;(x.starters || []).slice(0, LANES).forEach((c, l) => { const k = card(c); board[l] = { id: k.id, ref: k.ref, ...clone(k.unit), burn: 0, hex: 0, buff: 0, fortify: false, shifted: false } })
-    return { ...base, board, hand: (x.bench || []).map(card), lineup: true }
+    // the field starts empty: starters lead your hand, then the bench, and a
+    // card becomes a fighter when you place it
+    return { ...base, board, hand: [...(x.starters || []), ...(x.bench || [])].map(card), lineup: true }
   }
   const m = {
     engine: 'lanes', turn: 'you', first: 'you', over: false, map: mapById(opts.map).id,

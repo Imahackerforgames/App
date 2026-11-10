@@ -110,6 +110,8 @@ test('the rival hand and both decks stay hidden', async () => {
 })
 
 const c = (atk, def, element = 'gale', abilities = []) => ({ ref: { kind: 'recruit', id: 'x' }, stats: { atk, def, element, abilities } })
+// place a hand card straight onto the field (skipping energy) for rule tests
+const put = (m, side, i, lane) => { const c = m[side].hand.splice(i, 1)[0]; m[side].board[lane] = { id: c.id, ref: c.ref, ...c.unit, burn: 0, hex: 0, buff: 0, fortify: false, shifted: false } }
 const seq = (...xs) => { let i = 0; return (n) => (xs[i++] ?? 0) % n } // fixed "random" for shuffles and terrain
 // a match where both decks are in order and every lane is Tide terrain
 function match(you, them) {
@@ -262,9 +264,9 @@ test('forge: stat budget, owned cosmetics, upgrades cost coins', async () => {
   await assert.rejects(g.startBattle({ rivalId: RIVALS[0].id, deck: deckOf(s), wager: { type: 'card', cardId: c.id } }), /own/)
   const deck = [{ kind: 'custom', id: c.id }, ...deckOf(s).slice(0, 4)]
   const b = await g.startBattle({ rivalId: RIVALS[0].id, deck })
-  // the custom card was listed first, so it starts on the field
-  assert.equal(b.you.board[0].ref.kind, 'custom')
-  assert.equal(b.you.board[0].atk, 6)
+  // the custom card was listed first, so it leads the hand
+  assert.equal(b.you.hand[0].ref.kind, 'custom')
+  assert.equal(b.you.hand[0].unit.atk, 6)
 })
 
 test('top rarities are rarer than before', async () => {
@@ -334,7 +336,7 @@ test('a save without levels gets them even when the catalog is already on v6', (
   assert.equal(s.players.local.inventory.c1.levels.length, 2)
 })
 
-test('a duel starts with your three starters on the field and five on the bench', async () => {
+test('a duel starts with an empty field and your starters leading your hand', async () => {
   const { STARTERS, BENCH } = await import('../src/server/battle.js')
   const { g } = await setup()
   const snap = await g.snapshot()
@@ -342,17 +344,18 @@ test('a duel starts with your three starters on the field and five on the bench'
   const starters = owned.slice(0, 3), bench = owned.slice(3, 8)
   const b = await g.startBattle({ rivalId: RIVALS[0].id, starters, bench, wager: { type: 'coins', amount: 0 }, map: 'west' })
   assert.equal(b.map, 'west')
-  assert.deepEqual(b.you.board.map((u) => u?.ref.id).slice(0, starters.length), starters.map((x) => x.id))
+  assert.ok(b.you.board.every((u) => !u), 'nothing is on the field until you place it')
   assert.equal(b.you.board.length, 3)
-  assert.equal(b.you.hand.length, BENCH)
+  assert.deepEqual(b.you.hand.slice(0, 3).map((h) => h.ref.id), starters.map((x) => x.id))
+  assert.equal(b.you.hand.length, STARTERS + BENCH)
   assert.equal(b.you.deckCount, 0)
-  assert.ok(b.them.board.every(Boolean), 'the rival starts three too')
   assert.ok(b.terrain.filter((t) => t === 'ember').length >= 2, 'Dust Town leans Ember')
   assert.equal(STARTERS, 3)
 })
 
 test('swapping brings a bench card in for 1 energy and benches the fighter with its damage', () => {
   const m = newMatch({ starters: [c(3, 3), c(3, 3), c(3, 3)], bench: [c(2, 2), c(4, 4)] }, { starters: [], bench: [] }, seq(0, 0, 0, 0, 0))
+  put(m, 'you', 0, 0); put(m, 'you', 0, 1); put(m, 'you', 0, 2)
   m.you.board[1].hp = 2
   const outId = m.you.board[1].id
   const before = m.you.energy
@@ -367,12 +370,13 @@ test('swapping brings a bench card in for 1 energy and benches the fighter with 
 test('an old client that sends one deck still gets a lineup', async () => {
   const { g } = await setup()
   const b = await g.startBattle({ rivalId: RIVALS[0].id, deck: deckOf(await g.snapshot()), wager: { type: 'coins', amount: 0 } })
-  assert.ok(b.you.board.every(Boolean))
-  assert.equal(b.you.hand.length, 5)
+  assert.ok(b.you.board.every((u) => !u))
+  assert.equal(b.you.hand.length, 8)
 })
 
 test('a knocked-out fighter is destroyed for the rest of the match', () => {
   const m = newMatch({ starters: [c(9, 9)], bench: [] }, { starters: [c(1, 1)], bench: [] }, seq(0, 0, 0, 0, 0))
+  put(m, 'you', 0, 0); put(m, 'them', 0, 0)
   endTurn(m, 'you') // first turn: nobody attacks
   endTurn(m, 'them')
   endTurn(m, 'you')

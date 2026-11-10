@@ -1932,3 +1932,33 @@ img.contestant-fig { object-fit: cover; border-radius: 10px; -webkit-mask: linea
 .spot { height: 70px; }
 .plate { scale: max(.7, calc(.62 / var(--s))); }
 .atk-chip { scale: max(.7, calc(.64 / var(--s))); }
+
+/* ═════════════ sprite fighters ═════════════ */
+.ftr.sprite .spr { position: absolute; left: 50%; bottom: 0; transform-origin: 50% 100%; translate: -50% 0; }
+.ftr.sprite .spr img { display: block; width: auto; max-width: none; image-rendering: auto; filter: drop-shadow(0 0 1px #000c) drop-shadow(0 3px 2px #0008); }
+.ftr.sprite .f-shadow { left: 6px; right: 6px; bottom: -6px; height: 16px; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow) 25%, #000c), transparent); }
+.ftr.sprite.ftier-3 .spr img { filter: drop-shadow(0 0 1px #000c) drop-shadow(0 0 6px #ffd16688); }
+.ftr.sprite.ftier-4 .spr img, .ftr.sprite.ftier-5 .spr img { filter: drop-shadow(0 0 1px #000c) drop-shadow(0 0 8px color-mix(in srgb, var(--glow) 70%, transparent)); }
+.pose-idle .spr { animation: sp-idle var(--tempo, 2.6s) ease-in-out infinite; }
+.ftr-them.pose-idle .spr { animation-delay: -1.2s; }
+@keyframes sp-idle { 0%, 100% { scale: 1 1; } 50% { scale: .985 1.03; } }
+.pose-run .spr { animation: sp-run .18s ease-in-out infinite alternate; }
+@keyframes sp-run { from { rotate: 7deg; translate: -50% 0; } to { rotate: 3deg; translate: -50% -7px; } }
+/* strike: 560ms, the blow lands at 55% */
+.pose-atk .spr { animation: sp-atk .56s cubic-bezier(.45,0,.35,1) both; }
+@keyframes sp-atk { 0% { rotate: 0deg; scale: 1 1; translate: -50% 0; } 38% { rotate: -11deg; scale: .94 1.06; translate: calc(-50% - 10px) 0; } 55% { rotate: 13deg; scale: 1.1 .93; translate: calc(-50% + 18px) 2px; } 74% { rotate: 8deg; scale: 1.04 .98; translate: calc(-50% + 12px) 0; } 100% { rotate: 0deg; scale: 1 1; translate: -50% 0; } }
+.sty-smash.pose-atk .spr { animation-name: sp-smash; }
+@keyframes sp-smash { 0% { rotate: 0deg; translate: -50% 0; } 40% { rotate: -14deg; translate: calc(-50% - 6px) -16px; scale: .95 1.08; } 56% { rotate: 16deg; translate: calc(-50% + 16px) 4px; scale: 1.14 .88; } 76% { rotate: 10deg; translate: calc(-50% + 12px) 2px; } 100% { rotate: 0deg; translate: -50% 0; } }
+.sty-thrust.pose-atk .spr { animation-name: sp-thrust; }
+@keyframes sp-thrust { 0% { translate: -50% 0; } 40% { translate: calc(-50% - 14px) 0; rotate: -5deg; } 55% { translate: calc(-50% + 26px) 0; rotate: 6deg; scale: 1.08 .96; } 78% { translate: calc(-50% + 22px) 0; rotate: 4deg; } 100% { translate: -50% 0; } }
+.sty-cast.pose-atk .spr { animation-name: sp-cast; }
+@keyframes sp-cast { 0% { translate: -50% 0; filter: none; } 40% { translate: calc(-50% - 6px) 0; rotate: -6deg; filter: brightness(1.4) drop-shadow(0 0 10px var(--glow)); } 56% { translate: calc(-50% + 6px) 0; rotate: 5deg; filter: brightness(1.8) drop-shadow(0 0 14px var(--glow)); } 100% { translate: -50% 0; filter: none; } }
+.pose-hurt .spr { animation: sp-hurt .42s cubic-bezier(.2,.8,.3,1); }
+@keyframes sp-hurt { 0% { translate: -50% 0; filter: none; } 18% { translate: calc(-50% - 16px) 0; rotate: -12deg; filter: brightness(2.6) sepia(1) hue-rotate(-40deg) saturate(5); } 55% { translate: calc(-50% - 8px) 0; rotate: -4deg; filter: none; } 100% { translate: -50% 0; } }
+.pose-die .spr { animation: sp-die .7s cubic-bezier(.5,0,.8,.6) forwards; }
+@keyframes sp-die { 0% { rotate: 0deg; } 30% { rotate: 8deg; translate: calc(-50% - 4px) 0; } 100% { rotate: -84deg; translate: calc(-50% - 10px) 6px; filter: grayscale(.6) brightness(.6); } }
+.guarding .ftr.sprite .spr img { filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 10px #4fc3ff); }
+.bolt-bow { width: 34px; height: 3px; margin-left: -17px; border-radius: 1px; background: linear-gradient(90deg, #e8d8ff 0 20%, #b88aff 20% 85%, #fff 85%); box-shadow: 0 0 10px #c79bff; animation-duration: .22s; animation-delay: .3s; }
+.bolt-bow.side-them { scale: -1 1; }
+.bolt-staff { background: radial-gradient(circle, #fffbd0, #ffd84a 40%, #9cff5a00 72%); box-shadow: 0 0 22px #ffd84a; width: 26px; height: 26px; margin-left: -13px; }
+.art-fighter .af-box { width: 100px; height: 150px; }

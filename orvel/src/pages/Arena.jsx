@@ -394,13 +394,13 @@ function DuelSetup({ rival, onClose, onStart }) {
           <div className="ds-head"><span className="label">YOUR LINEUP · {deck.length}/{STARTERS + BENCH}</span>
             <span className="ds-links"><button className="link" onClick={() => { play('click'); setLineup(strongest()) }}>Auto-pick strongest</button> <button className="link" onClick={() => { play('click'); setLineup({ starters: [], bench: [] }) }}>Clear</button></span></div>
           <div className="lu-zone">
-            <div className="lu-title"><b>STARTERS</b><span className="fine">On the field when the duel begins</span></div>
+            <div className="lu-title"><b>STARTERS</b><span className="fine">First in your hand — place them and they turn into fighters</span></div>
             <div className="lu-slots three">
               {Array.from({ length: STARTERS }, (_, i) => <LineupSlot key={i} k={lineup.starters[i]} label={LANE_LABELS[i]} resolve={resolve} options={options} onRemove={toggle} onMove={flip} moveLabel="to bench" />)}
             </div>
           </div>
           <div className="lu-zone bench">
-            <div className="lu-title"><b>BENCH</b><span className="fine">Switch them in on your turn (⚡1), or send them into a lane that empties. A knocked-out card is destroyed until your next match.</span></div>
+            <div className="lu-title"><b>BENCH</b><span className="fine">Also in your hand: place them in an empty lane, or swap one in for a fighter on your turn (⚡1). A knocked-out card is destroyed until your next match.</span></div>
             <div className="lu-slots five">
               {Array.from({ length: BENCH }, (_, i) => <LineupSlot key={i} k={lineup.bench[i]} label={`#${i + 1}`} resolve={resolve} options={options} onRemove={toggle} onMove={flip} moveLabel="to field" />)}
             </div>

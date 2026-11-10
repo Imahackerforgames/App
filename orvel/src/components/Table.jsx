@@ -318,7 +318,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
         <div className="hud-main">
           <div className="hud-name">{side === 'you' ? snap.player.name : <>{r.name} <span className="ld-lv"><Crest lvl={r.level} size={12} /> {r.level}</span></>}</div>
           <div className="hud-bar"><i style={{ width: `${pct * 100}%` }} className={pct < 0.35 ? 'low' : ''} /><span className="mono">{Math.max(0, L)}/{LEADER_HP}</span></div>
-          <div className="hud-sub mono">{(disp[side].deckCount ?? b[side].deckCount) > 0 ? `${side === 'them' ? `✋${b.them.handCount} · ` : ''}▤${disp[side].deckCount ?? b[side].deckCount}` : `bench ${side === 'them' ? b.them.handCount : b.you.hand.length}${b[side].out?.length ? ` · ✖${b[side].out.length}` : ''}`}</div>
+          <div className="hud-sub mono">{(disp[side].deckCount ?? b[side].deckCount) > 0 ? `${side === 'them' ? `✋${b.them.handCount} · ` : ''}▤${disp[side].deckCount ?? b[side].deckCount}` : `hand ${side === 'them' ? b.them.handCount : b.you.hand.length}${b[side].out?.length ? ` · ✖${b[side].out.length}` : ''}`}</div>
         </div>
         <div className="ld-pops">{pops.filter((p) => p.side === side && p.lane === 'leader').map((p) => <span key={p.id} className={`pop pop-${p.kind}`}>{p.text}{p.why && <small>{p.why}</small>}</span>)}</div>
       </div>
@@ -389,7 +389,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
           {b.you.out.map((c) => { const d = resolve(c.ref); return d && <span key={c.id} className="dz-card" title={`${d.card.name} — out until your next match`}><CardFrame card={d.card} rarity={d.rarity} frame={d.frame} footRight={d.footRight} size="xs" tilt={false} showCount={false} /><i>✖</i></span> })}
         </div>
       )}
-      {b.you.deckCount === 0 && b.status === 'active' && <div className={`bench-label ${swapFrom != null ? 'swapping' : ''}`}>{swapFrom != null ? <>Pick a bench card to swap into the {laneWord(swapFrom)} lane · <button className="link" onClick={() => setSwapFrom(null)}>cancel</button></> : `BENCH · ${b.you.hand.length}`}</div>}
+      {b.you.deckCount === 0 && b.status === 'active' && <div className={`bench-label ${swapFrom != null ? 'swapping' : ''}`}>{swapFrom != null ? <>Pick a bench card to swap into the {laneWord(swapFrom)} lane · <button className="link" onClick={() => setSwapFrom(null)}>cancel</button></> : `YOUR HAND · ${b.you.hand.length}`}</div>}
       <div className={`hand3d ${swapFrom != null ? 'swapping' : ''}`} style={{ '--n': Math.max(4, b.you.hand.length) }}>
         {b.you.hand.map((c, i) => {
           const d = resolve(c.ref)
@@ -492,7 +492,7 @@ export function HowToFight({ onClose }) {
   const steps = [
     ['🎯', 'The goal', 'Each side has a hero with 25 HP. You are on the left, your rival on the right. Knock their HP to 0 to win. If nobody falls after 10 turns each, the hero with more HP wins.'],
     ['⚡', 'Energy', 'At the start of each turn you get energy: 2 on your first turn, 3 on the next, up to 6. Every card shows its cost in a blue circle.'],
-    ['🃏', 'Place fighters', 'Your 3 starters begin on the field, one in each lane (back, middle, front). Your 5 bench cards wait below. Over each fighter: LV is its level, ⚔ is how hard it hits, the bar is its health.'],
+    ['🃏', 'Place fighters', 'The field starts empty. Your cards wait in your hand, starters first: tap one, then tap a glowing ring, and it turns into a fighter. A card costs the energy shown on it. Over each fighter: LV is its level, ⚔ is how hard it hits, the bar is its health.'],
     ['⚔', 'End turn = attack', 'Tap END TURN. Each of your fighters runs across its lane. If an enemy fighter stands across from it, it hits that fighter. If the lane is empty, it hits the rival hero directly. The number that pops up shows how the damage was added up. (Nobody attacks on the very first turn.)'],
     ['🔁', 'Their turn', 'Your rival does the same: places fighters, then attacks across the lanes. A fighter whose health runs out is knocked out.'],
     ['💡', 'How to win', 'Pick your strongest, highest-level cards before the duel. Block lanes where their strong fighters are. Attack through empty lanes to hit their hero. Each lane has an element: a fighter of that element hits +2 there. Ember ▲ beats Gale ❖, Gale beats Tide ≈, Tide beats Ember: +3 when you hit a fighter you beat.'],
