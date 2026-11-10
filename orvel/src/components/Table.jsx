@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import CardFrame, { levelTier } from './Card.jsx'
-import Fighter, { weaponFor, loadoutOf, WEAPON_NAMES, OUTFIT_NAMES, STYLE } from './Fighter.jsx'
+import Fighter, { weaponFor, loadoutOf, WEAPON_NAMES, OUTFIT_NAMES, STYLE, MOVES } from './Fighter.jsx'
 import Avatar, { playerPic } from './Avatar.jsx'
 import { Btn } from './ui.jsx'
 import { useGame, fmt, useArtUrl } from '../store.jsx'
@@ -26,7 +26,6 @@ const LANE_NAMES = ['BACK', 'MIDDLE', 'FRONT']
 // where each lane stands on screen: further lanes sit higher, smaller and
 // closer to the centre, like a field seen in perspective
 const ROWS = [{ y: 60, s: 0.62, x: [27, 73] }, { y: 78, s: 0.78, x: [20, 80] }, { y: 97, s: 0.96, x: [12, 88] }]
-const IMPACT = 310 // ms into a swing when the blow lands (matches the CSS)
 const ELC = { ember: '#ffb04a', tide: '#7fe0ff', gale: '#c6ff6a' }
 
 // The burst where a blow lands: a flash, a shock ring, and particles thrown
@@ -66,7 +65,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
   const [showResult, setShowResult] = useState(initial.status !== 'active')
   // the fight itself: who is moving, who is reeling, where the camera looks
   const [actor, setActor] = useState(null) // { side, lane, pose, dash, back, bolt }
-  const [hurt, setHurt] = useState(null) // 'you:1' | 'them:leader' …
+  const [hurt, setHurt] = useState(null) // { key: 'you:1' | 'them:leader', kind: 'hurt' | 'block' | 'dodge', power, n }
   const [cam, setCam] = useState(null)
   const [spark, setSpark] = useState(null)
   const [flash, setFlash] = useState(null)
@@ -105,70 +104,114 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
   const whose = (side) => (side === 'you' ? 'Your' : `${r.name}'s`)
   const laneWord = (lane) => LANE_NAMES[lane].toLowerCase()
 
-  // How far a fighter runs to reach its target, in pixels on this screen.
+  // Where a fighter has to go to attack, in its own lane's units (a lane's
+  // spot is scaled by its depth, so screen distance is divided by that
+  // scale). Fighters stop at their weapon's reach in front of the target, so
+  // they never walk through it; with an empty lane they cross to the far edge.
   function reach(side, lane, unit, toLeader) {
     const w = stageRef.current?.getBoundingClientRect().width || 360
     const row = ROWS[lane]
     const from = row.x[side === 'you' ? 0 : 1], to = row.x[side === 'you' ? 1 : 0]
     const dir = side === 'you' ? 1 : -1
     const style = STYLE[weaponFor(unit)] || 'slash'
-    const span = ((to - from) / 100) * w
-    if (style === 'cast') return { style, dash: 0, bolt: span - dir * 22 * row.s }
-    if (toLeader) return { style, dash: span + dir * 4 * row.s, bolt: 0 }
-    const gap = (style === 'thrust' ? 92 : style === 'smash' ? 60 : 56) * row.s
-    return { style, dash: span - dir * gap, bolt: 0 }
+    const span = ((to - from) / 100) * w / row.s
+    if (style === 'cast') return { style, dash: dir * 14, bolt: span - dir * 36, screen: 14 * row.s }
+    if (toLeader) return { style, dash: span + dir * 10, bolt: 0, screen: Math.abs(span + dir * 10) * row.s }
+    const gap = style === 'thrust' ? 84 : style === 'smash' ? 62 : 54
+    const dash = span - dir * gap
+    return { style, dash, bolt: 0, screen: Math.abs(dash) * row.s }
   }
   const why = (e) => {
     const parts = (e.parts || []).map((p) => (p.k === 'base' ? `${p.v} ATK` : `${p.v > 0 ? '+' : ''}${p.v} ${p.label.toLowerCase()}`))
     if (e.blocked) parts.push(`−${e.blocked} blocked`)
     return parts.length > 1 ? parts.join(' ') : ''
   }
+  // camera shake and hit-stop scaled by how hard the blow was
+  function impactFeel(k, freeze) {
+    worldRef.current?.animate?.([{ translate: '0 0' }, { translate: `${-5 * k}px ${3 * k}px` }, { translate: `${4 * k}px ${-2 * k}px` }, { translate: `${-2 * k}px ${k}px` }, { translate: '0 0' }], { duration: 160 + 110 * k, easing: 'ease-out' })
+    worldRef.current?.classList.add('hitstop')
+    setTimeout(() => worldRef.current?.classList.remove('hitstop'), freeze)
+  }
 
+  // One fighter's attack, acted out:
+  //   approach (walk or run with real steps, speed from its body type) →
+  //   plant → its combo, each move with anticipation, contact and recovery,
+  //   the target reacting to every blow (hurt, block or dodge, pushed away
+  //   from the hit) → walk back to its spot, still facing the enemy.
+  // The rules engine has already decided the damage; the combo only splits
+  // the moment it lands into readable blows, and the total shows on the last.
   async function strike(e) {
     const target = e.side === 'you' ? 'them' : 'you'
     const u = dispRef.current[e.side].board[e.lane]
     if (!u) { setDisp({ you: e.snap.you, them: e.snap.them }); return }
     const toLeader = e.target === 'leader'
     const g = reach(e.side, e.lane, u, toLeader)
+    const L = loadoutOf(u), P = L.profile
+    const tgtKey = toLeader ? `${target}:leader` : `${target}:${e.lane}`
+    const defender = !toLeader && dispRef.current[target].board[e.lane]
+    const defLight = defender && loadoutOf(defender).profile.dodges
+    const sp = speed.current
+    let n = 0
     setCam(e.lane)
-    if (g.style !== 'cast') {
-      setActor({ side: e.side, lane: e.lane, pose: 'run', dash: g.dash })
-      await T(430)
-    }
-    setActor({ side: e.side, lane: e.lane, pose: 'atk', dash: g.dash, bolt: g.style === 'cast' ? g.bolt : null, style: g.style, weapon: weaponFor(u) })
-    play(g.style === 'cast' ? 'bolt' : 'swing')
-    await T(IMPACT + (g.style === 'cast' ? 140 : 0))
+    // 1. approach
+    const travel = Math.max(220, Math.min(1100, (g.screen / P.speed) * 1000)) * sp
+    const gait = g.style === 'cast' ? 'walk' : P.run ? 'run' : 'walk'
+    setActor({ side: e.side, lane: e.lane, pose: gait, dash: g.dash, travel, n: n++ })
+    await T(travel / sp)
     if (!alive.current) return
-    // the blow lands: numbers change now, not before
-    setDisp({ you: e.snap.you, them: e.snap.them })
-    // camera shake, without re-rendering anything mid-swing
-    const heavy = e.dmg >= 8
-    const k = heavy ? 2 : e.dmg ? 1 : 0.6
-    worldRef.current?.animate?.([{ translate: '0 0' }, { translate: `${-5 * k}px ${3 * k}px` }, { translate: `${4 * k}px ${-2 * k}px` }, { translate: `${-2 * k}px ${k}px` }, { translate: '0 0' }], { duration: 220 + 120 * k, easing: 'ease-out' })
-    // hit-stop: everything freezes for a beat so the blow reads as solid
-    worldRef.current?.classList.add('hitstop')
-    setTimeout(() => worldRef.current?.classList.remove('hitstop'), heavy ? 140 : 80)
-    if (heavy) { setFlash(Math.random()); setTimeout(() => alive.current && setFlash(null), 380) }
-    const tgt = toLeader ? `${target}:leader` : `${target}:${e.lane}`
-    setHurt(tgt)
-    setSpark({ key: Math.random(), side: target, lane: e.lane, leader: toLeader, big: e.dmg >= 8, blocked: !e.dmg, el: u.element, from: e.side })
-    if (e.dmg) play('hit', e.dmg >= 8); else play('clang')
-    if (toLeader) {
-      pop(target, 'leader', `−${e.dmg}`, 'dmg', why(e))
-      say(`${whose(e.side)} ${laneWord(e.lane)} fighter ran through the empty lane and hit ${e.side === 'you' ? r.name : 'you'} for ${e.dmg}`)
-    } else {
-      pop(target, e.lane, e.dmg ? `−${e.dmg}` : 'BLOCKED', e.dmg ? (e.dmg >= 8 ? 'dmg heavy' : 'dmg') : 'block', why(e))
-      if (e.through) pop(target, 'leader', `−${e.through}`, 'dmg', 'pierced through')
-      say(`${whose(e.side)} ${laneWord(e.lane)} fighter hit ${unitName(dispRef.current[target].board[e.lane])} for ${e.dmg}${e.through ? ` (+${e.through} through)` : ''}${e.back ? `, took ${e.back} back` : ''}`)
+    // 2. combo: a weak blow is one move, a strong one the full string
+    const moves = L.moves.slice(0, e.dmg >= 6 || L.moves.length === 1 ? L.moves.length : Math.max(1, L.moves.length - 1))
+    for (let i = 0; i < moves.length; i++) {
+      const M = MOVES[moves[i]]
+      const last = i === moves.length - 1
+      const dur = M.dur * P.tempo
+      const cast = moves[i] === 'cast'
+      const hitAt = cast ? dur * 0.45 + 300 : dur * M.hit
+      setActor({ side: e.side, lane: e.lane, pose: 'mv', move: moves[i], dash: g.dash, dur: dur * sp, power: M.power, style: g.style, weapon: L.weapon, bolt: cast ? g.bolt : null, n: n++ })
+      play(cast ? 'bolt' : 'swing')
+      await T(hitAt)
+      if (!alive.current) return
+      const blocked = !e.dmg || (e.blocked && !last)
+      if (!last) {
+        // an early blow: the target reacts; light fighters slip the first one
+        const kind = blocked ? 'block' : defLight && i === 0 ? 'dodge' : 'hurt'
+        setHurt({ key: tgtKey, kind, power: M.power * 0.7, n: Math.random() })
+        if (kind !== 'dodge') {
+          setSpark({ key: Math.random(), side: target, lane: e.lane, leader: toLeader, big: false, blocked, el: u.element, from: e.side })
+          impactFeel(blocked ? 0.5 : 0.7, 50)
+          play(blocked ? 'clang' : 'hit')
+        }
+        if (moves.length > 1) pop(target, toLeader ? 'leader' : e.lane, `${i + 1} HIT`, 'combo-pop')
+      } else {
+        // the finishing blow: the real numbers land now
+        setDisp({ you: e.snap.you, them: e.snap.them })
+        const heavy = e.dmg >= 8 || M.power >= 2
+        impactFeel(heavy ? 2 : e.dmg ? 1.1 : 0.6, heavy ? 140 : 80)
+        if (heavy) { setFlash(Math.random()); setTimeout(() => alive.current && setFlash(null), 380) }
+        setHurt({ key: tgtKey, kind: e.dmg ? 'hurt' : 'block', power: M.power * (e.dmg >= 8 ? 1.4 : 1), n: Math.random() })
+        setSpark({ key: Math.random(), side: target, lane: e.lane, leader: toLeader, big: heavy, blocked: !e.dmg, el: u.element, from: e.side })
+        if (e.dmg) play('hit', heavy); else play('clang')
+        if (toLeader) {
+          pop(target, 'leader', `−${e.dmg}`, 'dmg', why(e))
+          say(`${whose(e.side)} ${laneWord(e.lane)} fighter crossed the empty lane and hit ${e.side === 'you' ? r.name : 'you'} for ${e.dmg}`)
+        } else {
+          pop(target, e.lane, e.dmg ? `−${e.dmg}` : 'BLOCKED', e.dmg ? (e.dmg >= 8 ? 'dmg heavy' : 'dmg') : 'block', why(e))
+          if (e.through) pop(target, 'leader', `−${e.through}`, 'dmg', 'pierced through')
+          say(`${whose(e.side)} ${laneWord(e.lane)} fighter hit ${unitName(dispRef.current[target].board[e.lane])} ${moves.length > 1 ? `with a ${moves.length}-hit combo ` : ''}for ${e.dmg}${e.through ? ` (+${e.through} through)` : ''}${e.back ? `, took ${e.back} back` : ''}`)
+        }
+        if (e.heal) pop(e.side, 'leader', `+${e.heal}`, 'heal', 'drain')
+      }
+      // recovery; the next move cancels in before it fully settles
+      await T((dur - (cast ? Math.min(dur, hitAt) : hitAt)) * (last ? 1 : 0.55))
+      if (!alive.current) return
     }
-    if (e.heal) pop(e.side, 'leader', `+${e.heal}`, 'heal', 'drain')
-    await T(300)
-    if (e.back) { setHurt(`${e.side}:${e.lane}`); pop(e.side, e.lane, `−${e.back}`, 'dmg', 'counter'); play('hit'); await T(320) }
-    if (g.style !== 'cast') {
-      setActor({ side: e.side, lane: e.lane, pose: 'run', dash: 0, back: true })
-      await T(400)
-    }
-    setActor(null); setHurt(null); setSpark(null)
+    if (e.back) { setHurt({ key: `${e.side}:${e.lane}`, kind: 'hurt', power: 0.8, n: Math.random() }); pop(e.side, e.lane, `−${e.back}`, 'dmg', 'counter'); play('hit'); await T(320) }
+    // 3. back off to its own spot, facing the enemy the whole way
+    setHurt(null); setSpark(null)
+    const home = Math.max(220, Math.min(1000, (g.screen / (P.speed * 0.85)) * 1000)) * speed.current
+    setActor({ side: e.side, lane: e.lane, pose: 'walkback', dash: 0, travel: home, n: n++ })
+    await T(home / speed.current)
+    setActor(null)
   }
 
   async function animate(events, final) {
@@ -199,7 +242,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
         setDisp({ you: before.you, them: before.them })
         continue
       }
-      if (e.t === 'burn') { pop(e.side, e.lane, `🔥−${e.dmg}`, 'burn', 'burning'); setHurt(`${e.side}:${e.lane}`); play('hit') }
+      if (e.t === 'burn') { pop(e.side, e.lane, `🔥−${e.dmg}`, 'burn', 'burning'); setHurt({ key: `${e.side}:${e.lane}`, kind: 'hurt', power: 0.6, n: Math.random() }); play('hit') }
       if (e.t === 'fortify') { pop(e.side, e.lane, '⛨ FORTIFIED', 'guard'); play('guard') }
       if (e.t === 'rally') { pop(e.side, e.lane, 'RALLY +2', 'heal'); play('coin') }
       if (e.t === 'hex') { pop(e.side === 'you' ? 'them' : 'you', e.lane, 'HEX −3', 'hex'); play('error') }
@@ -271,8 +314,10 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
     const canDrop = side === 'you' && myTurn && !u && ((selCard && !canPlay(view, 'you', sel, lane)) || shiftFrom != null)
     const dropping = (fx?.t === 'play' || fx?.t === 'swap') && fx.side === side && fx.lane === lane
     const moving = actor && actor.side === side && actor.lane === lane ? actor : null
-    const reeling = hurt === `${side}:${lane}`
-    const pose = dyingHere ? 'die' : moving ? moving.pose : reeling ? 'hurt' : 'idle'
+    const reeling = hurt?.key === `${side}:${lane}` ? hurt : null
+    // the end of the duel: winners celebrate, losers slump
+    const ending = b.status !== 'active' && !fx ? (b.status === 'draw' ? null : (b.status === 'won') === (side === 'you') ? 'victory' : 'defeat') : null
+    const pose = dyingHere ? 'die' : moving ? moving.pose : reeling ? reeling.kind : ending || 'idle'
     const nextAtk = u && b.status === 'active' ? attackOf(view, side, lane) : null
     const hpPct = u ? Math.max(0, u.hp) / (u.maxHp || u.hp || 1) : 0
     const tut = tcur?.hl === `lane-${side}-${lane}` || tcur?.hl === `unit-${side}-${lane}`
@@ -283,11 +328,11 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
         role="button" tabIndex={0} aria-label={u ? `${side === 'you' ? 'Your' : 'Enemy'} ${d?.card.name} in the ${laneWord(lane)} lane, ${u.atk} attack, ${u.hp} health` : `${side === 'you' ? 'Your' : 'Enemy'} empty ${laneWord(lane)} lane`}>
         <div className="spot-ring" />
         {u && d && (
-          <div className={`mover ${moving?.back ? 'back' : ''}`} style={{ translate: `${moving ? moving.dash : 0}px 0` }}>
+          <div className="mover" style={{ translate: `${moving ? moving.dash : 0}px 0`, transition: moving?.travel ? `translate ${moving.travel}ms cubic-bezier(.4,0,.6,1)` : 'translate 0s' }}>
             {dropping && <div className="summon-card"><CardFrame card={d.card} rarity={d.rarity} frame={d.frame} footRight={d.footRight} size="xs" tilt={false} showCount={false} /></div>}
-            <div className={dropping ? 'summon-fighter' : 'fighter-wrap'}><FighterArt d={d} u={u} side={side} pose={pose} /></div>
-            {moving?.pose === 'run' && <span className="dust" aria-hidden="true"><i /><i /><i /></span>}
-            {moving?.pose === 'atk' && moving.style !== 'cast' && <span className={`trail trail-${moving.style} side-${side}`} style={{ '--tc': ELC[u.element] }} aria-hidden="true" />}
+            <div className={dropping ? 'summon-fighter' : 'fighter-wrap'}><FighterArt key={`${pose}:${moving?.n ?? ''}:${reeling?.n ?? ''}`} d={d} u={u} side={side} pose={pose} move={moving?.move} dur={moving?.dur} power={reeling?.power ?? moving?.power} /></div>
+            {(moving?.pose === 'run' || moving?.pose === 'walk' || moving?.pose === 'walkback') && <span className="dust" aria-hidden="true"><i /><i /><i /></span>}
+            {moving?.pose === 'mv' && moving.style !== 'cast' && <span key={moving.n} className={`trail trail-${moving.style} side-${side}`} style={{ '--tc': ELC[u.element], animationDuration: `${moving.dur}ms` }} aria-hidden="true" />}
             {dyingHere && <span className="ko-burst" aria-hidden="true" />}
             {dropping && <div className="summon-flash" />}
             {!moving && !dyingHere && (
@@ -303,7 +348,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
             )}
           </div>
         )}
-        {moving?.bolt != null && <span className={`bolt bolt-${u?.element} bolt-${moving.weapon} side-${side}`} style={{ '--to': `${moving.bolt}px` }} />}
+        {moving?.bolt != null && <span key={moving.n} className={`bolt bolt-${u?.element} bolt-${moving.weapon} side-${side}`} style={{ '--to': `${moving.bolt}px`, animationDelay: `${moving.dur * 0.45}ms`, animationDuration: `${300 * speed.current}ms` }} />}
         <div className="spot-pops">{pops.filter((p) => p.side === side && p.lane === lane).map((p) => <span key={p.id} className={`pop pop-${p.kind}`}>{p.text}{p.why && <small>{p.why}</small>}</span>)}</div>
       </div>
     )
@@ -313,7 +358,7 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
     const L = disp[side].leader
     const pct = Math.max(0, L) / LEADER_HP
     return (
-      <div className={`hud-side hud-${side} ${hurt === `${side}:leader` ? 'hit' : ''}`}>
+      <div className={`hud-side hud-${side} ${hurt?.key === `${side}:leader` ? 'hit' : ''}`}>
         <Avatar seed={side === 'you' ? 'player:' + snap.player.name : r.id} pic={side === 'you' ? playerPic(snap.player) : null} size={38} ring={side === 'you' ? 'var(--accent)' : tierColor(r.level)} />
         <div className="hud-main">
           <div className="hud-name">{side === 'you' ? snap.player.name : <>{r.name} <span className="ld-lv"><Crest lvl={r.level} size={12} /> {r.level}</span></>}</div>
@@ -462,9 +507,9 @@ export default function Table({ initial, onClose, onRematch, engine = null, tuto
   )
 }
 
-function FighterArt({ d, u, side, pose }) {
+function FighterArt({ d, u, side, pose, move, dur, power }) {
   const art = useArtUrl(d.card)
-  return <Fighter unit={u} art={art} rarity={d.rarity} side={side} pose={pose} />
+  return <Fighter unit={u} art={art} rarity={d.rarity} side={side} pose={pose} move={move} dur={dur} power={power} />
 }
 
 // The three-step helper under the table.

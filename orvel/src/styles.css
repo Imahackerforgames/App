@@ -2054,3 +2054,205 @@ img.contestant-fig { object-fit: cover; border-radius: 10px; -webkit-mask: linea
 /* summon: drop in from above with a landing squash */
 .summon-fighter .spr { animation: sp-land .6s .45s cubic-bezier(.3,1.5,.5,1) both; }
 @keyframes sp-land { 0% { translate: -50% -60px; scale: .6 1.3; opacity: 0; } 55% { translate: -50% 0; scale: 1.25 .75; opacity: 1; } 75% { scale: .92 1.08; } 100% { translate: -50% 0; scale: 1 1; } }
+
+/* ═════════════ jointed fighters: footwork and full-body combat ═════════════
+   Each fighter is its picture cut into three parts that share one image:
+   .upper (pivots at the waist) over .leg.back and .leg.front (each pivots at
+   its hip). .fb carries the whole body (travel offsets, jumps, knockback).
+   Forward is always +x: positive rotate leans the torso forward and swings a
+   leg back. Individual transform properties (translate / rotate / scale) let
+   every layer animate independently. */
+.jointed .fb { position: absolute; left: 50%; bottom: 0; transform-origin: 50% 100%; }
+.jointed .fflip { position: absolute; inset: 0; filter: drop-shadow(0 0 1px #000c) drop-shadow(0 3px 2px #0008); }
+.jointed.ftier-3 .fflip { filter: drop-shadow(0 0 1px #000c) drop-shadow(0 0 6px #ffd16688); }
+.jointed.ftier-4 .fflip, .jointed.ftier-5 .fflip { filter: drop-shadow(0 0 1px #000c) drop-shadow(0 0 8px color-mix(in srgb, var(--glow) 70%, transparent)); }
+.jointed .fp-part { position: absolute; inset: 0; }
+.jointed .fp-part img { display: block; width: 100%; height: 100%; }
+.jointed .upper { z-index: 2; }
+.jointed .leg.front { z-index: 1; }
+
+/* stance: knees soft and breathing, weight rocking between the feet; the
+   body drops as the knees bend so the feet stay planted */
+.jointed.pose-idle .fb { animation: j-breathe calc(var(--tempo) / 2) ease-in-out infinite alternate; }
+.jointed.pose-idle .leg { animation: j-knee calc(var(--tempo) / 2) ease-in-out infinite alternate; }
+.jointed.pose-idle .upper { animation: j-sway var(--tempo) ease-in-out infinite; }
+.jointed.ftr-them.pose-idle .fb, .jointed.ftr-them.pose-idle .leg, .jointed.ftr-them.pose-idle .upper { animation-delay: -.7s; }
+@keyframes j-breathe { from { translate: 0 0; } to { translate: 0 2px; } }
+@keyframes j-knee { from { scale: 1 1; } to { scale: 1 .975; } }
+@keyframes j-sway { 0%, 100% { rotate: -1.2deg; translate: -1px 0; } 50% { rotate: 1.6deg; translate: 1.5px 0; } }
+
+/* walking: real alternating steps. Each leg plants forward, is pushed back
+   while planted, then bends (shortens), lifts and swings through. The legs
+   are half a cycle apart; the body rises over the planted leg once per step
+   and the torso counter-twists. Travel speed is set from the same step time,
+   so feet don't slide. */
+.jointed.pose-walk .leg, .jointed.pose-run .leg, .jointed.pose-walkback .leg { animation: j-step calc(var(--step) * 2) linear infinite; }
+.jointed.pose-walk .leg.back, .jointed.pose-run .leg.back, .jointed.pose-walkback .leg.back { animation-delay: calc(var(--step) * -1); }
+@keyframes j-step {
+  0% { rotate: calc(var(--swing) * -1); translate: 0 0; scale: 1 1; }
+  50% { rotate: var(--swing); translate: 0 0; scale: 1 1; }
+  68% { rotate: calc(var(--swing) * .4); translate: 0 calc(var(--lift) * -1); scale: 1 .88; }
+  85% { rotate: calc(var(--swing) * -.7); translate: 0 calc(var(--lift) * -.7); scale: 1 .93; }
+  100% { rotate: calc(var(--swing) * -1); translate: 0 0; scale: 1 1; }
+}
+.jointed.pose-walk .fb, .jointed.pose-walkback .fb { animation: j-bob var(--step) ease-in-out infinite; }
+@keyframes j-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 calc(var(--bob) * -1); } }
+.jointed.pose-walk .upper { animation: j-twist calc(var(--step) * 2) ease-in-out infinite; }
+@keyframes j-twist { 0%, 100% { rotate: calc(var(--lean) - 2.5deg); } 50% { rotate: calc(var(--lean) + 2.5deg); } }
+/* running: longer airtime, a deeper lean, afterimages */
+.jointed.pose-run .fb { animation: j-runbob var(--step) ease-in-out infinite; }
+@keyframes j-runbob { 0%, 100% { translate: 0 0; scale: 1.03 .97; } 50% { translate: 0 calc(var(--bob) * -1.8); scale: .98 1.03; } }
+.jointed.pose-run .upper { animation: j-runtwist calc(var(--step) * 2) ease-in-out infinite; }
+@keyframes j-runtwist { 0%, 100% { rotate: calc(var(--lean) * 1.6 - 3deg); } 50% { rotate: calc(var(--lean) * 1.6 + 3deg); } }
+.jointed.pose-run .leg { animation-name: j-stride; }
+@keyframes j-stride {
+  0% { rotate: calc(var(--swing) * -1.25); translate: 0 0; scale: 1 1; }
+  45% { rotate: calc(var(--swing) * 1.1); translate: 0 0; scale: 1 1; }
+  65% { rotate: calc(var(--swing) * .5); translate: 0 calc(var(--lift) * -1.4); scale: 1 .82; }
+  85% { rotate: calc(var(--swing) * -1); translate: 0 calc(var(--lift) * -.8); scale: 1 .9; }
+  100% { rotate: calc(var(--swing) * -1.25); translate: 0 0; scale: 1 1; }
+}
+.jointed .fgh { position: absolute; left: 50%; bottom: 0; opacity: .28; filter: blur(1px) brightness(1.4) drop-shadow(0 0 4px var(--glow)); translate: -14px 0; animation: j-runbob var(--step) ease-in-out infinite; animation-delay: -.05s; }
+.jointed .fgh.g2 { opacity: .14; translate: -28px 0; animation-delay: -.1s; }
+.jointed .fgh img { width: 100%; height: 100%; }
+/* walking backward: the same footwork in reverse, leaning back, still facing the enemy */
+.jointed.pose-walkback .leg { animation-direction: reverse; }
+.jointed.pose-walkback .upper { rotate: calc(var(--lean) * -.6); }
+/* mechanical bodies move in clipped, stepped beats */
+.jointed.wt-mech.pose-walk .leg, .jointed.wt-mech.pose-walkback .leg, .jointed.wt-mech.pose-walk .fb, .jointed.wt-mech.pose-walkback .fb { animation-timing-function: steps(5, jump-none); }
+.jointed.wt-mech.pose-idle .upper { animation-timing-function: steps(4, jump-none); }
+/* heavy bodies sink into each step */
+.jointed.wt-heavy.pose-walk .fb, .jointed.wt-heavy.pose-walkback .fb { animation-name: j-heavybob; }
+@keyframes j-heavybob { 0%, 100% { translate: 0 0; scale: 1 1; } 15% { translate: 0 2px; scale: 1.04 .96; } 55% { translate: 0 calc(var(--bob) * -1); scale: .99 1.01; } }
+
+/* attacks: one duration (--mvd) per move, with anticipation, contact and recovery */
+.jointed.pose-mv .fb, .jointed.pose-mv .upper, .jointed.pose-mv .leg { animation-duration: var(--mvd); animation-timing-function: cubic-bezier(.3,0,.3,1); animation-fill-mode: both; animation-iteration-count: 1; }
+
+/* punches: elbow chambered, shoulders and hips twist in, weight rolls to the front foot */
+.mv-jab .upper { animation-name: m-jab-u; } .mv-jab .fb { animation-name: m-jab-b; } .mv-jab .leg.front { animation-name: m-jab-f; } .mv-jab .leg.back { animation-name: m-jab-k; }
+@keyframes m-jab-u { 30% { rotate: -6deg; translate: -3px 0; } 45% { rotate: 9deg; translate: 8px 0; } 70% { rotate: 4deg; translate: 3px 0; } }
+@keyframes m-jab-b { 45% { translate: 6px 0; } 70% { translate: 3px 0; } }
+@keyframes m-jab-f { 45% { rotate: -8deg; } }
+@keyframes m-jab-k { 45% { rotate: 8deg; scale: 1 .97; } }
+.mv-cross .upper { animation-name: m-cross-u; } .mv-cross .fb { animation-name: m-cross-b; } .mv-cross .leg.front { animation-name: m-cross-f; } .mv-cross .leg.back { animation-name: m-cross-k; }
+@keyframes m-cross-u { 30% { rotate: -11deg; translate: -5px 0; } 50% { rotate: 17deg; translate: 12px 0; } 75% { rotate: 6deg; translate: 4px 0; } }
+@keyframes m-cross-b { 30% { translate: -4px 1px; } 50% { translate: 12px 0; } 75% { translate: 6px 0; } }
+@keyframes m-cross-f { 50% { rotate: -12deg; } }
+@keyframes m-cross-k { 30% { rotate: 4deg; } 50% { rotate: 18deg; scale: 1 .93; } }
+.mv-uppercut .upper { animation-name: m-up-u; } .mv-uppercut .fb { animation-name: m-up-b; } .mv-uppercut .leg { animation-name: m-up-l; }
+@keyframes m-up-u { 30% { rotate: 12deg; } 55% { rotate: -14deg; translate: 4px -5px; } 78% { rotate: -6deg; } }
+@keyframes m-up-b { 30% { translate: 0 7px; scale: 1.06 .92; } 55% { translate: 6px -14px; scale: .95 1.07; } 78% { translate: 3px -3px; } }
+@keyframes m-up-l { 30% { scale: 1 .88; } 55% { scale: 1 1.04; rotate: -6deg; } }
+
+/* kicks: knee lifts (leg shortens), hip turns, leg snaps out, supporting leg
+   braces, torso leans back to balance, then the foot comes back down */
+.mv-kick .leg.front { animation-name: m-kick-f; } .mv-kick .leg.back { animation-name: m-kick-k; } .mv-kick .upper { animation-name: m-kick-u; } .mv-kick .fb { animation-name: m-kick-b; }
+@keyframes m-kick-f { 22% { rotate: -48deg; scale: 1 .76; translate: 0 -6px; } 52% { rotate: -88deg; scale: 1 1.04; translate: 0 -4px; } 72% { rotate: -55deg; scale: 1 .84; } }
+@keyframes m-kick-k { 22% { rotate: 4deg; scale: 1 .95; } 52% { rotate: 8deg; } }
+@keyframes m-kick-u { 22% { rotate: -6deg; } 52% { rotate: -16deg; translate: -6px 0; } 72% { rotate: -6deg; } }
+@keyframes m-kick-b { 22% { translate: 0 -2px; } 52% { translate: 4px -6px; } 72% { translate: 2px -2px; } }
+
+/* blades: wind back, sweep through in an arc, follow through */
+.mv-slash .upper { animation-name: m-sl-u; } .mv-slash .fb { animation-name: m-sl-b; } .mv-slash .leg.front { animation-name: m-sl-f; } .mv-slash .leg.back { animation-name: m-sl-k; }
+@keyframes m-sl-u { 30% { rotate: -20deg; translate: -4px 0; } 50% { rotate: 24deg; translate: 8px 0; } 72% { rotate: 13deg; translate: 4px 0; } }
+@keyframes m-sl-b { 30% { translate: -5px 0; } 50% { translate: 12px 0; } 72% { translate: 7px 0; } }
+@keyframes m-sl-f { 50% { rotate: -15deg; } 72% { rotate: -9deg; } }
+@keyframes m-sl-k { 30% { rotate: -4deg; } 50% { rotate: 12deg; scale: 1 .95; } }
+.mv-reverse .upper { animation-name: m-rv-u; } .mv-reverse .fb { animation-name: m-rv-b; } .mv-reverse .leg.front { animation-name: m-sl-f; } .mv-reverse .leg.back { animation-name: m-sl-k; }
+@keyframes m-rv-u { 30% { rotate: 18deg; translate: 5px 0; } 50% { rotate: -18deg; translate: 7px 0; } 72% { rotate: -7deg; translate: 3px 0; } }
+@keyframes m-rv-b { 30% { translate: 3px 0; } 50% { translate: 10px 0; } 72% { translate: 6px 0; } }
+.mv-overhead .upper { animation-name: m-oh-u; } .mv-overhead .fb { animation-name: m-oh-b; } .mv-overhead .leg.front { animation-name: m-oh-f; } .mv-overhead .leg.back { animation-name: m-oh-k; }
+@keyframes m-oh-u { 35% { rotate: -30deg; } 56% { rotate: 32deg; } 80% { rotate: 15deg; } }
+@keyframes m-oh-b { 35% { translate: -3px -9px; scale: .96 1.05; } 56% { translate: 13px 5px; scale: 1.08 .92; } 80% { translate: 7px 2px; } }
+@keyframes m-oh-f { 56% { rotate: -19deg; scale: 1 .9; } }
+@keyframes m-oh-k { 56% { rotate: 15deg; scale: 1 .9; } }
+/* spinning attack: the whole body turns through, the leg or weapon sweeps out */
+.mv-spin .fb { animation-name: m-spin-b; } .mv-spin .leg.front { animation-name: m-spin-f; } .mv-spin .upper { animation-name: m-spin-u; }
+@keyframes m-spin-b { 25% { scale: .25 1; translate: 2px -4px; } 40% { scale: -1 1; translate: 6px -6px; } 55% { scale: -.25 1; translate: 10px -4px; } 70% { scale: 1 1; translate: 12px 0; } 85% { translate: 6px 0; } }
+@keyframes m-spin-f { 45% { rotate: -40deg; scale: 1 .9; } 62% { rotate: -75deg; } 80% { rotate: -20deg; } }
+@keyframes m-spin-u { 62% { rotate: 14deg; } }
+
+/* polearms: draw back, drive straight through, stay extended a beat */
+.mv-stab .fb { animation-name: m-st-b; } .mv-stab .upper { animation-name: m-st-u; } .mv-stab .leg.front { animation-name: m-st-f; } .mv-stab .leg.back { animation-name: m-st-k; }
+@keyframes m-st-b { 32% { translate: -9px 0; } 48% { translate: 19px 0; } 75% { translate: 12px 0; } }
+@keyframes m-st-u { 32% { rotate: -6deg; } 48% { rotate: 8deg; } }
+@keyframes m-st-f { 48% { rotate: -15deg; } }
+@keyframes m-st-k { 32% { rotate: -4deg; } 48% { rotate: 11deg; } }
+.mv-lunge .fb { animation-name: m-lg-b; } .mv-lunge .upper { animation-name: m-lg-u; } .mv-lunge .leg.front { animation-name: m-lg-f; } .mv-lunge .leg.back { animation-name: m-lg-k; }
+@keyframes m-lg-b { 30% { translate: -11px 2px; } 55% { translate: 32px 6px; } 80% { translate: 22px 3px; } }
+@keyframes m-lg-u { 30% { rotate: -7deg; } 55% { rotate: 13deg; } }
+@keyframes m-lg-f { 30% { rotate: 4deg; } 55% { rotate: -34deg; } 80% { rotate: -22deg; } }
+@keyframes m-lg-k { 55% { rotate: 26deg; scale: 1 .94; } 80% { rotate: 16deg; } }
+
+/* heavy weapons: a long, loaded wind-up, then a swing that drags the body after it */
+.mv-windup .fb { animation-name: m-wu-b; } .mv-windup .upper { animation-name: m-wu-u; } .mv-windup .leg.front { animation-name: m-wu-f; } .mv-windup .leg.back { animation-name: m-wu-k; }
+@keyframes m-wu-b { 60% { translate: -4px 6px; scale: 1.05 .93; } 70% { translate: 10px 2px; } 86% { translate: 15px 0; } }
+@keyframes m-wu-u { 60% { rotate: -34deg; } 70% { rotate: 27deg; } 86% { rotate: 34deg; } }
+@keyframes m-wu-f { 60% { scale: 1 .9; } 70% { rotate: -17deg; } }
+@keyframes m-wu-k { 60% { scale: 1 .9; } 70% { rotate: 13deg; } }
+/* ground smash: crouch, leap (ease out on the way up, ease in on the way
+   down, like gravity), weapon overhead, crash down on landing */
+.mv-smash .fb { animation-name: m-sm-b; } .mv-smash .upper { animation-name: m-sm-u; } .mv-smash .leg.front { animation-name: m-sm-f; } .mv-smash .leg.back { animation-name: m-sm-k; }
+@keyframes m-sm-b {
+  0% { translate: 0 0; }
+  20% { translate: 0 8px; scale: 1.1 .88; animation-timing-function: cubic-bezier(.2,.8,.4,1); }
+  42% { translate: 6px -38px; scale: .94 1.08; animation-timing-function: cubic-bezier(.6,0,.9,.5); }
+  60% { translate: 15px 6px; scale: 1.18 .84; }
+  76% { translate: 12px 2px; scale: 1.04 .97; }
+  100% { translate: 0 0; scale: 1 1; }
+}
+@keyframes m-sm-u { 20% { rotate: 7deg; } 42% { rotate: -32deg; } 60% { rotate: 36deg; } 76% { rotate: 20deg; } }
+@keyframes m-sm-f { 20% { scale: 1 .85; } 42% { rotate: -26deg; scale: 1 .8; } 60% { rotate: -17deg; scale: 1 .9; } }
+@keyframes m-sm-k { 20% { scale: 1 .85; } 42% { rotate: 24deg; scale: 1 .8; } 60% { rotate: 17deg; scale: 1 .9; } }
+/* casting: lean back gathering power, then thrust it out */
+.mv-cast .upper { animation-name: m-cs-u; } .mv-cast .fb { animation-name: m-cs-b; } .mv-cast .fflip { animation: m-cs-g var(--mvd) ease-out both; } .mv-cast .leg.front { animation-name: m-cs-f; }
+@keyframes m-cs-u { 35% { rotate: -11deg; } 47% { rotate: 9deg; } 75% { rotate: 3deg; } }
+@keyframes m-cs-b { 35% { translate: -5px -2px; } 47% { translate: 7px 0; } }
+@keyframes m-cs-f { 47% { rotate: -10deg; } }
+@keyframes m-cs-g { 30%, 50% { filter: brightness(1.7) drop-shadow(0 0 12px var(--glow)); } }
+
+/* reactions, scaled by the blow (--kb / --kr): pushed back from the hit,
+   torso snapped back, legs dragged */
+.jointed.pose-hurt .fb { animation: r-hurt-b .44s cubic-bezier(.2,.8,.3,1) both; }
+.jointed.pose-hurt .upper { animation: r-hurt-u .44s cubic-bezier(.2,.8,.3,1) both; }
+.jointed.pose-hurt .leg.front { animation: r-hurt-f .44s ease-out both; }
+.jointed.pose-hurt .fflip { animation: r-flash .3s ease-out; }
+@keyframes r-hurt-b { 14% { translate: calc(var(--kb) * -1) -3px; } 42% { translate: calc(var(--kb) * -.55) 0; } 72% { translate: -2px 0; } 100% { translate: 0 0; } }
+@keyframes r-hurt-u { 14% { rotate: calc(var(--kr) * -1); } 45% { rotate: 3deg; } 100% { rotate: 0deg; } }
+@keyframes r-hurt-f { 14% { rotate: 12deg; } }
+@keyframes r-flash { 0%, 20% { filter: brightness(2.8) sepia(1) hue-rotate(-40deg) saturate(5); } 100% { filter: none; } }
+.jointed.pose-block .fb { animation: r-blk-b .4s ease-out both; }
+.jointed.pose-block .upper { animation: r-blk-u .4s ease-out both; }
+.jointed.pose-block .leg.back { animation: r-blk-k .4s ease-out both; }
+.jointed.pose-block .fflip { animation: r-blk-g .4s ease-out; }
+@keyframes r-blk-b { 15% { translate: -6px 3px; scale: 1.03 .96; } 60% { translate: -3px 2px; } }
+@keyframes r-blk-u { 15% { rotate: -9deg; } 60% { rotate: -4deg; } }
+@keyframes r-blk-k { 15% { rotate: 12deg; scale: 1 .94; } }
+@keyframes r-blk-g { 0%, 30% { filter: brightness(1.5) drop-shadow(0 0 3px #fff) drop-shadow(0 0 10px #4fc3ff); } }
+.jointed.pose-dodge .fb { animation: r-dg-b .42s cubic-bezier(.2,.8,.3,1) both; }
+.jointed.pose-dodge .upper { animation: r-dg-u .42s ease-out both; }
+.jointed.pose-dodge .leg { animation: r-dg-l .42s ease-out both; }
+@keyframes r-dg-b { 35% { translate: -26px -11px; } 60% { translate: -20px 0; } 100% { translate: 0 0; } }
+@keyframes r-dg-u { 35% { rotate: -12deg; } }
+@keyframes r-dg-l { 35% { scale: 1 .85; } }
+/* knocked down: launched off the feet, legs fly up, crash */
+.jointed.pose-die .fb { animation: r-die-b .76s cubic-bezier(.4,0,.7,.6) forwards; }
+.jointed.pose-die .leg.front { animation: r-die-f .76s ease-out forwards; }
+.jointed.pose-die .upper { animation: r-die-u .76s ease-out forwards; }
+@keyframes r-die-b { 25% { translate: -18px -26px; rotate: -28deg; } 60% { translate: -30px -8px; rotate: -70deg; } 100% { translate: -34px 10px; rotate: -92deg; filter: grayscale(.7) brightness(.55); } }
+@keyframes r-die-f { 30% { rotate: -40deg; } 100% { rotate: -20deg; } }
+@keyframes r-die-u { 30% { rotate: -14deg; } }
+/* end of the duel */
+.jointed.pose-victory .fb { animation: e-win-b .9s ease-in-out infinite; }
+.jointed.pose-victory .upper { rotate: -8deg; }
+.jointed.pose-victory .leg { animation: e-win-l .9s ease-in-out infinite; }
+@keyframes e-win-b { 0%, 40%, 100% { translate: 0 0; scale: 1.04 .96; } 20% { translate: 0 -16px; scale: .97 1.04; } 70% { translate: 0 -9px; } }
+@keyframes e-win-l { 20% { scale: 1 .9; } }
+.jointed.pose-defeat .upper { rotate: 18deg; translate: 2px 3px; transition: rotate .5s, translate .5s; }
+.jointed.pose-defeat .fb { translate: 0 4px; filter: saturate(.6) brightness(.8); transition: translate .5s, filter .5s; }
+.jointed.pose-defeat .leg { scale: 1 .92; }
+/* landing when a card is placed: drop in, squash, settle */
+.summon-fighter .jointed .fb { animation: j-land .6s .45s cubic-bezier(.3,1.5,.5,1) both; }
+@keyframes j-land { 0% { translate: 0 -60px; scale: .6 1.3; opacity: 0; } 55% { translate: 0 0; scale: 1.25 .75; opacity: 1; } 75% { scale: .92 1.08; } 100% { translate: 0 0; scale: 1 1; } }
+.guarding .jointed .fflip { filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 10px #4fc3ff); }
+.pop-combo-pop { font-family: var(--f-pixel); font-size: 12px !important; color: #ffe27a; -webkit-text-stroke: 1px #000; text-shadow: 0 2px 0 #a33; }
