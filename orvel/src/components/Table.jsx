@@ -13,7 +13,7 @@ import MapBackdrop from './MapBackdrop.jsx'
 import { MAP_ART } from '../lib/mapArt.js'
 
 // The duel, seen from the side at fighter height: your fighters on the left,
-// the rival's on the right, five lanes running back to front. The server
+// the rival's on the right, three lanes running back to front. The server
 // decides everything; this component sends taps ("play card 2 in lane 0",
 // "end turn") and acts out the events that come back, one by one — a fighter
 // runs across its lane, winds up and strikes, and the damage appears on the
@@ -22,10 +22,10 @@ import { MAP_ART } from '../lib/mapArt.js'
 const EL = Object.fromEntries(ELEMENTS.map((e) => [e.id, e]))
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const DUR = { turn: 1000, draw: 200, play: 950, die: 760, burn: 520, rally: 420, hex: 420, fortify: 420, shift: 480, nobattle: 600, timeup: 900 }
-const LANE_NAMES = ['FAR', 'BACK', 'MIDDLE', 'FRONT', 'NEAR']
+const LANE_NAMES = ['BACK', 'MIDDLE', 'FRONT']
 // where each lane stands on screen: further lanes sit higher, smaller and
 // closer to the centre, like a field seen in perspective
-const ROWS = [{ y: 56, s: 0.52, x: [30, 70] }, { y: 66, s: 0.62, x: [26, 74] }, { y: 76, s: 0.73, x: [21, 79] }, { y: 86, s: 0.84, x: [17, 83] }, { y: 97, s: 0.96, x: [12, 88] }]
+const ROWS = [{ y: 60, s: 0.62, x: [27, 73] }, { y: 78, s: 0.78, x: [20, 80] }, { y: 97, s: 0.96, x: [12, 88] }]
 const IMPACT = 310 // ms into a swing when the blow lands (matches the CSS)
 const ELC = { ember: '#ffb04a', tide: '#7fe0ff', gale: '#c6ff6a' }
 
@@ -490,9 +490,9 @@ function Coach({ step, selCard, energy, rivalName, shift, swap, name, over }) {
 // Step-by-step rules, shown before the first duel and behind the ? button.
 export function HowToFight({ onClose }) {
   const steps = [
-    ['🎯', 'The goal', 'Each side has a hero with 40 HP. You are on the left, your rival on the right. Knock their HP to 0 to win. If nobody falls after 10 turns each, the hero with more HP wins.'],
+    ['🎯', 'The goal', 'Each side has a hero with 25 HP. You are on the left, your rival on the right. Knock their HP to 0 to win. If nobody falls after 10 turns each, the hero with more HP wins.'],
     ['⚡', 'Energy', 'At the start of each turn you get energy: 2 on your first turn, 3 on the next, up to 6. Every card shows its cost in a blue circle.'],
-    ['🃏', 'Place fighters', 'Your 5 starters begin on the field, one in each lane. Your 5 bench cards wait below. Over each fighter: LV is its level, ⚔ is how hard it hits, the bar is its health.'],
+    ['🃏', 'Place fighters', 'Your 3 starters begin on the field, one in each lane (back, middle, front). Your 5 bench cards wait below. Over each fighter: LV is its level, ⚔ is how hard it hits, the bar is its health.'],
     ['⚔', 'End turn = attack', 'Tap END TURN. Each of your fighters runs across its lane. If an enemy fighter stands across from it, it hits that fighter. If the lane is empty, it hits the rival hero directly. The number that pops up shows how the damage was added up. (Nobody attacks on the very first turn.)'],
     ['🔁', 'Their turn', 'Your rival does the same: places fighters, then attacks across the lanes. A fighter whose health runs out is knocked out.'],
     ['💡', 'How to win', 'Pick your strongest, highest-level cards before the duel. Block lanes where their strong fighters are. Attack through empty lanes to hit their hero. Each lane has an element: a fighter of that element hits +2 there. Ember ▲ beats Gale ❖, Gale beats Tide ≈, Tide beats Ember: +3 when you hit a fighter you beat.'],

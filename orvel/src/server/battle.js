@@ -122,7 +122,7 @@ export { beats }
 
 // ───────────────────────── lane battles ─────────────────────────
 //
-// Each side has a leader (40 HP) and five lanes. In a duel: five starters on
+// Each side has a leader (25 HP) and three lanes. In a duel: three starters on
 // the field and a bench of five in hand (the tutorial still uses an 8-card deck).
 // Turn: refill energy (2 on your first turn, +1 a turn, max 6), draw a card,
 // play cards into empty lanes for their energy cost, use tactics, then End
@@ -136,8 +136,8 @@ export { beats }
 //
 // A leader at 0 HP loses. After 10 turns each, the healthier leader wins.
 
-export const LANES = 5
-export const LEADER_HP = 40
+export const LANES = 3
+export const LEADER_HP = 25
 export const HAND_START = 4
 export const MAX_ENERGY = 6
 export const TURN_LIMIT = 10
@@ -172,8 +172,8 @@ function shuffle(list, rand) {
 
 // ───────────────────────── maps and lineups ─────────────────────────
 
-// Where the duel is fought. Most maps lean toward one element: three of the
-// five lanes are that element and the rest are random, so a map is worth
+// Where the duel is fought. Most maps lean toward one element: two of the
+// three lanes are that element and the rest are random, so a map is worth
 // choosing to suit your fighters.
 export const MAPS = [
   { id: 'neon', name: 'Neon Alley', element: null, blurb: 'Rain-soaked rooftop under neon signs. Lanes are random.' },
@@ -186,7 +186,7 @@ export const mapById = (id) => MAPS.find((x) => x.id === id) || MAPS[0]
 export function terrainFor(mapId, rand = randomInt) {
   const map = mapById(mapId)
   const t = Array.from({ length: LANES }, () => ELEMENTS[rand(3)].id)
-  // most lanes lean to the map's element (3 of 5), the rest stay random
+  // most lanes lean to the map's element (2 of 3), the rest stay random
   if (map.element) { const lanes = shuffle([...Array(LANES).keys()], rand).slice(0, Math.ceil(LANES / 2)); for (const l of lanes) t[l] = map.element }
   return t
 }
@@ -194,7 +194,7 @@ export function terrainFor(mapId, rand = randomInt) {
 // A lineup is 3 starters, who begin the duel on the field (back, middle and
 // front lane, in that order), and a bench of 6 who wait in your hand to be
 // sent in or swapped in. Every card is visible from the start: no draws.
-export const STARTERS = 5
+export const STARTERS = 3
 export const BENCH = 5
 
 // sides: an array (a deck, shuffled and drawn from — the tutorial) or

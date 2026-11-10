@@ -1928,3 +1928,7 @@ img.contestant-fig { object-fit: cover; border-radius: 10px; -webkit-mask: linea
 @keyframes bdshimmer { to { background-position: -200% 0; } }
 .bdfx-fall { aspect-ratio: 1 / 3; border-radius: 30%; background: repeating-linear-gradient(180deg, transparent 0 10%, #ffffff66 12% 16%, transparent 18% 30%); background-size: 100% 200%; animation: bdfall .8s linear infinite; -webkit-mask: radial-gradient(closest-side, #000 40%, transparent); mask: radial-gradient(closest-side, #000 40%, transparent); }
 @keyframes bdfall { to { background-position: 0 200%; } }
+.lu-slots.three { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-width: 300px; }
+.spot { height: 70px; }
+.plate { scale: max(.7, calc(.62 / var(--s))); }
+.atk-chip { scale: max(.7, calc(.64 / var(--s))); }

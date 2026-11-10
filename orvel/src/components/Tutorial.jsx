@@ -17,7 +17,7 @@ const PIP_DECK = Array.from({ length: 8 }, (_, i) => rc(RECRUITS[i % 3].id, 2, 2
 // A local stand-in for the server with the same method names the table uses.
 export function makeTutorialDuel() {
   const m = newMatch(YOUR_DECK, PIP_DECK, (n) => n - 1) // decks stay in the order above
-  m.terrain = ['ember', 'tide', 'gale', 'tide', 'ember']
+  m.terrain = ['ember', 'tide', 'gale']
   let status = 'active'
   let pipTurn = 0
   const view = () => {
@@ -53,18 +53,18 @@ export function makeTutorialDuel() {
 // What to do at each step. `wait` says what moves the tutorial on.
 export const TUT_STEPS = [
   { wait: 'next', text: "Hi, I'm Pip! This is your first duel, so let's learn by playing. Nothing is bet here." },
-  { wait: 'next', hl: 'hp', text: 'You each have 40 HP. Your bar is on the left, mine is on the right — just like your fighters and mine. Knock mine down to 0 to win.' },
+  { wait: 'next', hl: 'hp', text: 'You each have 25 HP. Your bar is on the left, mine is on the right — just like your fighters and mine. Knock mine down to 0 to win.' },
   { wait: 'select', hl: 'hand0', allowSelect: (i) => i === 0, text: 'These are your cards. The LV tag is the card\'s level — higher levels fight harder. Tap the glowing card to pick it up.' },
-  { wait: 'play', hl: 'lane-you-0', allowLane: (l) => l === 0, text: 'Now tap the glowing ring on your side to send it onto the battlefield. This is the FAR lane, at the back of the field.' },
+  { wait: 'play', hl: 'lane-you-0', allowLane: (l) => l === 0, text: 'Now tap the glowing ring on your side to send it onto the battlefield. This is the BACK lane.' },
   { wait: 'next', hl: 'unit-you-0', text: 'Your card became a fighter! Above its head: ⚔ is how hard it hits and the green bar is its health. It stands in an Ember ▲ lane and it is an Ember fighter, so it hits +2 harder here.' },
   { wait: 'next', hl: 'energy', text: 'Cards cost energy (the blue diamonds). That card cost 2, all you had. Next turn you get 3, then 4, up to 6.' },
   { wait: 'end', hl: 'end', text: "Tap END TURN. Fighters attack when you end your turn — but on the very first turn of a duel nobody attacks." },
-  { wait: 'next', hl: 'lane-them-1', text: 'My turn: I placed a fighter in the BACK lane, just in front of yours. Your side of that lane was empty, so it ran straight through and hit you for 2. Empty lanes let fighters hit the hero!' },
-  { wait: 'next', hl: 'unit-you-0', text: 'The same goes for you: your FAR-lane fighter faces an empty lane, so when you end your turn it will run across and hit me directly. See the → tag over it?' },
-  { wait: 'play', hl: 'lane-you-1', allowSelect: () => true, allowLane: (l) => l === 1, text: "Let's stop my BACK-lane fighter. Pick any card you can afford, then place it on the glowing ring in the BACK lane to block it." },
+  { wait: 'next', hl: 'lane-them-1', text: 'My turn: I placed a fighter in the MIDDLE lane. Your side of that lane was empty, so it ran straight through and hit you for 2. Empty lanes let fighters hit the hero!' },
+  { wait: 'next', hl: 'unit-you-0', text: 'The same goes for you: your BACK-lane fighter faces an empty lane, so when you end your turn it will run across and hit me directly. See the → tag over it?' },
+  { wait: 'play', hl: 'lane-you-1', allowSelect: () => true, allowLane: (l) => l === 1, text: "Let's stop my middle fighter. Pick any card you can afford, then place it on the glowing MIDDLE ring to block it." },
   { wait: 'end', hl: 'end', text: 'Now END TURN and watch your fighters run across their lanes and attack! The damage shows on whoever gets hit, with the sum that made it.' },
-  { wait: 'next', text: 'Your FAR-lane fighter hit me directly, and your BACK-lane fighter hit mine. Then I attacked back. A fighter whose health bar runs out is knocked out.' },
-  { wait: 'tactic', hl: 'unit-you-1', allowUnitTap: true, skip: true, text: 'Tactics: tap your BACK-lane fighter, then press FORTIFY (1 energy). It will block 4 damage from every hit until your next turn.' },
+  { wait: 'next', text: 'Your back-lane fighter hit me directly, and your middle fighter hit mine. Then I attacked back. A fighter whose health bar runs out is knocked out.' },
+  { wait: 'tactic', hl: 'unit-you-1', allowUnitTap: true, skip: true, text: 'Tactics: tap your MIDDLE fighter, then press FORTIFY (1 energy). It will block 4 damage from every hit until your next turn.' },
   { wait: 'next', hl: 'terrain', text: 'Last thing: elements. A fighter on its own element lane hits +2. Ember ▲ beats Gale ❖, Gale beats Tide ≈, Tide beats Ember: +3 when you hit a fighter yours beats.' },
   { wait: 'next', text: "That's everything! Finish the duel your way — keep placing fighters and ending your turn. Tap ? any time for the rules." },
   { wait: 'free' },

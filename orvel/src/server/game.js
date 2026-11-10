@@ -172,7 +172,7 @@ export function migrate(s) {
     s.version = 5
   }
   if (s.version < 6) s.version = 6
-  // five lanes: a duel still running on the old three-lane field is
+  // lane count changed: a duel still running on a different-sized field is
   // cancelled and its bet returned (checked on every load, like levels below)
   for (const m of s.battles || []) if (m.status === 'active' && m.game && m.game.you?.board?.length !== LANES) refundBattle(s, m)
   // v6: card levels. Every copy owned before levels existed rolls one now, by

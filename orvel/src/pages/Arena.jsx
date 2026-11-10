@@ -96,7 +96,7 @@ export default function Arena() {
         <div className="ah-content">
           <div className="ah-kicker">ORVEL</div>
           <h1 className="ah-title">ARENA</h1>
-          <p className="ah-sub">Five lanes. Ten cards. Bet it all and win double.</p>
+          <p className="ah-sub">Three lanes. Eight cards. Bet it all and win double.</p>
           <div className="ah-links">
             <button className="link ah-rules" onClick={() => { play('click'); setRules(true) }}>How duels work</button>
             <button className="link ah-rules" onClick={startTutorial}>{snap.player.tutorialDone ? 'Replay tutorial' : 'Play the tutorial (+300)'}</button>
@@ -283,7 +283,7 @@ function LineupSlot({ k, label, resolve, options, onRemove, onMove, moveLabel })
 
 const DECK_KEY = 'orvel:lastLineup'
 const MAP_KEY = 'orvel:lastMap'
-const LANE_LABELS = ['FAR', 'BACK', 'MID', 'FRONT', 'NEAR']
+const LANE_LABELS = ['BACK', 'MIDDLE', 'FRONT']
 function DuelSetup({ rival, onClose, onStart }) {
   const { snap, rarityById, call } = useGame()
   const resolve = useResolve()
@@ -395,7 +395,7 @@ function DuelSetup({ rival, onClose, onStart }) {
             <span className="ds-links"><button className="link" onClick={() => { play('click'); setLineup(strongest()) }}>Auto-pick strongest</button> <button className="link" onClick={() => { play('click'); setLineup({ starters: [], bench: [] }) }}>Clear</button></span></div>
           <div className="lu-zone">
             <div className="lu-title"><b>STARTERS</b><span className="fine">On the field when the duel begins</span></div>
-            <div className="lu-slots five">
+            <div className="lu-slots three">
               {Array.from({ length: STARTERS }, (_, i) => <LineupSlot key={i} k={lineup.starters[i]} label={LANE_LABELS[i]} resolve={resolve} options={options} onRemove={toggle} onMove={flip} moveLabel="to bench" />)}
             </div>
           </div>
