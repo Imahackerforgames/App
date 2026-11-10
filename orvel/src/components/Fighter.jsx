@@ -71,14 +71,18 @@ function Fighter({ unit, rarity, side, pose = 'idle', look = null }) {
   const L = loadoutOf(unit, tier, look)
   const sp = SPRITES[L.crew]
   const style = STYLE[L.weapon] || 'slash'
-  const h = Math.round(128 * (L.size || 1))
+  const h = Math.round(92 * (L.size || 1))
+  const flip = L.left ? 'scaleX(-1)' : undefined
+  const moving = pose === 'run' || pose === 'atk'
   return (
     <div className={`ftr sprite ftr-${side} ftier-${tier} out-${L.crew} wpn-${L.weapon} sty-${style} pose-${pose}`}
       style={{ '--glow': GLOW[unit.element] || '#ffd166', '--tempo': `${L.tempo}s` }} aria-hidden="true">
       {tier >= 4 && <div className="f-aura" />}
       <div className="f-shadow" />
+      {/* afterimages trail behind a fighter while it dashes and strikes */}
+      {moving && sp && [1, 2].map((k) => <div key={k} className={`spr spr-ghost g${k}`}><img src={sp.src} alt="" draggable="false" style={{ height: h, transform: flip }} /></div>)}
       <div className="spr">
-        {sp && <img src={sp.src} alt="" draggable="false" style={{ height: h, transform: L.left ? 'scaleX(-1)' : undefined }} />}
+        {sp && <img src={sp.src} alt="" draggable="false" style={{ height: h, transform: flip }} />}
       </div>
     </div>
   )

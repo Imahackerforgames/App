@@ -1962,3 +1962,95 @@ img.contestant-fig { object-fit: cover; border-radius: 10px; -webkit-mask: linea
 .bolt-bow.side-them { scale: -1 1; }
 .bolt-staff { background: radial-gradient(circle, #fffbd0, #ffd84a 40%, #9cff5a00 72%); box-shadow: 0 0 22px #ffd84a; width: 26px; height: 26px; margin-left: -13px; }
 .art-fighter .af-box { width: 100px; height: 150px; }
+
+/* ═════════════ sprite fighters: size and motion, round 2 ═════════════ */
+.plate { bottom: 112px; }
+.atk-chip { bottom: 132px; }
+.spot-pops { bottom: 96px; }
+/* fighting stance: a springy bounce with a little sway, like a fighter on their toes */
+.pose-idle .spr { animation: sp-stance var(--tempo, 2.4s) ease-in-out infinite; }
+@keyframes sp-stance {
+  0%, 100% { translate: -50% 0; scale: 1 1; rotate: 0deg; }
+  12% { translate: -50% 1px; scale: 1.035 .965; rotate: -1.5deg; }
+  25% { translate: -50% -5px; scale: .975 1.03; rotate: 1deg; }
+  38% { translate: -50% 0; scale: 1.03 .97; rotate: 0deg; }
+  50% { translate: calc(-50% + 2px) -2px; scale: 1 1; rotate: 2deg; }
+  62% { translate: -50% 1px; scale: 1.035 .965; rotate: -1deg; }
+  75% { translate: -50% -5px; scale: .975 1.03; rotate: 1.5deg; }
+  88% { translate: calc(-50% - 2px) 0; scale: 1.02 .98; rotate: -1deg; }
+}
+/* run: big strides, leaning hard into the charge */
+.pose-run .spr:not(.spr-ghost) { animation: sp-run2 .2s ease-in-out infinite alternate; }
+@keyframes sp-run2 { from { rotate: 12deg; translate: -50% 0; scale: 1.06 .94; } to { rotate: 6deg; translate: -50% -12px; scale: .96 1.05; } }
+/* strikes: crouch, explode forward, overshoot, recoil, settle */
+.pose-atk .spr:not(.spr-ghost) { animation: sp-atk2 .56s cubic-bezier(.4,0,.3,1) both; }
+@keyframes sp-atk2 {
+  0% { translate: -50% 0; rotate: 0deg; scale: 1 1; }
+  22% { translate: calc(-50% - 8px) 3px; rotate: -8deg; scale: 1.08 .9; }
+  40% { translate: calc(-50% - 14px) -6px; rotate: -16deg; scale: .92 1.1; }
+  55% { translate: calc(-50% + 24px) 2px; rotate: 18deg; scale: 1.14 .9; }
+  64% { translate: calc(-50% + 28px) 0; rotate: 12deg; scale: 1.06 .96; }
+  78% { translate: calc(-50% + 14px) -3px; rotate: 4deg; scale: .98 1.02; }
+  90% { translate: calc(-50% + 4px) 0; rotate: -3deg; scale: 1.02 .98; }
+  100% { translate: -50% 0; rotate: 0deg; scale: 1 1; }
+}
+.sty-smash.pose-atk .spr:not(.spr-ghost) { animation-name: sp-smash2; }
+@keyframes sp-smash2 {
+  0% { translate: -50% 0; rotate: 0deg; scale: 1 1; }
+  20% { translate: calc(-50% - 4px) 4px; scale: 1.12 .86; rotate: -4deg; }
+  42% { translate: calc(-50% - 6px) -26px; scale: .9 1.14; rotate: -20deg; }
+  55% { translate: calc(-50% + 20px) 4px; scale: 1.2 .82; rotate: 22deg; }
+  66% { translate: calc(-50% + 18px) 2px; scale: 1.08 .94; rotate: 14deg; }
+  80% { translate: calc(-50% + 8px) -4px; scale: .97 1.03; rotate: 3deg; }
+  100% { translate: -50% 0; rotate: 0deg; scale: 1 1; }
+}
+.sty-thrust.pose-atk .spr:not(.spr-ghost) { animation-name: sp-thrust2; }
+@keyframes sp-thrust2 {
+  0% { translate: -50% 0; }
+  25% { translate: calc(-50% - 10px) 2px; rotate: -4deg; scale: 1.06 .94; }
+  42% { translate: calc(-50% - 18px) 0; rotate: -8deg; }
+  55% { translate: calc(-50% + 36px) 0; rotate: 8deg; scale: 1.16 .92; }
+  70% { translate: calc(-50% + 30px) 0; rotate: 5deg; }
+  86% { translate: calc(-50% + 6px) -3px; rotate: -2deg; }
+  100% { translate: -50% 0; }
+}
+.sty-cast.pose-atk .spr:not(.spr-ghost) { animation-name: sp-cast2; }
+@keyframes sp-cast2 {
+  0% { translate: -50% 0; filter: none; }
+  30% { translate: calc(-50% - 8px) -10px; rotate: -10deg; scale: .94 1.08; filter: brightness(1.3) drop-shadow(0 0 8px var(--glow)); }
+  45% { translate: calc(-50% - 10px) -12px; rotate: -12deg; filter: brightness(1.6) drop-shadow(0 0 14px var(--glow)); }
+  56% { translate: calc(-50% + 10px) 0; rotate: 10deg; scale: 1.1 .92; filter: brightness(2) drop-shadow(0 0 18px var(--glow)); }
+  75% { translate: calc(-50% + 4px) 0; rotate: 2deg; filter: brightness(1.2); }
+  100% { translate: -50% 0; filter: none; }
+}
+/* afterimages: tinted copies that lag a beat behind */
+.spr-ghost { pointer-events: none; opacity: .32; filter: blur(1px) brightness(1.4) drop-shadow(0 0 4px var(--glow)); }
+.spr-ghost.g2 { opacity: .16; }
+.pose-run .spr-ghost { animation: sp-run2 .2s ease-in-out infinite alternate; translate: -62% 0; }
+.pose-run .spr-ghost.g2 { translate: -74% 0; }
+.pose-atk .spr-ghost { animation: sp-atk2 .56s cubic-bezier(.4,0,.3,1) both; animation-delay: .05s; }
+.pose-atk .spr-ghost.g2 { animation-delay: .1s; }
+.sty-smash.pose-atk .spr-ghost { animation-name: sp-smash2; }
+.sty-thrust.pose-atk .spr-ghost { animation-name: sp-thrust2; }
+.sty-cast.pose-atk .spr-ghost { display: none; }
+/* hit: knocked back hard, wobble, recover */
+.pose-hurt .spr { animation: sp-hurt2 .5s cubic-bezier(.2,.8,.3,1); }
+@keyframes sp-hurt2 {
+  0% { translate: -50% 0; filter: none; }
+  12% { translate: calc(-50% - 22px) -6px; rotate: -16deg; scale: .9 1.08; filter: brightness(3) sepia(1) hue-rotate(-40deg) saturate(6); }
+  30% { translate: calc(-50% - 14px) 0; rotate: -8deg; scale: 1.06 .94; filter: brightness(1.6); }
+  48% { translate: calc(-50% - 6px) 0; rotate: 5deg; filter: none; }
+  66% { translate: calc(-50% - 2px) 0; rotate: -3deg; }
+  100% { translate: -50% 0; rotate: 0deg; }
+}
+/* knocked out: launched back, spin, crash down */
+.pose-die .spr { animation: sp-die2 .76s cubic-bezier(.4,0,.7,.6) forwards; }
+@keyframes sp-die2 {
+  0% { translate: -50% 0; rotate: 0deg; }
+  25% { translate: calc(-50% - 18px) -26px; rotate: -30deg; filter: brightness(2.2); }
+  60% { translate: calc(-50% - 30px) -8px; rotate: -70deg; }
+  100% { translate: calc(-50% - 34px) 10px; rotate: -92deg; filter: grayscale(.7) brightness(.55); }
+}
+/* summon: drop in from above with a landing squash */
+.summon-fighter .spr { animation: sp-land .6s .45s cubic-bezier(.3,1.5,.5,1) both; }
+@keyframes sp-land { 0% { translate: -50% -60px; scale: .6 1.3; opacity: 0; } 55% { translate: -50% 0; scale: 1.25 .75; opacity: 1; } 75% { scale: .92 1.08; } 100% { translate: -50% 0; scale: 1 1; } }
